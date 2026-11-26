@@ -3,7 +3,7 @@ import { bundleManager } from '@kit.AbilityKit';
 import { HdsNavDestination, HdsNavigationTitleBarOptions } from '@kit.UIDesignKit';
 import { Api, ApiInfo, SessionRow } from '../common/Api';
 import { AppCtx } from '../common/AppCtx';
-import { AppIcon, ICON_LIGHT } from '../common/AppIcon';
+import { AppIcon, ICON_DARK } from '../common/AppIcon';
 import { PageHeader, TopFade, buildTransparentHdsTitle } from '../common/Chrome';
 import { Haptics } from '../common/Haptics';
 import { LegalDocKind } from '../common/LegalDocs';
@@ -92,7 +92,7 @@ export struct SettingsPage {
   @StorageLink('linkEncrypted') linkEncrypted: boolean = false;
   @StorageLink('wideScreen') wideScreen: boolean = false;
   @StorageLink('unreadCount') unreadCount: number = 0;
-  @StorageLink('appIconStyle') appIconStyle: string = ICON_LIGHT;
+  @StorageLink('appIconStyle') appIconStyle: string = ICON_DARK;
 
   @State private pairEntry: string = '';
   @State private dataRefreshTick: number = 0;

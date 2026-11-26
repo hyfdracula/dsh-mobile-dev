@@ -1,5 +1,5 @@
 import { Api, Message, TurnInfo } from '../../common/Api';
-import { AppIcon, ICON_LIGHT } from '../../common/AppIcon';
+import { AppIcon, ICON_DARK } from '../../common/AppIcon';
 import { copyText } from '../../common/Clipboard';
 import { Haptics } from '../../common/Haptics';
 import { heartbeatBodyOf, isHeartbeatText } from '../../common/Heartbeat';
@@ -73,7 +73,7 @@ export struct ChatBubbleItem {
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
 
-  @StorageLink('appIconStyle') appIconStyle: string = ICON_LIGHT;
+  @StorageLink('appIconStyle') appIconStyle: string = ICON_DARK;
   @State private showRawHeartbeat: boolean = false;
   @State private expandedLong: boolean = false;
 

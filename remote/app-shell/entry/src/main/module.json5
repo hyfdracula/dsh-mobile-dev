@@ -37,7 +37,7 @@
         "name": "EntryAbility",
         "srcEntry": "./ets/entryability/EntryAbility.ets",
         "description": "$string:EntryAbility_desc",
-        "icon": "$media:layered_image",
+        "icon": "$media:layered_image_dark",
         "label": "$string:EntryAbility_label",
         "startWindowBackground": "$color:start_window_background",
         "startWindowIcon": "$media:start_window_icon",

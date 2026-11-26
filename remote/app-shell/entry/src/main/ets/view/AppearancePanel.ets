@@ -49,7 +49,7 @@ export struct AppearancePanel {
 
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('hdsOn') hdsOn: boolean = true;
-  @StorageLink('appIconStyle') appIconStyle: string = ICON_LIGHT;
+  @StorageLink('appIconStyle') appIconStyle: string = ICON_DARK;
   @State private iconBusy: boolean = false;
 
   private async applyIcon(target: string): Promise<void> {
@@ -61,7 +61,7 @@ export struct AppearancePanel {
     try {
       const res: IconSwitchResult = await AppIcon.switchTo(target);
       if (res.desktopApplied) {
-        Toast.ok(target === ICON_DARK ? '已切换为纯粹曜黑图标' : '已切换为冷银瓷白默认图标');
+        Toast.ok(target === ICON_LIGHT ? '已切换为冷银瓷白图标' : '已切换为纯粹曜黑默认图标');
       } else {
         Toast.info('应用内图标已切换；桌面图标切换受系统限制（' + String(res.errCode) + '）');
       }
@@ -199,9 +199,9 @@ export struct AppearancePanel {
             Column() {
               this.labelWithHint(
                 '应用图标',
-                '在冷银瓷白（默认）与纯粹曜黑两套鸿蒙分层图标之间切换，同步更新桌面图标与应用内标识。'
+                '在纯粹曜黑（默认）与冷银瓷白两套鸿蒙分层图标之间切换，同步更新桌面图标与应用内标识。'
               )
-              Text(this.appIconStyle === ICON_DARK ? '当前：纯粹曜黑（暗夜饱满版）' : '当前：冷银瓷白（默认饱满版）')
+              Text(this.appIconStyle === ICON_LIGHT ? '当前：冷银瓷白（浅色饱满版）' : '当前：纯粹曜黑（默认饱满版）')
                 .fontSize(Tokens.fsCaption)
                 .fontColor(Tokens.dim2)
                 .margin({ top: 3 })
@@ -212,8 +212,8 @@ export struct AppearancePanel {
           .width('100%')
 
           Row({ space: 10 }) {
-            this.iconOptionCard(ICON_LIGHT, '冷银瓷白', '默认', $r('app.media.app_icon'))
-            this.iconOptionCard(ICON_DARK, '纯粹曜黑', '暗夜', $r('app.media.app_icon_dark'))
+            this.iconOptionCard(ICON_DARK, '纯粹曜黑', '默认', $r('app.media.app_icon_dark'))
+            this.iconOptionCard(ICON_LIGHT, '冷银瓷白', '浅色', $r('app.media.app_icon'))
           }
           .width('100%')
         }

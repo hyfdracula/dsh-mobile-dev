@@ -1,5 +1,5 @@
 import { ImageRef, Api } from '../common/Api';
-import { AppIcon, ICON_LIGHT } from '../common/AppIcon';
+import { AppIcon, ICON_DARK } from '../common/AppIcon';
 import { Tokens } from '../common/Tokens';
 import { Haptics } from '../common/Haptics';
 
@@ -14,7 +14,7 @@ export struct MessageImages {
   onTap: (url: string) => void = () => {};
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('attSigRev') attSigRev: number = 0;
-  @StorageLink('appIconStyle') appIconStyle: string = ICON_LIGHT;
+  @StorageLink('appIconStyle') appIconStyle: string = ICON_DARK;
 
   private widthOf(img: ImageRef): number {
     return img.width > 0 && img.height > 0 && img.width < 270 ? img.width : 270;

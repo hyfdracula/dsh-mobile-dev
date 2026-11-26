@@ -16,6 +16,31 @@ const STYLE_ID: string = 'am-wc-mobile-compat';
 const DESKTOP_UA: string =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
+const ARKWEB_COMPAT_CSS: string =
+  'html body [data-sidebar-drawer]>[class*="_sidebarCol"]{' +
+  'width:min(86vw,280px)!important;max-width:min(86vw,280px)!important;height:100%!important;' +
+  '}' +
+  'html body [class*="_sidebarCol"]>div{' +
+  'width:100%!important;max-width:100%!important;height:100%!important;' +
+  '}' +
+  'html body [class*="_sidebarCol"] [class*="_root"],' +
+  'html body [class*="_sidebarCol"] [role="dialog"][aria-modal="true"]{' +
+  'position:relative!important;inset:auto!important;left:auto!important;right:auto!important;' +
+  'top:auto!important;bottom:auto!important;transform:none!important;margin:0!important;' +
+  'width:100%!important;max-width:100%!important;min-width:0!important;' +
+  'height:100%!important;max-height:100%!important;box-sizing:border-box!important;' +
+  '}' +
+  'html body [class*="_sidebarCol"] [class*="_root"]:not([class*="_collapsed"]) [class*="_newSession"]{' +
+  'width:100%!important;height:38px!important;min-height:38px!important;max-height:38px!important;' +
+  'flex:1 1 auto!important;container-type:normal!important;' +
+  '}' +
+  'html body [class*="_sidebarCol"] [class*="_newSessionContent"]{' +
+  'width:100%!important;' +
+  '}' +
+  'html body [class*="_sidebarCol"] [class*="_scrollRegion"]{' +
+  'container-type:normal!important;flex:1 1 auto!important;min-height:0!important;' +
+  '}';
+
 const GENERIC_MOBILE_CSS: string =
   '@media (max-width:768px){' +
   'html,body{max-width:100vw!important;overflow-x:hidden!important;-webkit-text-size-adjust:100%;}' +
@@ -39,7 +64,7 @@ export struct WebConsolePage {
   @StorageLink('themeBg') themeBg: string = Tokens.bg;
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
-  @StorageLink('wcMobileCompat') wcMobileCompat: boolean = false;
+  @StorageLink('wcMobileCompat') wcMobileCompat: boolean = true;
   @StorageLink('wcAutoDismissPromo') wcAutoDismissPromo: boolean = false;
 
   @State private loading: boolean = true;
@@ -225,18 +250,34 @@ export struct WebConsolePage {
     if (!this.webReady) {
       return;
     }
-    const compatOn: string = this.wcMobileCompat && !this.desktopMode ? 'true' : 'false';
+    const compatOn: string = this.wcMobileCompat ? 'true' : 'false';
     const promoOn: string = this.wcAutoDismissPromo ? 'true' : 'false';
-    const cssJson: string = JSON.stringify(GENERIC_MOBILE_CSS);
+    const cssText: string = this.desktopMode ? ARKWEB_COMPAT_CSS : (ARKWEB_COMPAT_CSS + GENERIC_MOBILE_CSS);
+    const cssJson: string = JSON.stringify(cssText);
     const idJson: string = JSON.stringify(STYLE_ID);
     const js: string =
       '(function(){' +
       'var sid=' + idJson + ';' +
+      'function setWmDisabled(dis){' +
+      'var wm=document.querySelectorAll("style[data-plugin=\\"dsh-web-mobile\\"]");' +
+      'for(var k=0;k<wm.length;k++){wm[k].disabled=dis;}' +
+      '}' +
       'var ex=document.getElementById(sid);' +
       'if(' + compatOn + '){' +
-      'if(!ex){ex=document.createElement("style");ex.id=sid;if(document.head)document.head.appendChild(ex);}' +
+      'setWmDisabled(true);' +
+      'if(!window.__amWcObs&&document.head){' +
+      'window.__amWcObs=new MutationObserver(function(){setWmDisabled(true);});' +
+      'window.__amWcObs.observe(document.head,{childList:true});' +
+      '}' +
+      'if(!ex){ex=document.createElement("style");ex.id=sid;}' +
       'ex.textContent=' + cssJson + ';' +
-      '}else if(ex&&ex.parentNode){ex.parentNode.removeChild(ex);}' +
+      'if(document.head){document.head.appendChild(ex);}' +
+      '}else{' +
+      'if(window.__amWcObs){try{window.__amWcObs.disconnect();}catch(e){}window.__amWcObs=null;}' +
+      'setWmDisabled(false);' +
+      'if(ex&&ex.parentNode){ex.parentNode.removeChild(ex);}' +
+      '}' +
+      'window.dispatchEvent(new Event("resize"));' +
       'if(' + promoOn + '){' +
       'var nodes=document.querySelectorAll("[role=\\"dialog\\"],[aria-modal=\\"true\\"],.modal");' +
       'for(var i=0;i<nodes.length;i++){' +
@@ -247,7 +288,7 @@ export struct WebConsolePage {
       'var btns=n.querySelectorAll("button,[role=\\"button\\"],a");' +
       'for(var j=0;j<btns.length;j++){' +
       'var b=btns[j];var bt=(b.innerText||b.getAttribute("aria-label")||"").trim().toLowerCase();' +
-      'if(bt==="×"||bt==="✕"||bt==="关闭"||bt==="稍后"||bt.indexOf("以后")>=0||bt==="close"||bt==="dismiss"||bt.indexOf("no thanks")>=0){' +
+      'if(bt==="\\u00d7"||bt==="\\u2715"||bt==="关闭"||bt==="知道了"||bt==="我知道了"||bt==="稍后"||bt.indexOf("以后")>=0||bt==="close"||bt==="dismiss"||bt.indexOf("no thanks")>=0){' +
       'try{b.click();}catch(e){}break;' +
       '}' +
       '}' +
@@ -316,7 +357,7 @@ export struct WebConsolePage {
     Column({ space: 12 }) {
       SheetHeader({
         title: '网页兼容与显示选项',
-        subtitle: '按需开启的通用浏览增强（默认关闭）',
+        subtitle: 'ArkWeb 网页控制台布局与浏览兼容增强',
         onClose: () => {
           this.optionsOpen = false;
         }
@@ -325,7 +366,7 @@ export struct WebConsolePage {
       Column() {
         RowSwitch({
           title: '移动端适配增强',
-          hint: '注入通用窄屏响应式样式，改善横向溢出与弹窗宽度',
+          hint: '隔离冲突移动端插件样式并修复 ArkWeb 侧栏与主视图布局（默认开启）',
           value: this.wcMobileCompat,
           onChanged: (v: boolean) => {
             void this.saveOptionFlag('wcMobileCompat', v);
@@ -436,7 +477,10 @@ export struct WebConsolePage {
               this.applyOptionalScripts();
               this.scheduleTimer(() => {
                 this.applyOptionalScripts();
-              }, 700);
+              }, 800);
+              this.scheduleTimer(() => {
+                this.applyOptionalScripts();
+              }, 2600);
             })
             .width('100%')
             .height('100%')

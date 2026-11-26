@@ -3,7 +3,7 @@ import http from '@ohos.net.http';
 import { Api } from '../common/Api';
 import { isLanUrl } from '../common/ApiUtil';
 import { AppCtx } from '../common/AppCtx';
-import { AppIcon, ICON_LIGHT } from '../common/AppIcon';
+import { AppIcon, ICON_DARK } from '../common/AppIcon';
 import { PageHeader, TopFade } from '../common/Chrome';
 import { copyText } from '../common/Clipboard';
 import { Haptics } from '../common/Haptics';
@@ -51,7 +51,7 @@ export struct PairPage {
   @StorageLink('themeBg') themeBg: string = Tokens.bg;
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
-  @StorageLink('appIconStyle') appIconStyle: string = ICON_LIGHT;
+  @StorageLink('appIconStyle') appIconStyle: string = ICON_DARK;
 
   @State private screen: string = 'connect';
   @State private tab: string = 'code';

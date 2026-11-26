@@ -3,7 +3,7 @@ import ConfigurationConstant from '@ohos.app.ability.ConfigurationConstant';
 import { Configuration } from '@ohos.app.ability.Configuration';
 import { Api } from '../common/Api';
 import { AppCtx } from '../common/AppCtx';
-import { AppIcon, ICON_LIGHT } from '../common/AppIcon';
+import { AppIcon, ICON_DARK } from '../common/AppIcon';
 import { isLanUrl } from '../common/ApiUtil';
 import { Tokens } from '../common/Tokens';
 import { ChatParam } from '../common/Types';
@@ -51,7 +51,7 @@ struct Index {
   @State private machineName: string = '';
   @State private haptics: boolean = true;
   @State private hdsOn: boolean = true;
-  @StorageLink('appIconStyle') appIconStyle: string = ICON_LIGHT;
+  @StorageLink('appIconStyle') appIconStyle: string = ICON_DARK;
   @State private cfgLoaded: boolean = false;
   @State private privacyAccepted: boolean = false;
   @State private legalKind: string = '';
@@ -264,9 +264,9 @@ struct Index {
       const p = await preferences.getPreferences(AppCtx.ability(), PREF_STORE);
       const pa = await p.get('privacyAccepted', '0') as string;
       this.privacyAccepted = pa === '1';
-      const wmc = await p.get('wcMobileCompat', '0') as string;
+      const wmc = await p.get('wcMobileCompat', '1') as string;
       const wmp = await p.get('wcAutoDismissPromo', '0') as string;
-      AppStorage.setOrCreate('wcMobileCompat', wmc === '1');
+      AppStorage.setOrCreate('wcMobileCompat', wmc !== '0');
       AppStorage.setOrCreate('wcAutoDismissPromo', wmp === '1');
 
       let b = await p.get('base', DEFAULT_BASE) as string;
@@ -291,7 +291,7 @@ struct Index {
       const al = await p.get('autoLan', '') as string;
       const hp = await p.get('haptics', '1') as string;
       const hd = await p.get('hdsOn', '1') as string;
-      const ic = await p.get('appIconStyle', ICON_LIGHT) as string;
+      const ic = await p.get('appIconStyle', ICON_DARK) as string;
       const nd = await p.get('notifyDone', '1') as string;
       const nb = await p.get('notifyBgOnly', '1') as string;
       const es = await p.get('enterSend', '1') as string;

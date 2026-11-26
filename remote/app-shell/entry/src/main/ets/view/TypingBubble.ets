@@ -1,4 +1,4 @@
-import { AppIcon, ICON_LIGHT } from '../common/AppIcon';
+import { AppIcon, ICON_DARK } from '../common/AppIcon';
 import { Motion } from '../common/Motion';
 import { Tokens } from '../common/Tokens';
 
@@ -13,7 +13,7 @@ export struct TypingBubble {
   /** 当前主相位的点下标（0/1/2），由父级在运行态推进。 */
   @Prop active: number = 0;
   @StorageLink('themeDark') themeDark: boolean = true;
-  @StorageLink('appIconStyle') appIconStyle: string = ICON_LIGHT;
+  @StorageLink('appIconStyle') appIconStyle: string = ICON_DARK;
 
   private dotOpacity(i: number): number {
     if (this.active === i) {
