@@ -5,6 +5,7 @@ import { Haptics } from '../common/Haptics';
 import { Machines } from '../common/Machines';
 import { Mat } from '../common/Mat';
 import { Pairing } from '../common/Pairing';
+import { SegmentOption, SlidingSegment } from '../common/SlidingSegment';
 import { Toast } from '../common/Toast';
 import { Tokens } from '../common/Tokens';
 import { HintLabel, SheetHeader } from '../common/Widgets';
@@ -12,6 +13,12 @@ import { AgentSetupCard } from './AgentSetupCard';
 import { ConnectForm } from './ConnectForm';
 import { DeviceCard } from './DeviceCard';
 import { MachineList } from './MachineList';
+
+const NET_MODE_OPTIONS: SegmentOption[] = [
+  { id: 'auto', label: '自动' },
+  { id: 'lan', label: '仅局域网' },
+  { id: 'wan', label: '仅公网' }
+];
 
 /**
  * 「连接」面板（精简聚焦版）：
@@ -643,9 +650,13 @@ export struct ConnectPanel {
         .alignItems(VerticalAlign.Center)
 
         Row() {
-          this.netChip('自动', 'auto')
-          this.netChip('仅局域网', 'lan')
-          this.netChip('仅公网', 'wan')
+          SlidingSegment({
+            options: NET_MODE_OPTIONS,
+            selected: this.netMode,
+            onSelect: (mode: string) => {
+              this.onNetMode(mode);
+            }
+          })
         }
         .width('100%')
         .margin({ top: 10 })

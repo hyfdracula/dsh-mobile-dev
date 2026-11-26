@@ -14,10 +14,11 @@ import { ChatPage } from '../view/ChatPage';
 import { PresetsPage } from '../view/PresetsPage';
 import { PairPage } from '../view/PairPage';
 import { ShellPage } from '../view/ShellPage';
+import { GlassToastHost } from '../common/GlassToastHost';
 import { Haptics } from '../common/Haptics';
 import { Machines } from '../common/Machines';
 import { Mat } from '../common/Mat';
-import { Motion, MOTION_VIVID } from '../common/Motion';
+import { Motion, MOTION_VIVID, SPEED_NORMAL } from '../common/Motion';
 import { Net } from '../common/Net';
 import { Secret } from '../common/Secret';
 import { Toast } from '../common/Toast';
@@ -282,9 +283,11 @@ struct Index {
       const wmc = await p.get('wcMobileCompat', '1') as string;
       const wmp = await p.get('wcAutoDismissPromo', '0') as string;
       const mm = await p.get('motionMode', MOTION_VIVID) as string;
+      const ms = await p.get('motionSpeed', SPEED_NORMAL) as string;
       AppStorage.setOrCreate('wcMobileCompat', wmc !== '0');
       AppStorage.setOrCreate('wcAutoDismissPromo', wmp === '1');
       AppStorage.setOrCreate('motionMode', Motion.normalize(mm));
+      AppStorage.setOrCreate('motionSpeed', Motion.normalizeSpeed(ms));
 
       let b = await p.get('base', DEFAULT_BASE) as string;
       const tOldBase: string = b;
@@ -923,6 +926,14 @@ struct Index {
         .width('100%')
         .height('100%')
       }
+
+      // 旗舰液态玻璃弹簧 Toast 顶层宿主（外层声明 HitTestMode.None 彻底透传全部触控）
+      Row() {
+        GlassToastHost()
+      }
+      .width('100%')
+      .height('100%')
+      .hitTestBehavior(HitTestMode.None)
 
       // 全屏看图：挂在 Navigation 外面，才能盖住状态栏和标题栏；灵动档启用 geometryTransition 一镜到底
       if (this.bigImg !== '') {

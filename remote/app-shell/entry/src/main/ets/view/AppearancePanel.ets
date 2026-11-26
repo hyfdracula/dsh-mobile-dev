@@ -3,48 +3,48 @@ import { AppCtx } from '../common/AppCtx';
 import { AppIcon, ICON_DARK, ICON_LIGHT, IconSwitchResult } from '../common/AppIcon';
 import { Haptics } from '../common/Haptics';
 import { Mat } from '../common/Mat';
-import { Motion, MOTION_CLASSIC, MOTION_VIVID } from '../common/Motion';
+import {
+  Motion,
+  MOTION_CLASSIC,
+  MOTION_VIVID,
+  SPEED_FAST,
+  SPEED_GENTLE,
+  SPEED_NORMAL
+} from '../common/Motion';
+import { SegmentOption, SlidingSegment } from '../common/SlidingSegment';
 import { Toast } from '../common/Toast';
 import { Tokens } from '../common/Tokens';
 import { HintLabel, RowSwitch } from '../common/Widgets';
 
 const PREF_STORE: string = 'dsh_mobile_cfg';
 
-interface MotionOpt {
-  id: string;
-  name: string;
-}
-
-const MOTIONS: MotionOpt[] = [
-  { id: MOTION_VIVID, name: '灵动' },
-  { id: MOTION_CLASSIC, name: '经典' }
+const MOTION_OPTIONS: SegmentOption[] = [
+  { id: MOTION_VIVID, label: '灵动' },
+  { id: MOTION_CLASSIC, label: '经典' }
 ];
 
-interface ThemeOpt {
-  id: string;
-  name: string;
-}
-
-const THEMES: ThemeOpt[] = [
-  { id: 'dark', name: '深色' },
-  { id: 'light', name: '浅色' },
-  { id: 'auto', name: '跟随系统' }
+const SPEED_OPTIONS: SegmentOption[] = [
+  { id: SPEED_FAST, label: '偏快' },
+  { id: SPEED_NORMAL, label: '正常' },
+  { id: SPEED_GENTLE, label: '柔和' }
 ];
 
-interface ScaleOpt {
-  val: number;
-  name: string;
-}
+const THEME_OPTIONS: SegmentOption[] = [
+  { id: 'dark', label: '深色' },
+  { id: 'light', label: '浅色' },
+  { id: 'auto', label: '跟随系统' }
+];
 
-const SCALES: ScaleOpt[] = [
-  { val: 0.92, name: '小' },
-  { val: 1, name: '标准' },
-  { val: 1.08, name: '大' }
+const SCALE_OPTIONS: SegmentOption[] = [
+  { id: '0.92', label: '小' },
+  { id: '1', label: '标准' },
+  { id: '1.08', label: '大' }
 ];
 
 /**
  * 「外观与交互」面板：
  * 拆分为「外观显示」与「对话与交互」两张语义分组卡片，全标题统一使用 Tokens.fg + Tokens.fsBodyLg。
+ * 灵动档下全部选项组采用 SlidingSegment 实体弹性滑块，并展开三档动画速度细调。
  */
 @Component
 export struct AppearancePanel {
@@ -66,22 +66,51 @@ export struct AppearancePanel {
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('appIconStyle') appIconStyle: string = ICON_DARK;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
+  @StorageLink('motionSpeed') motionSpeed: string = SPEED_NORMAL;
   @State private iconBusy: boolean = false;
+  @State private iconPressId: string = '';
+
+  private scaleIdOf(val: number): string {
+    if (val < 0.96) {
+      return '0.92';
+    }
+    if (val > 1.04) {
+      return '1.08';
+    }
+    return '1';
+  }
 
   private async applyMotion(target: string): Promise<void> {
     const norm: string = Motion.normalize(target);
     if (this.motionMode === norm) {
       return;
     }
-    Haptics.tap();
-    AppStorage.setOrCreate('motionMode', norm);
+    this.getUIContext().animateTo(Motion.flagshipSpring(this.motionSpeed), () => {
+      AppStorage.setOrCreate('motionMode', norm);
+    });
     try {
       const p = await preferences.getPreferences(AppCtx.ability(), PREF_STORE);
       await p.put('motionMode', norm);
       await p.flush();
     } catch (_e) {
     }
-    Toast.ok(norm === MOTION_VIVID ? '已切换为灵动动效' : '已切换为经典动效');
+    Toast.ok(norm === MOTION_VIVID ? '已切换为灵动空间动效' : '已切换为经典动效');
+  }
+
+  private async applySpeed(target: string): Promise<void> {
+    const norm: string = Motion.normalizeSpeed(target);
+    if (this.motionSpeed === norm) {
+      return;
+    }
+    AppStorage.setOrCreate('motionSpeed', norm);
+    try {
+      const p = await preferences.getPreferences(AppCtx.ability(), PREF_STORE);
+      await p.put('motionSpeed', norm);
+      await p.flush();
+    } catch (_e) {
+    }
+    const label: string = norm === SPEED_FAST ? '偏快' : (norm === SPEED_GENTLE ? '柔和' : '正常');
+    Toast.ok('动画速度已切换为' + label);
   }
 
   private async applyIcon(target: string): Promise<void> {
@@ -116,9 +145,10 @@ export struct AppearancePanel {
           .fontSize(Tokens.fsBody)
           .fontWeight(FontWeight.Medium)
           .fontColor(Tokens.fg)
-        Text(this.appIconStyle === styleId ? tag + ' · 使用中' : tag)
+        Text(this.appIconStyle === styleId ? '使用中' : tag)
           .fontSize(Tokens.fsCaption)
           .fontColor(this.appIconStyle === styleId ? Tokens.accent : Tokens.dim2)
+          .maxLines(1)
       }
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
@@ -131,7 +161,22 @@ export struct AppearancePanel {
       ? { width: 1.5, color: Tokens.accent }
       : Mat.subCardBorder(this.hdsOn))
     .opacity(this.iconBusy ? 0.65 : 1)
-    .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.96 })
+    .scale({
+      x: this.iconPressId === styleId ? 0.95 : 1,
+      y: this.iconPressId === styleId ? 0.95 : 1
+    })
+    .animation(Motion.isFlagship(this.motionMode)
+      ? Motion.flagshipSnappy(this.motionSpeed)
+      : Motion.fadeOpts(this.motionMode))
+    .onTouch((e: TouchEvent) => {
+      if (e.type === TouchType.Down) {
+        this.iconPressId = styleId;
+      } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+        if (this.iconPressId === styleId) {
+          this.iconPressId = '';
+        }
+      }
+    })
     .onClick(() => {
       void this.applyIcon(styleId);
     })
@@ -171,25 +216,14 @@ export struct AppearancePanel {
             .fontSize(Tokens.fsBodyLg)
             .fontColor(Tokens.fg)
             .layoutWeight(1)
-          Row() {
-            ForEach(THEMES, (o: ThemeOpt) => {
-              Text(o.name)
-                .fontSize(Tokens.fsFoot)
-                .fontColor(this.themeMode === o.id ? Tokens.accentInk : Tokens.dim)
-                .backgroundColor(this.themeMode === o.id ? Tokens.accent : Tokens.surface2)
-                .borderRadius(Tokens.rPill)
-                .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-                .margin({ left: 6 })
-                .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.92 })
-                .onClick(() => {
-                  if (this.themeMode === o.id) {
-                    return;
-                  }
-                  Haptics.tap();
-                  this.onTheme(o.id);
-                })
-            }, (o: ThemeOpt) => o.id)
-          }
+          SlidingSegment({
+            options: THEME_OPTIONS,
+            selected: this.themeMode,
+            compact: true,
+            onSelect: (id: string) => {
+              this.onTheme(id);
+            }
+          })
         }
         .width('100%')
         .padding({ left: 16, right: 16, top: 13, bottom: 13 })
@@ -230,9 +264,11 @@ export struct AppearancePanel {
           Column() {
             this.labelWithHint(
               '交互动效',
-              '灵动：启用鸿蒙原生弹簧物理曲线、AI 思考双边流光、图片与搜索栏一镜到底、图标形变、首屏错峰与数字翻滚；经典：关闭高阶视效，保留简洁干脆的经典贝塞尔动画。'
+              '灵动：在经典全部动效之上，解锁设置页景深虚化缩退、悬浮可拖拽半模态卡片栈、栈内左右视差推拉、实体分段弹性滑块与液态玻璃 Toast；经典：保留原生弹簧、AI 双边流光、一镜到底、数字翻滚与图标形变。'
             )
-            Text(Motion.isVivid(this.motionMode) ? '当前：灵动（弹簧 · 流光 · 形变）' : '当前：经典（简洁贝塞尔动效）')
+            Text(Motion.isFlagship(this.motionMode)
+              ? '当前：灵动（景深虚化 · 弹性滑块）'
+              : '当前：经典（弹簧 · 流光 · 形变）')
               .fontSize(Tokens.fsCaption)
               .fontColor(Tokens.dim2)
               .margin({ top: 3 })
@@ -240,25 +276,51 @@ export struct AppearancePanel {
           .layoutWeight(1)
           .alignItems(HorizontalAlign.Start)
 
-          Row() {
-            ForEach(MOTIONS, (mo: MotionOpt) => {
-              Text(mo.name)
-                .fontSize(Tokens.fsFoot)
-                .fontColor(this.motionMode === mo.id ? Tokens.accentInk : Tokens.dim)
-                .backgroundColor(this.motionMode === mo.id ? Tokens.accent : Tokens.surface2)
-                .borderRadius(Tokens.rPill)
-                .padding({ left: 13, right: 13, top: 6, bottom: 6 })
-                .margin({ left: 6 })
-                .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.92 })
-                .onClick(() => {
-                  void this.applyMotion(mo.id);
-                })
-            }, (mo: MotionOpt) => mo.id)
-          }
+          SlidingSegment({
+            options: MOTION_OPTIONS,
+            selected: this.motionMode,
+            compact: true,
+            onSelect: (id: string) => {
+              void this.applyMotion(id);
+            }
+          })
         }
         .width('100%')
         .padding({ left: 16, right: 16, top: 12, bottom: 12 })
         .alignItems(VerticalAlign.Center)
+
+        if (Motion.isFlagship(this.motionMode)) {
+          Column() {
+            Divider().color(Tokens.lineSoft).margin({ left: 16 })
+            Row() {
+              Column() {
+                Text('动画速度')
+                  .fontSize(Tokens.fsBodyLg)
+                  .fontColor(Tokens.fg)
+                Text('调节弹簧与景深转场节奏')
+                  .fontSize(Tokens.fsCaption)
+                  .fontColor(Tokens.dim2)
+                  .margin({ top: 3 })
+              }
+              .layoutWeight(1)
+              .alignItems(HorizontalAlign.Start)
+
+              SlidingSegment({
+                options: SPEED_OPTIONS,
+                selected: this.motionSpeed,
+                compact: true,
+                onSelect: (id: string) => {
+                  void this.applySpeed(id);
+                }
+              })
+            }
+            .width('100%')
+            .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+            .alignItems(VerticalAlign.Center)
+          }
+          .width('100%')
+          .transition(Motion.panelTransition(this.motionMode))
+        }
 
         Divider().color(Tokens.lineSoft).margin({ left: 16 })
 
@@ -298,25 +360,17 @@ export struct AppearancePanel {
           .layoutWeight(1)
           .alignItems(VerticalAlign.Center)
 
-          Row() {
-            ForEach(SCALES, (sc: ScaleOpt) => {
-              Text(sc.name)
-                .fontSize(Tokens.fsFoot)
-                .fontColor(this.textScale === sc.val ? Tokens.accentInk : Tokens.dim)
-                .backgroundColor(this.textScale === sc.val ? Tokens.accent : Tokens.surface2)
-                .borderRadius(Tokens.rPill)
-                .padding({ left: 11, right: 11, top: 6, bottom: 6 })
-                .margin({ left: 6 })
-                .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.92 })
-                .onClick(() => {
-                  if (this.textScale === sc.val) {
-                    return;
-                  }
-                  Haptics.tap();
-                  this.onTextScale(sc.val);
-                })
-            }, (sc: ScaleOpt) => String(sc.val))
-          }
+          SlidingSegment({
+            options: SCALE_OPTIONS,
+            selected: this.scaleIdOf(this.textScale),
+            compact: true,
+            onSelect: (id: string) => {
+              const v: number = Number(id);
+              if (!Number.isNaN(v) && v > 0) {
+                this.onTextScale(v);
+              }
+            }
+          })
         }
         .width('100%')
         .padding({ left: 16, right: 16, top: 13, bottom: 13 })
@@ -334,16 +388,17 @@ export struct AppearancePanel {
       Column() {
         Row() {
           Row() {
-            this.labelWithHint('触感反馈', '点击、归档、发送时提供轻巧短振动反馈。')
+            this.labelWithHint('触感反馈', '点击与滑动操作时提供细腻震动提示。')
           }
           .layoutWeight(1)
           .alignItems(VerticalAlign.Center)
-
           Toggle({ type: ToggleType.Switch, isOn: this.haptics })
             .selectedColor(Tokens.accent)
             .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.92 })
             .onChange((v: boolean) => {
-              this.onHaptics(v);
+              if (v !== this.haptics) {
+                this.onHaptics(v);
+              }
             })
         }
         .width('100%')
@@ -354,16 +409,17 @@ export struct AppearancePanel {
 
         Row() {
           Row() {
-            this.labelWithHint('回车发送', '关掉后回车只换行，用右侧发送按钮发出；适合经常输入多行指令。')
+            this.labelWithHint('回车发送', '按键盘回车键直接发送消息；关闭后回车换行，需点发送按钮。')
           }
           .layoutWeight(1)
           .alignItems(VerticalAlign.Center)
-
           Toggle({ type: ToggleType.Switch, isOn: this.enterSend })
             .selectedColor(Tokens.accent)
             .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.92 })
             .onChange((v: boolean) => {
-              this.onEnterSend(v);
+              if (v !== this.enterSend) {
+                this.onEnterSend(v);
+              }
             })
         }
         .width('100%')
@@ -377,7 +433,9 @@ export struct AppearancePanel {
           hint: '默认折叠长工具输出以加快大历史加载，重进会话生效',
           value: this.compactHistory,
           onChanged: (v: boolean) => {
-            this.onCompactHistory(v);
+            if (v !== this.compactHistory) {
+              this.onCompactHistory(v);
+            }
           }
         })
       }

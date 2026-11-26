@@ -1,9 +1,15 @@
 import { Api, BackendInfo } from '../common/Api';
 import { Haptics } from '../common/Haptics';
 import { Mat } from '../common/Mat';
+import { SegmentOption, SlidingSegment } from '../common/SlidingSegment';
 import { Toast } from '../common/Toast';
 import { Tokens } from '../common/Tokens';
 import { HintLabel } from '../common/Widgets';
+
+const ANSWER_MODE_OPTIONS: SegmentOption[] = [
+  { id: 'phone', label: '手机为主' },
+  { id: 'desktop', label: '电脑为主' }
+];
 
 /**
  * 「Agent 引擎与控制台」面板：
@@ -266,10 +272,15 @@ export struct AgentPanel {
           .layoutWeight(1)
           .alignItems(VerticalAlign.Center)
 
-          Row() {
-            this.answerChip('手机为主', 'phone')
-            this.answerChip('电脑为主', 'desktop')
-          }
+          SlidingSegment({
+            options: ANSWER_MODE_OPTIONS,
+            selected: this.answerMode,
+            disabled: this.answerBusy,
+            compact: true,
+            onSelect: (mode: string) => {
+              this.onAnswerMode(mode);
+            }
+          })
         }
         .width('100%')
         .padding({ left: 16, right: 16, top: 13, bottom: 13 })
