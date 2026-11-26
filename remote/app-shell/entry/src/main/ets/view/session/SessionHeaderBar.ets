@@ -316,7 +316,7 @@ export struct SessionHeaderBar {
             }
             TextInput({ placeholder: '搜索会话标题', text: this.q })
               .fontSize(Tokens.fsBody).fontColor(Tokens.fg).placeholderColor(Tokens.dim2)
-              .backgroundColor(Color.Transparent).height(44).layoutWeight(1).padding({ left: 0, right: 4 })
+              .backgroundColor(Color.Transparent).height(46).layoutWeight(1).padding({ left: 0, right: 4 })
               .onChange((v: string) => {
                 this.onQueryChange(v);
               })
@@ -327,7 +327,7 @@ export struct SessionHeaderBar {
                 this.clearSearch();
               })
           }
-          .width('100%').height(44)
+          .width('100%').height(46)
           .backgroundColor(this.pillBg())
           .backdropBlur(this.pillBlur())
           .borderRadius(Tokens.rPill)
@@ -381,8 +381,8 @@ export struct SessionHeaderBar {
               }
               .alignItems(HorizontalAlign.Start)
             }
-            .padding({ left: 14, right: 12, top: 4, bottom: 4 })
-            .height(44)
+            .padding({ left: 16, right: 14, top: 4, bottom: 4 })
+            .height(46)
             .backgroundColor(this.pillBg())
             .backdropBlur(this.pillBlur())
             .border({ width: 1, color: this.pillBorderColor() })
@@ -406,21 +406,19 @@ export struct SessionHeaderBar {
                 }
               },
               20,
-              TransitionEffect.OPACITY
-                .combine(TransitionEffect.scale({ x: 0.94, y: 0.94, centerX: '0%', centerY: '0%' }))
-                .animation({ duration: Motion.fade, curve: Motion.std })
+              Motion.popupMenuTransition(this.motionMode, false)
             ))
 
             Blank()
 
-            // 切换电脑圆钮（F05 统一弹出卡片，多于 1 台电脑时高亮）
+            // 切换电脑圆钮（F05 统一弹出卡片，尺寸对齐聊天页 46x46 顶部控件）
             Stack() {
               Image($r('app.media.ic_pc'))
-                .width(18).height(18)
+                .width(20).height(20)
                 .fillColor((this.machinesVer >= 0 && Machines.list().length > 1) ? Tokens.accent : Tokens.fg)
                 .objectFit(ImageFit.Contain)
             }
-            .width(40).height(40).borderRadius(Tokens.rPill)
+            .width(46).height(46).borderRadius(Tokens.rPill)
             .backgroundColor(this.pillBg())
             .backdropBlur(this.pillBlur())
             .border({ width: 1, color: this.pillBorderColor() })
@@ -443,19 +441,17 @@ export struct SessionHeaderBar {
                 }
               },
               20,
-              TransitionEffect.OPACITY
-                .combine(TransitionEffect.scale({ x: 0.94, y: 0.94, centerX: '100%', centerY: '0%' }))
-                .animation({ duration: Motion.fade, curve: Motion.std })
+              Motion.popupMenuTransition(this.motionMode, true)
             ))
 
             // 分组视图设置圆钮（F05 统一弹出卡片）
             Stack() {
               Image($r('app.media.ic_group'))
-                .width(18).height(18)
+                .width(20).height(20)
                 .fillColor(this.archivedView ? Tokens.accent : Tokens.fg)
                 .objectFit(ImageFit.Contain)
             }
-            .width(40).height(40).borderRadius(Tokens.rPill).margin({ left: 8 })
+            .width(46).height(46).borderRadius(Tokens.rPill).margin({ left: 9 })
             .backgroundColor(this.pillBg())
             .backdropBlur(this.pillBlur())
             .border({ width: 1, color: this.pillBorderColor() })
@@ -478,23 +474,21 @@ export struct SessionHeaderBar {
                 }
               },
               20,
-              TransitionEffect.OPACITY
-                .combine(TransitionEffect.scale({ x: 0.94, y: 0.94, centerX: '100%', centerY: '0%' }))
-                .animation({ duration: Motion.fade, curve: Motion.std })
+              Motion.popupMenuTransition(this.motionMode, true)
             ))
 
             // 搜索圆钮（灵动档与展开搜索栏共享 geometryTransition 实现一镜到底）
             Stack() {
               if (Motion.isVivid(this.motionMode)) {
                 SymbolGlyph($r('sys.symbol.magnifyingglass'))
-                  .fontSize(18)
+                  .fontSize(20)
                   .fontColor([Tokens.fg])
               } else {
                 Image($r('app.media.ic_search'))
-                  .width(18).height(18).fillColor(Tokens.fg).objectFit(ImageFit.Contain)
+                  .width(20).height(20).fillColor(Tokens.fg).objectFit(ImageFit.Contain)
               }
             }
-            .width(40).height(40).borderRadius(Tokens.rPill).margin({ left: 8 })
+            .width(46).height(46).borderRadius(Tokens.rPill).margin({ left: 9 })
             .backgroundColor(this.pillBg())
             .backdropBlur(this.pillBlur())
             .border({ width: 1, color: this.pillBorderColor() })
@@ -509,7 +503,7 @@ export struct SessionHeaderBar {
             })
           }
           .width('100%')
-          .height(44)
+          .height(50)
           .alignItems(VerticalAlign.Center)
           .transition(TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std }))
         }
@@ -520,6 +514,6 @@ export struct SessionHeaderBar {
     }
     .width('100%')
     .alignItems(HorizontalAlign.Center)
-    .padding({ top: this.topInset + 10, left: 16, right: 16, bottom: 8 })
+    .padding({ top: this.topInset + 10, left: 14, right: 14, bottom: 8 })
   }
 }

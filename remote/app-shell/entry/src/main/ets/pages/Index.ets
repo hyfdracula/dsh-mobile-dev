@@ -16,9 +16,10 @@ import { PairPage } from '../view/PairPage';
 import { ShellPage } from '../view/ShellPage';
 import { GlassToastHost } from '../common/GlassToastHost';
 import { Haptics } from '../common/Haptics';
+import { LinkLog } from '../common/LinkLog';
 import { Machines } from '../common/Machines';
 import { Mat } from '../common/Mat';
-import { Motion, MOTION_VIVID, SPEED_NORMAL } from '../common/Motion';
+import { Motion, MOTION_VIVID } from '../common/Motion';
 import { Net } from '../common/Net';
 import { Secret } from '../common/Secret';
 import { Toast } from '../common/Toast';
@@ -102,6 +103,7 @@ struct Index {
    * 否则用户在系统里打开了通知，回到应用还显示「现在没开」。
    */
   onPageShow(): void {
+    LinkLog.record('APP', 'fg fromBg=' + (this.wasBackground ? '1' : '0'));
     AppStorage.setOrCreate('notifyProbe', Date.now());
     const fromBg: boolean = this.wasBackground;
     this.wasBackground = false;
@@ -125,6 +127,7 @@ struct Index {
   onPageHide(): void {
     this.wasBackground = true;
     AppStorage.setOrCreate('appFg', false);
+    LinkLog.record('APP', 'bg');
     this.stopPresence(true);
   }
 
@@ -283,11 +286,9 @@ struct Index {
       const wmc = await p.get('wcMobileCompat', '1') as string;
       const wmp = await p.get('wcAutoDismissPromo', '0') as string;
       const mm = await p.get('motionMode', MOTION_VIVID) as string;
-      const ms = await p.get('motionSpeed', SPEED_NORMAL) as string;
       AppStorage.setOrCreate('wcMobileCompat', wmc !== '0');
       AppStorage.setOrCreate('wcAutoDismissPromo', wmp === '1');
       AppStorage.setOrCreate('motionMode', Motion.normalize(mm));
-      AppStorage.setOrCreate('motionSpeed', Motion.normalizeSpeed(ms));
 
       let b = await p.get('base', DEFAULT_BASE) as string;
       const tOldBase: string = b;
@@ -398,6 +399,8 @@ struct Index {
           this.startPresence();
         }
       }
+      LinkLog.record('APP', 'cfgLoaded motion=' + Motion.normalize(mm) + ' hds=' + (this.hdsOn ? '1' : '0') +
+        ' netMode=' + this.netMode + ' hosts=' + String(Machines.list().length));
     } catch (e) {
       console.error('DSH_CFG load failed :: ' + (e as Error).message);
     } finally {
@@ -663,7 +666,7 @@ struct Index {
     Haptics.enabled = v;
     const seq: number = ++this.hapticsSeq;
     if (v) {
-      Haptics.soft();
+      Haptics.toggle(true);
     }
     console.info('DSH_HAP enabled=' + v + ' seq=' + seq);
     try {
@@ -683,7 +686,7 @@ struct Index {
     this.hdsOn = v;
     AppStorage.setOrCreate('hdsOn', v);
     if (v) {
-      Haptics.soft();
+      Haptics.toggle(true);
     }
     console.info('DSH_HDS switch=' + v);
     try {

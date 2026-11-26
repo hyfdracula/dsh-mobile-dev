@@ -84,10 +84,10 @@ export struct UnifiedPopupCard {
                   .layoutWeight(1)
 
                   if (item.checked === true) {
-                    Text('√')
+                    SymbolGlyph($r('sys.symbol.checkmark'))
                       .fontSize(14)
-                      .fontWeight(FontWeight.Bold)
-                      .fontColor(Tokens.accent)
+                      .fontWeight(FontWeight.Medium)
+                      .fontColor([Tokens.accent])
                       .margin({ left: 8 })
                   }
                 }
@@ -103,7 +103,11 @@ export struct UnifiedPopupCard {
                   if (item.disabled === true) {
                     return;
                   }
-                  Haptics.tap();
+                  if (item.danger === true) {
+                    Haptics.warn();
+                  } else {
+                    Haptics.tick();
+                  }
                   this.onSelect(item.id);
                 })
               }, (item: PopupItem) => sec.title + '|' + item.id + '|' + (item.checked === true ? '1' : '0') + '|' +

@@ -3,17 +3,13 @@ import curves from '@ohos.curves';
 export const MOTION_VIVID: string = 'vivid';
 export const MOTION_CLASSIC: string = 'classic';
 
-export const SPEED_FAST: string = 'fast';
-export const SPEED_NORMAL: string = 'normal';
-export const SPEED_GENTLE: string = 'gentle';
-
 /**
  * 全 App 统一动效引擎（双档实时切换，零重启）：
  * - 经典（classic）：包含完整的 P0 + P1 基础动效（物理弹簧、首屏错峰、数字翻滚、
- *   AI 思考双边流光、一镜到底与矢量图标形变），简洁克制、零侵入；
- * - 灵动（vivid，默认）：在经典全部能力之上，解锁旗舰空间级编排动效（景深高斯虚化缩退、
- *   悬浮可拖拽半模态卡片栈、栈内左右视差推拉与高度弹性形变、实体分段弹性滑块、
- *   液态玻璃弹簧 Toast 与三档动效速度细调）。
+ *   AI 思考双边流光、一镜到底与矢量图标形变），简洁克制；
+ * - 灵动（vivid，默认）：在经典全部能力之上，解锁全屏水平视差推拉（Push/Pop）、
+ *   页内卡片由上到下逐卡景深绽放、锚点悬浮下拉卡片展开、阅读卡片景深高斯虚化缩退
+ *   以及液态玻璃弹簧 Toast。
  */
 export class Motion {
   static readonly fade: number = 160;
@@ -38,16 +34,6 @@ export class Motion {
     return raw === MOTION_CLASSIC ? MOTION_CLASSIC : MOTION_VIVID;
   }
 
-  static normalizeSpeed(raw: string): string {
-    if (raw === SPEED_FAST) {
-      return SPEED_FAST;
-    }
-    if (raw === SPEED_GENTLE) {
-      return SPEED_GENTLE;
-    }
-    return SPEED_NORMAL;
-  }
-
   /** 是否启用旗舰「灵动」空间编排动效（仅 vivid 档为 true，classic 档为 false） */
   static isFlagship(mode?: string): boolean {
     if (mode !== undefined) {
@@ -64,43 +50,27 @@ export class Motion {
     return true;
   }
 
-  /** 读取当前旗舰动效速度系数（偏快 0.76x / 正常 1.0x / 柔和 1.32x） */
-  static speedScale(speed?: string): number {
-    const raw: string | undefined = speed !== undefined ? speed : AppStorage.get<string>('motionSpeed');
-    if (raw === SPEED_FAST) {
-      return 0.76;
-    }
-    if (raw === SPEED_GENTLE) {
-      return 1.32;
-    }
-    return 1.0;
-  }
-
   /** 旗舰空间弹性曲线：用于景深虚化、容器高度形变、卡片展开 */
-  static flagshipSpring(speed?: string): AnimateParam {
-    const k: number = Motion.speedScale(speed);
-    const opts: AnimateParam = { curve: curves.springMotion(0.38 * k, 0.86) };
+  static flagshipSpring(): AnimateParam {
+    const opts: AnimateParam = { curve: curves.springMotion(0.38, 0.86) };
     return opts;
   }
 
-  /** 旗舰灵巧弹跳曲线：用于分段实体滑块、按压回弹、轻量角标 */
-  static flagshipSnappy(speed?: string): AnimateParam {
-    const k: number = Motion.speedScale(speed);
-    const opts: AnimateParam = { curve: curves.springMotion(0.28 * k, 0.78) };
+  /** 旗舰灵巧弹跳曲线：用于按压回弹、锚点下拉展开、轻量角标 */
+  static flagshipSnappy(): AnimateParam {
+    const opts: AnimateParam = { curve: curves.springMotion(0.28, 0.78) };
     return opts;
   }
 
-  /** 旗舰悬浮半模态弹出与拖拽回弹曲线 */
-  static flagshipSheet(speed?: string): AnimateParam {
-    const k: number = Motion.speedScale(speed);
-    const opts: AnimateParam = { curve: curves.springMotion(0.42 * k, 0.88) };
+  /** 旗舰悬浮阅读卡弹出与拖拽回弹曲线 */
+  static flagshipSheet(): AnimateParam {
+    const opts: AnimateParam = { curve: curves.springMotion(0.42, 0.88) };
     return opts;
   }
 
-  /** 旗舰栈内左右视差推拉曲线 */
-  static flagshipParallax(speed?: string): AnimateParam {
-    const k: number = Motion.speedScale(speed);
-    const opts: AnimateParam = { curve: curves.springMotion(0.36 * k, 0.90) };
+  /** 旗舰全屏双层视差推拉与步骤横滑曲线 */
+  static flagshipParallax(): AnimateParam {
+    const opts: AnimateParam = { curve: curves.springMotion(0.36, 0.90) };
     return opts;
   }
 
@@ -168,19 +138,84 @@ export class Motion {
     );
   }
 
-  /** 旗舰设置卡片入场错峰（仅灵动档生效，经典档零延迟） */
-  static flagshipCardStagger(idx: number, mode: string, speed?: string): TransitionEffect {
-    if (!Motion.isFlagship(mode) || idx < 0 || idx >= 6) {
+  /**
+   * 19 秒同款「由上到下逐卡景深绽放」（仅灵动档生效，经典档零延迟）：
+   * 卡片从 0.86 倍缩放入场 + 微幅上抬 + 淡入，每张卡错峰 38ms。
+   */
+  static bloomCard(idx: number, mode: string, baseDelay: number = 28): TransitionEffect {
+    if (!Motion.isFlagship(mode) || idx < 0 || idx >= 8) {
       return TransitionEffect.IDENTITY;
     }
-    const k: number = Motion.speedScale(speed);
-    const wait: number = Math.round(idx * 34 * k);
-    const springCurve = curves.springMotion(0.36 * k, 0.84);
+    const wait: number = baseDelay + idx * 38;
+    const springCurve = curves.springMotion(0.40, 0.84);
     return TransitionEffect.asymmetric(
-      TransitionEffect.OPACITY.animation({ duration: Math.round(210 * k), curve: Motion.std, delay: wait })
-        .combine(TransitionEffect.translate({ y: 18 }).animation({ curve: springCurve, delay: wait }))
-        .combine(TransitionEffect.scale({ x: 0.965, y: 0.965 }).animation({ curve: springCurve, delay: wait })),
+      TransitionEffect.OPACITY.animation({ duration: 210, curve: Motion.std, delay: wait })
+        .combine(TransitionEffect.translate({ y: 14 }).animation({ curve: springCurve, delay: wait }))
+        .combine(TransitionEffect.scale({ x: 0.86, y: 0.86 }).animation({ curve: springCurve, delay: wait })),
       TransitionEffect.IDENTITY
+    );
+  }
+
+  /** 兼容旧调用的设置卡片错峰别名 */
+  static flagshipCardStagger(idx: number, mode: string): TransitionEffect {
+    return Motion.bloomCard(idx, mode, 16);
+  }
+
+  /**
+   * 19 秒同款顶部 `<` 返回按钮轻延时缩放弹出（仅灵动档生效）：
+   * 子页滑入后约 75ms 从中心轻弹浮现，形成标题与返回键的节奏错落。
+   */
+  static headerBackTransition(mode: string): TransitionEffect {
+    if (!Motion.isFlagship(mode)) {
+      return TransitionEffect.IDENTITY;
+    }
+    const wait: number = 75;
+    const snappy = curves.springMotion(0.28, 0.78);
+    return TransitionEffect.asymmetric(
+      TransitionEffect.OPACITY.animation({ duration: 170, curve: Motion.std, delay: wait })
+        .combine(TransitionEffect.scale({ x: 0.72, y: 0.72 }).animation({ curve: snappy, delay: wait })),
+      TransitionEffect.OPACITY.animation({ duration: 120, curve: Motion.std })
+    );
+  }
+
+  /**
+   * 64-65 秒同款锚点下拉卡片展开转场：
+   * 从触发按钮锚点角向内/向下弹出。
+   */
+  static popupMenuTransition(mode: string, anchorRight: boolean = true): TransitionEffect {
+    const cx: string = anchorRight ? '94%' : '6%';
+    if (!Motion.isFlagship(mode)) {
+      return TransitionEffect.asymmetric(
+        TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std })
+          .combine(TransitionEffect.scale({ x: 0.94, y: 0.94, centerX: cx, centerY: '0%' })
+            .animation({ duration: Motion.fade, curve: Motion.std })),
+        TransitionEffect.OPACITY.animation({ duration: 120, curve: Motion.std })
+      );
+    }
+    const snappy = curves.springMotion(0.28, 0.80);
+    return TransitionEffect.asymmetric(
+      TransitionEffect.OPACITY.animation({ duration: 160, curve: Motion.std })
+        .combine(TransitionEffect.scale({ x: 0.82, y: 0.82, centerX: cx, centerY: '0%' }).animation({ curve: snappy }))
+        .combine(TransitionEffect.translate({ y: -6 }).animation({ curve: snappy })),
+      TransitionEffect.OPACITY.animation({ duration: 120, curve: Motion.std })
+        .combine(TransitionEffect.scale({ x: 0.90, y: 0.90, centerX: cx, centerY: '0%' })
+          .animation({ duration: 120, curve: Motion.std }))
+    );
+  }
+
+  /**
+   * 步骤页 / 同构选项卡左右横推转场（零渐变淡入淡出）：
+   * 用于配对流程「电脑端准备 <-> 连接电脑」以及反馈中心内部页面切换。
+   */
+  static stepSlide(forward: boolean, mode: string): TransitionEffect {
+    const anim: AnimateParam = Motion.isFlagship(mode)
+      ? Motion.flagshipParallax()
+      : { duration: Motion.move, curve: Motion.std };
+    const enterX: string = forward ? '100%' : '-100%';
+    const exitX: string = forward ? '-30%' : '30%';
+    return TransitionEffect.asymmetric(
+      TransitionEffect.translate({ x: enterX }).animation(anim),
+      TransitionEffect.translate({ x: exitX }).animation(anim)
     );
   }
 

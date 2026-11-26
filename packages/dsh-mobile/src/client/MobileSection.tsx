@@ -496,23 +496,53 @@ export function MobileSection(): ReactNode {
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-            <div style={{
-              width: 40,
-              height: 40,
-              borderRadius: 12,
-              background: 'linear-gradient(135deg, #1E56E0 0%, #2F6BFF 100%)',
-              color: '#FFFFFF',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 13,
-              fontWeight: 700,
-              letterSpacing: 0.5,
-              flexShrink: 0,
-            }}
+            <svg
+              viewBox="0 0 64 64"
+              width="40"
+              height="40"
+              fill="none"
+              aria-hidden="true"
+              style={{ flexShrink: 0, display: 'block', borderRadius: 11 }}
             >
-              AM
-            </div>
+              <defs>
+                <radialGradient id="amGatewayIconBg" cx="50%" cy="28%" r="72%">
+                  <stop offset="0%" stopColor="#2A2E39" />
+                  <stop offset="55%" stopColor="#151821" />
+                  <stop offset="100%" stopColor="#0B0C10" />
+                </radialGradient>
+              </defs>
+              <rect
+                x="1"
+                y="1"
+                width="62"
+                height="62"
+                rx="16"
+                fill="url(#amGatewayIconBg)"
+                stroke="#FFFFFF"
+                strokeOpacity="0.16"
+                strokeWidth="1.4"
+              />
+              <path
+                d="M12.5 22.5 L20.5 30 L12.5 37.5"
+                stroke="#FFFFFF"
+                strokeWidth="5.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M26 40 H38"
+                stroke="#FFFFFF"
+                strokeWidth="5.2"
+                strokeLinecap="round"
+              />
+              <path
+                d="M51.5 22.5 L43.5 30 L51.5 37.5"
+                stroke="#FFFFFF"
+                strokeWidth="5.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
             <div style={{ minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 15, fontWeight: 700, color: C.fg }}>Agent Mobile</span>

@@ -1,28 +1,28 @@
 import { Api } from '../common/Api';
 import { AppCtx } from '../common/AppCtx';
-import { copyText } from '../common/Clipboard';
 import { Haptics } from '../common/Haptics';
 import { Machines } from '../common/Machines';
 import { Mat } from '../common/Mat';
+import { Motion, MOTION_VIVID } from '../common/Motion';
 import { Pairing } from '../common/Pairing';
-import { SegmentOption, SlidingSegment } from '../common/SlidingSegment';
+import { PickerOption, PopupPicker } from '../common/PopupPicker';
 import { Toast } from '../common/Toast';
 import { Tokens } from '../common/Tokens';
-import { HintLabel, SheetHeader } from '../common/Widgets';
-import { AgentSetupCard } from './AgentSetupCard';
+import { HintLabel } from '../common/Widgets';
 import { ConnectForm } from './ConnectForm';
 import { DeviceCard } from './DeviceCard';
 import { MachineList } from './MachineList';
 
-const NET_MODE_OPTIONS: SegmentOption[] = [
-  { id: 'auto', label: '自动' },
-  { id: 'lan', label: '仅局域网' },
-  { id: 'wan', label: '仅公网' }
+const NET_MODE_OPTIONS: PickerOption[] = [
+  { id: 'auto', label: '自动', sub: '同 Wi-Fi 优先局域网直连，出门自动切公网' },
+  { id: 'lan', label: '仅局域网', sub: '不回退公网隧道入口' },
+  { id: 'wan', label: '仅公网', sub: '始终走公网安全隧道' }
 ];
 
 /**
- * 「连接」面板（精简聚焦版）：
- * 多电脑切换、网络策略、手动地址表单、外网 Cloudflare 隧道半屏向导与当前设备信息。
+ * 「连接与设备」面板：
+ * 多电脑切换、网络策略（PopupPicker）、手动地址表单、
+ * 外网访问双入口（统一让 AI 帮你配 & 手动向导）与当前设备概况。
  */
 @Component
 export struct ConnectPanel {
@@ -50,12 +50,14 @@ export struct ConnectPanel {
   onRemoveMachine: (id: string) => void = () => {};
   onAddMachine: (wan: string, token: string, name: string) => void = () => {};
   onOpenPair: (entry: string) => void = () => {};
+  onOpenGuide: (kind: string) => void = () => {};
   onReconnect: () => void = () => {};
   onRemoveCurrent: () => void = () => {};
 
   @StorageLink('bottomInset') bottomInset: number = 20;
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
   @StorageLink('linkEncrypted') linkEncrypted: boolean = false;
 
   @State private addOn: boolean = false;
@@ -69,11 +71,8 @@ export struct ConnectPanel {
   @State private renameName: string = '';
   @State private renameErr: string = '';
 
-  @State private tunnelSheet: boolean = false;
-  @State private copiedAll: boolean = false;
-
   private confirmRemoveMachine(id: string): void {
-    Haptics.tap();
+    Haptics.warn();
     AppCtx.confirm(
       '忘记这台电脑',
       '会从这台手机上删掉它的地址与令牌；电脑端不受影响。',
@@ -90,22 +89,26 @@ export struct ConnectPanel {
     const rawToken: string = this.addToken.trim();
     if (rawBase === '') {
       this.addErr = '请填写这台电脑的连接地址。';
+      Haptics.error();
       return;
     }
     if (rawBase.indexOf('://') >= 0 && !/^https?:\/\//i.test(rawBase)) {
       this.addErr = '连接地址仅支持 http:// 或 https:// 协议。';
+      Haptics.error();
       return;
     }
     const norm: string = Pairing.normalizeBase(rawBase);
     if (!/^https?:\/\/[^\s/]+/i.test(norm)) {
       this.addErr = '连接地址格式不正确，请检查域名或 IP 端口。';
+      Haptics.error();
       return;
     }
     if (rawToken === '') {
       this.addErr = '请填写访问令牌。';
+      Haptics.error();
       return;
     }
-    Haptics.tap();
+    Haptics.confirm();
     this.addErr = '';
     this.addOn = false;
     this.onAddMachine(norm, rawToken, this.addName.trim());
@@ -116,9 +119,10 @@ export struct ConnectPanel {
     const name: string = this.renameName.trim();
     if (name === '') {
       this.renameErr = '电脑名称不能为空。';
+      Haptics.error();
       return;
     }
-    Haptics.tap();
+    Haptics.confirm();
     Machines.rename(this.renameId, name);
     this.renameErr = '';
     this.renameOn = false;
@@ -132,25 +136,6 @@ export struct ConnectPanel {
       .fontColor(Tokens.dim2)
       .letterSpacing(1.4)
       .margin({ left: 6, top: topMargin, bottom: 8 })
-  }
-
-  @Builder
-  netChip(label: string, mode: string) {
-    Text(label)
-      .fontSize(Tokens.fsFoot)
-      .fontColor(this.netMode === mode ? Tokens.accentInk : Tokens.dim)
-      .backgroundColor(this.netMode === mode ? Tokens.accent : Tokens.surface2)
-      .borderRadius(Tokens.rPill)
-      .padding({ left: 14, right: 14, top: 7, bottom: 7 })
-      .margin({ right: 8 })
-      .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.92 })
-      .onClick(() => {
-        if (this.netMode === mode) {
-          return;
-        }
-        Haptics.tap();
-        this.onNetMode(mode);
-      })
   }
 
   @Builder
@@ -261,6 +246,7 @@ export struct ConnectPanel {
             .backgroundColor(Tokens.surface2)
             .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.96 })
             .onClick(() => {
+              Haptics.soft();
               this.addOn = false;
             })
           Text('添加并切换')
@@ -336,6 +322,7 @@ export struct ConnectPanel {
             .backgroundColor(Tokens.surface2)
             .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.96 })
             .onClick(() => {
+              Haptics.soft();
               this.renameOn = false;
             })
           Text('保存')
@@ -424,171 +411,53 @@ export struct ConnectPanel {
     .borderRadius(Tokens.rGroup)
     .alignItems(HorizontalAlign.Start)
     .margin({ top: 6, bottom: 6 })
-  }
-
-  private tunnelScript(): string {
-    return 'winget install --id Cloudflare.cloudflared\n' +
-      'cloudflared --version\n' +
-      'cloudflared tunnel login\n' +
-      'cloudflared tunnel create agent-mobile\n' +
-      'cloudflared tunnel list\n' +
-      'cloudflared tunnel route dns agent-mobile am.你的域名.com\n' +
-      '# 下面这段写进 %USERPROFILE%\\.cloudflared\\config.yml，<UUID> 换成第 3 步的隧道 ID\n' +
-      'tunnel: <UUID>\n' +
-      'credentials-file: C:\\Users\\你\\.cloudflared\\<UUID>.json\n' +
-      'ingress:\n' +
-      '  - hostname: am.你的域名.com\n' +
-      '    service: http://127.0.0.1:8901\n' +
-      '  - service: http_status:404\n' +
-      'cloudflared tunnel run agent-mobile\n' +
-      'cloudflared service install\n' +
-      'sc query cloudflared';
-  }
-
-  private async copyTunnelAll(): Promise<void> {
-    const ok: boolean = await copyText(this.tunnelScript(), '已复制全部命令');
-    if (ok) {
-      this.copiedAll = true;
-      setTimeout(() => {
-        this.copiedAll = false;
-      }, 1800);
-    }
+    .transition(Motion.bloomCard(0, this.motionMode))
   }
 
   @Builder
-  guideStep(n: string, title: string, cmd: string) {
-    Column() {
-      Row() {
-        Stack({ alignContent: Alignment.Center }) {
-          Text(n)
-            .fontSize(Tokens.fsCaption)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(Tokens.accentInk)
-        }
-        .width(18)
-        .height(18)
-        .borderRadius(Tokens.rPill)
-        .backgroundColor(Tokens.accent)
-
-        Text(title)
-          .fontSize(Tokens.fsFoot)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(Tokens.fg)
-          .layoutWeight(1)
-          .margin({ left: 8 })
-      }
-      .width('100%')
-      .alignItems(VerticalAlign.Center)
-
-      Row() {
-        Column() {
-          ForEach(cmd.split('\n'), (line: string, idx: number) => {
-            Text(line)
-              .fontSize(Tokens.fsCaption)
-              .fontColor(Tokens.dim)
-              .fontFamily('monospace')
-              .lineHeight(16)
-              .width('100%')
-          }, (line: string, idx: number) => String(idx) + '-' + line)
-        }
-        .alignItems(HorizontalAlign.Start)
-        .layoutWeight(1)
-
-        Row() {
-          Image($r('app.media.ic_copy'))
-            .width(13)
-            .height(13)
-            .fillColor(Tokens.accent)
-            .objectFit(ImageFit.Contain)
-        }
-        .width(26)
-        .height(26)
-        .borderRadius(Tokens.rSm)
-        .backgroundColor(Tokens.surface3)
-        .justifyContent(FlexAlign.Center)
-        .margin({ left: 6 })
-        .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.9 })
-        .onClick(() => {
-          void copyText(cmd, '已复制命令');
-        })
-      }
-      .width('100%')
-      .padding(10)
-      .margin({ top: 6 })
-      .backgroundColor(Tokens.surface2)
-      .borderRadius(Tokens.rSm)
-      .alignItems(VerticalAlign.Top)
-    }
-    .alignItems(HorizontalAlign.Start)
-    .width('100%')
-    .margin({ top: 12 })
-  }
-
-  @Builder
-  tunnelGuideSheet() {
-    Scroll() {
+  guideEntryRow(title: string, sub: string, tag: string, kind: string) {
+    Row() {
       Column() {
-        SheetHeader({
-          title: 'Cloudflare 外网隧道指南',
-          subtitle: '配置后手机在 4G / 5G 下也能加密访问电脑',
-          onClose: () => {
-            this.tunnelSheet = false;
-          }
-        })
-
-        Row() {
-          Text('支持一键复制完整命令到电脑执行')
-            .fontSize(Tokens.fsFoot)
-            .fontColor(Tokens.dim2)
-            .layoutWeight(1)
-          Text(this.copiedAll ? '已复制' : '复制全部')
-            .fontSize(Tokens.fsCaption)
-            .fontColor(Tokens.accent)
-            .backgroundColor(Tokens.accentSoft)
-            .borderRadius(Tokens.rPill)
-            .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-            .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.92 })
-            .onClick(() => {
-              void this.copyTunnelAll();
-            })
-        }
-        .width('100%')
-        .margin({ top: 12 })
-
-        this.guideStep('1', '安装 cloudflared（Windows 管理员 PowerShell）',
-          'winget install --id Cloudflare.cloudflared\ncloudflared --version')
-        this.guideStep('2', '登录 Cloudflare（浏览器选域名授权）', 'cloudflared tunnel login')
-        this.guideStep('3', '创建隧道并记录 UUID', 'cloudflared tunnel create agent-mobile\ncloudflared tunnel list')
-        this.guideStep('4', '绑定域名路由', 'cloudflared tunnel route dns agent-mobile am.你的域名.com')
-        this.guideStep('5', '写入配置文件 %USERPROFILE%\\.cloudflared\\config.yml',
-          'tunnel: <第 3 步 UUID>\ncredentials-file: C:\\Users\\你\\.cloudflared\\<第 3 步 UUID>.json\ningress:\n  - hostname: am.你的域名.com\n    service: http://127.0.0.1:8901\n  - service: http_status:404')
-        this.guideStep('6', '手动运行验证连通', 'cloudflared tunnel run agent-mobile')
-        this.guideStep('7', '安装为系统服务开机自启', 'cloudflared service install\nsc query cloudflared')
-
-        Column() {
-          Text('回到 App 填入公网地址')
-            .fontSize(Tokens.fsFoot)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(Tokens.fg)
-          Text('将 https://am.你的域名.com 填入电脑端「Agent Mobile」面板并同步到此处，在家直连局域网、出门自动切换隧道。')
-            .fontSize(Tokens.fsCaption)
-            .fontColor(Tokens.dim2)
-            .lineHeight(17)
-            .margin({ top: 4 })
-        }
-        .alignItems(HorizontalAlign.Start)
-        .width('100%')
-        .padding(12)
-        .backgroundColor(Tokens.accentSoft)
-        .borderRadius(Tokens.rMd)
-        .margin({ top: 12 })
+        Text(title)
+          .fontSize(Tokens.fsBodyLg)
+          .fontColor(Tokens.fg)
+        Text(sub)
+          .fontSize(Tokens.fsFoot)
+          .fontColor(Tokens.dim2)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .margin({ top: 2 })
       }
-      .width('100%')
-      .padding({ left: 18, right: 18, top: 16, bottom: this.bottomInset + 22 })
       .alignItems(HorizontalAlign.Start)
+      .layoutWeight(1)
+      .margin({ right: 8 })
+
+      Text(tag)
+        .fontSize(Tokens.fsCaption)
+        .fontColor(Tokens.accent)
+        .backgroundColor(Tokens.accentSoft)
+        .borderRadius(Tokens.rPill)
+        .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+        .margin({ right: 8 })
+
+      if (Motion.isFlagship(this.motionMode)) {
+        SymbolGlyph($r('sys.symbol.chevron_right'))
+          .fontSize(14)
+          .fontColor([Tokens.dim2])
+      } else {
+        Text('›')
+          .fontSize(17)
+          .fontColor(Tokens.dim2)
+      }
     }
     .width('100%')
-    .scrollBar(BarState.Off)
+    .padding({ left: 16, right: 16, top: 13, bottom: 13 })
+    .alignItems(VerticalAlign.Center)
+    .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
+    .onClick(() => {
+      Haptics.tap();
+      this.onOpenGuide(kind);
+    })
   }
 
   build() {
@@ -616,6 +485,7 @@ export struct ConnectPanel {
         })
       }
       .width('100%')
+      .transition(Motion.bloomCard(1, this.motionMode))
       .bindSheet($$this.renameOn, this.renameMachineSheet(),
         Mat.sheetOpts(this.hdsOn, SheetSize.FIT_CONTENT, () => {
           this.renameOn = false;
@@ -637,105 +507,96 @@ export struct ConnectPanel {
       this.sectionTitle('网络策略', 16)
       Column() {
         Row() {
-          Text('连接优先策略')
-            .fontSize(Tokens.fsBodyLg)
-            .fontColor(Tokens.fg)
-          HintLabel({
-            title: '',
-            tipText: '自动：同一 Wi-Fi 下优先走局域网直连，出门自动走公网隧道；仅局域网：不回退隧道；仅公网：强制走隧道入口。'
-          })
-          .margin({ left: 6 })
-        }
-        .width('100%')
-        .alignItems(VerticalAlign.Center)
+          Row() {
+            Text('连接优先策略')
+              .fontSize(Tokens.fsBodyLg)
+              .fontColor(Tokens.fg)
+            HintLabel({
+              title: '',
+              tipText: '自动：同一 Wi-Fi 下优先走局域网直连，出门自动走公网隧道；仅局域网：不回退隧道；仅公网：强制走隧道入口。'
+            })
+            .margin({ left: 6 })
+          }
+          .layoutWeight(1)
+          .alignItems(VerticalAlign.Center)
 
-        Row() {
-          SlidingSegment({
+          PopupPicker({
             options: NET_MODE_OPTIONS,
             selected: this.netMode,
+            title: '连接优先策略',
+            popupWidth: 236,
             onSelect: (mode: string) => {
               this.onNetMode(mode);
             }
           })
         }
         .width('100%')
-        .margin({ top: 10 })
+        .alignItems(VerticalAlign.Center)
       }
       .width('100%')
-      .padding({ left: 16, right: 16, top: 14, bottom: 14 })
+      .padding({ left: 16, right: 16, top: 12, bottom: 12 })
       .alignItems(HorizontalAlign.Start)
       .backgroundColor(Mat.cardBg(this.hdsOn))
       .border(Mat.cardBorder(this.hdsOn))
       .shadow(Mat.cardShadow(this.hdsOn))
       .borderRadius(Tokens.rGroup)
       .clip(true)
+      .transition(Motion.bloomCard(2, this.motionMode))
 
-      // 3. 连接地址与外网向导
+      // 3. 连接地址与外网配置（统一入口样式：AI 帮你配 & 手动配置向导）
       this.sectionTitle('连接地址与外网', 18)
-      ConnectForm({
-        base: $editBase,
-        token: $editToken,
-        saved: this.saved,
-        errMsg: this.saveErr,
-        saving: this.saving,
-        stageIdx: this.saveStage,
-        stageDetail: this.saveDetail,
-        elapsedSec: this.saveElapsed,
-        onSave: (): void => {
-          this.onSave();
-        },
-        onRePair: (): void => {
-          this.onOpenPair('scan');
-        }
-      })
-
-      AgentSetupCard()
-
-      Row() {
-        Text('外网访问配置向导（Cloudflare 隧道）')
-          .fontSize(Tokens.fsBody)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(Tokens.fg)
-          .layoutWeight(1)
-        Text('查看指南')
-          .fontSize(Tokens.fsFoot)
-          .fontColor(Tokens.accent)
-          .margin({ right: 6 })
-        Text('›')
-          .fontSize(17)
-          .fontColor(Tokens.dim2)
+      Column() {
+        ConnectForm({
+          base: $editBase,
+          token: $editToken,
+          saved: this.saved,
+          errMsg: this.saveErr,
+          saving: this.saving,
+          stageIdx: this.saveStage,
+          stageDetail: this.saveDetail,
+          elapsedSec: this.saveElapsed,
+          onSave: (): void => {
+            this.onSave();
+          },
+          onRePair: (): void => {
+            this.onOpenPair('scan');
+          }
+        })
       }
       .width('100%')
-      .padding({ left: 16, right: 16, top: 14, bottom: 14 })
-      .margin({ top: 10 })
+      .transition(Motion.bloomCard(3, this.motionMode))
+
+      this.sectionTitle('外网访问配置', 18)
+      Column() {
+        this.guideEntryRow('让 AI 帮你配', '复制完整指令给 Codex / Claude 等 AI 自动完成', '自动方案', 'ai')
+        Divider().color(Tokens.lineSoft).margin({ left: 16 })
+        this.guideEntryRow('外网访问配置向导', '按 7 步手动命令配置 Cloudflare 安全隧道', '手动向导', 'tunnel')
+      }
+      .width('100%')
       .backgroundColor(Mat.cardBg(this.hdsOn))
       .border(Mat.cardBorder(this.hdsOn))
       .shadow(Mat.cardShadow(this.hdsOn))
       .borderRadius(Tokens.rGroup)
-      .alignItems(VerticalAlign.Center)
-      .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
-      .onClick(() => {
-        Haptics.tap();
-        this.tunnelSheet = true;
-      })
-      .bindSheet($$this.tunnelSheet, this.tunnelGuideSheet(),
-        Mat.sheetOpts(this.hdsOn, SheetSize.LARGE, () => {
-          this.tunnelSheet = false;
-        }))
+      .clip(true)
+      .transition(Motion.bloomCard(4, this.motionMode))
 
       // 4. 当前设备概况与断开/移除
-      DeviceCard({
-        name: this.machineName,
-        base: this.currentBase,
-        pluginVersion: this.pluginVersion,
-        sessions: this.sessionsCount,
-        onReconnect: (): void => {
-          this.onReconnect();
-        },
-        onRemove: (): void => {
-          this.onRemoveCurrent();
-        }
-      })
+      Column() {
+        DeviceCard({
+          name: this.machineName,
+          base: this.currentBase,
+          pluginVersion: this.pluginVersion,
+          sessions: this.sessionsCount,
+          onReconnect: (): void => {
+            this.onReconnect();
+          },
+          onRemove: (): void => {
+            this.onRemoveCurrent();
+          }
+        })
+      }
+      .width('100%')
+      .transition(Motion.bloomCard(5, this.motionMode))
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)

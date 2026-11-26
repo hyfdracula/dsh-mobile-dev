@@ -10,6 +10,7 @@ import {
 import { Tokens } from './Tokens';
 import { Haptics } from './Haptics';
 import { Mat } from './Mat';
+import { Motion, MOTION_VIVID } from './Motion';
 
 /**
  * 统一页面头部、透明 HDS 顶栏与顶部渐隐。
@@ -19,7 +20,7 @@ export struct GlassIconButton {
   icon: Resource = $r('app.media.ic_back');
   glyph: string = '';
   label: string = '';
-  btnSize: number = 40;
+  btnSize: number = 46;
   /** 仅当所在容器为 HdsNavigation / HdsNavDestination 的 titleBar 时传 true 以启用系统沉浸光感 */
   @Prop immersive: boolean = false;
   onTap: () => void = () => {};
@@ -38,8 +39,8 @@ export struct GlassIconButton {
           .fontColor(Tokens.fg)
       } else {
         Image(this.icon)
-          .width(20)
-          .height(20)
+          .width(this.label === '返回' ? 21 : 20)
+          .height(this.label === '返回' ? 21 : 20)
           .fillColor(Tokens.fg)
           .objectFit(ImageFit.Contain)
       }
@@ -60,7 +61,11 @@ export struct GlassIconButton {
     .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.9 })
     .accessibilityText(this.label)
     .onClick(() => {
-      Haptics.tap();
+      if (this.label === '返回') {
+        Haptics.soft();
+      } else {
+        Haptics.tap();
+      }
       this.onTap();
     })
   }
@@ -78,6 +83,7 @@ export struct PageHeader {
   @Prop immersive: boolean = false;
   @StorageLink('topInset') topInset: number = 44;
   @StorageLink('themeDark') themeDark: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
   /** none | glyph | icon | label */
   rightKind: string = 'none';
   rightGlyph: string = '\u21bb';
@@ -101,6 +107,7 @@ export struct PageHeader {
             this.onBack();
           }
         })
+        .transition(Motion.headerBackTransition(this.motionMode))
       }
       Column() {
         Text(this.title)

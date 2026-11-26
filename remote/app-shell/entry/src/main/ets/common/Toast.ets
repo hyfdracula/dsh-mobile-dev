@@ -1,4 +1,6 @@
 import { AppCtx } from './AppCtx';
+import { Haptics } from './Haptics';
+import { LinkLog } from './LinkLog';
 import { Motion } from './Motion';
 
 /**
@@ -18,6 +20,8 @@ export class Toast {
   }
 
   static err(msg: string): void {
+    Haptics.error();
+    LinkLog.record('ERR', 'toast=' + msg);
     Toast.dispatch(msg, 'err', 2600);
   }
 

@@ -1,5 +1,5 @@
 import { Mat } from './Mat';
-import { Motion, MOTION_VIVID, SPEED_NORMAL } from './Motion';
+import { Motion, MOTION_VIVID } from './Motion';
 import { Tokens } from './Tokens';
 
 /**
@@ -16,7 +16,6 @@ export struct GlassToastHost {
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
-  @StorageLink('motionSpeed') motionSpeed: string = SPEED_NORMAL;
 
   @State private shown: boolean = false;
   @State private iconTick: number = 0;
@@ -38,13 +37,13 @@ export struct GlassToastHost {
       this.hideTimer = -1;
     }
     this.iconTick += 1;
-    this.getUIContext().animateTo(Motion.flagshipSnappy(this.motionSpeed), () => {
+    this.getUIContext().animateTo(Motion.flagshipSnappy(), () => {
       this.shown = true;
     });
     const dur: number = this.toastDur > 400 ? this.toastDur : 1800;
     this.hideTimer = setTimeout(() => {
       this.hideTimer = -1;
-      this.getUIContext().animateTo(Motion.flagshipSpring(this.motionSpeed), () => {
+      this.getUIContext().animateTo(Motion.flagshipSpring(), () => {
         this.shown = false;
       });
     }, dur);
@@ -99,8 +98,8 @@ export struct GlassToastHost {
         .transition(
           TransitionEffect.asymmetric(
             TransitionEffect.OPACITY.animation({ duration: 160, curve: Motion.std })
-              .combine(TransitionEffect.scale({ x: 0.86, y: 0.86 }).animation(Motion.flagshipSnappy(this.motionSpeed)))
-              .combine(TransitionEffect.translate({ y: 20 }).animation(Motion.flagshipSnappy(this.motionSpeed))),
+              .combine(TransitionEffect.scale({ x: 0.86, y: 0.86 }).animation(Motion.flagshipSnappy()))
+              .combine(TransitionEffect.translate({ y: 20 }).animation(Motion.flagshipSnappy())),
             TransitionEffect.OPACITY.animation({ duration: 150, curve: Motion.std })
               .combine(TransitionEffect.scale({ x: 0.92, y: 0.92 }).animation({ duration: 150, curve: Motion.std }))
               .combine(TransitionEffect.translate({ y: 12 }).animation({ duration: 150, curve: Motion.std }))

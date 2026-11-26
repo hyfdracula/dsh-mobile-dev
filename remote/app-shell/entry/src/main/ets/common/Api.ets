@@ -1,6 +1,7 @@
 import { FilePart } from './Files';
 import { ImagePart } from './Images';
 import { ApiTransport } from './ApiTransport';
+import { LinkLog } from './LinkLog';
 import { AgentConfigApi } from './api/AgentConfigApi';
 import { DeviceApi } from './api/DeviceApi';
 import { HostFsApi } from './api/HostFsApi';
@@ -162,6 +163,16 @@ export {
  * - HostFsApi（插件与插件配置、定时任务、目录浏览、文件系统读写、Git、终端、本机预览代理）
  */
 export class Api extends ApiTransport {
+  private static backendsCache: BackendInfo[] = [];
+
+  static cachedBackends(): BackendInfo[] {
+    return Api.backendsCache.slice();
+  }
+
+  static clearBackendsCache(): void {
+    Api.backendsCache = [];
+  }
+
   // ---------- 设备与网页控制台（DeviceApi） ----------
 
   async info(stageCb?: StageCallback): Promise<ApiInfo> {
@@ -191,11 +202,19 @@ export class Api extends ApiTransport {
   }
 
   async backends(refresh: boolean = false): Promise<BackendInfo[]> {
-    return await SessionApi.backends(this, refresh);
+    const rows: BackendInfo[] = await SessionApi.backends(this, refresh);
+    Api.backendsCache = rows.slice();
+    LinkLog.record('ENGINE', 'backends count=' + String(rows.length) + ' refresh=' + (refresh ? '1' : '0'));
+    return rows;
   }
 
   async toggleBackend(id: string, enabled: boolean): Promise<BackendInfo | null> {
-    return await SessionApi.toggleBackend(this, id, enabled);
+    const updated: BackendInfo | null = await SessionApi.toggleBackend(this, id, enabled);
+    if (updated !== null && Api.backendsCache.length > 0) {
+      Api.backendsCache = Api.backendsCache.map((x: BackendInfo): BackendInfo => x.id === updated.id ? updated : x);
+    }
+    LinkLog.record('ENGINE', 'toggle ' + id + ' -> ' + (enabled ? 'on' : 'off'));
+    return updated;
   }
 
   async previews(ids: string[]): Promise<PreviewRow[]> {

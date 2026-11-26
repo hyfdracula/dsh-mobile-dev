@@ -4,6 +4,7 @@ import { Haptics } from '../common/Haptics';
 import { LegalDocKind } from '../common/LegalDocs';
 import { LinkLog } from '../common/LinkLog';
 import { Mat } from '../common/Mat';
+import { Motion, MOTION_VIVID } from '../common/Motion';
 import { Saver } from '../common/Saver';
 import { Toast } from '../common/Toast';
 import { Tokens } from '../common/Tokens';
@@ -16,7 +17,7 @@ export interface AboutRow {
 }
 
 /**
- * 「关于与协议」：版本/环境概况 + 连接诊断日志导出 + 隐私政策/用户协议/开源许可 + 条件反馈入口。
+ * 「关于与协议」：版本/环境概况 + 运行诊断日志导出 + 隐私政策/用户协议/开源许可 + 条件反馈入口。
  */
 @Component
 export struct AboutPanel {
@@ -29,6 +30,7 @@ export struct AboutPanel {
   @State private exporting: boolean = false;
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
 
   aboutToAppear(): void {
     this.logCount = LinkLog.count();
@@ -43,10 +45,11 @@ export struct AboutPanel {
     try {
       const ctx = AppCtx.ability();
       const content: string = LinkLog.exportContent(this.verText);
-      const saved: boolean = await Saver.saveText(ctx, content, 'agent-mobile-link-log.txt');
+      const saved: boolean = await Saver.saveText(ctx, content, 'agent-mobile-diag-log.txt');
       this.logCount = LinkLog.count();
       if (saved) {
-        Toast.ok('已导出脱敏诊断日志');
+        Haptics.success();
+        Toast.ok('已导出脱敏运行诊断日志');
       }
     } catch (e) {
       Toast.err('导出失败：' + (e as Error).message);
@@ -72,9 +75,15 @@ export struct AboutPanel {
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
 
-      Text('›')
-        .fontSize(17)
-        .fontColor(Tokens.dim2)
+      if (Motion.isFlagship(this.motionMode)) {
+        SymbolGlyph($r('sys.symbol.chevron_right'))
+          .fontSize(14)
+          .fontColor([Tokens.dim2])
+      } else {
+        Text('›')
+          .fontSize(17)
+          .fontColor(Tokens.dim2)
+      }
     }
     .width('100%')
     .padding({ left: 16, right: 16, top: 13, bottom: 13 })
@@ -124,6 +133,7 @@ export struct AboutPanel {
       .shadow(Mat.cardShadow(this.hdsOn))
       .borderRadius(Tokens.rGroup)
       .clip(true)
+      .transition(Motion.bloomCard(0, this.motionMode))
 
       Text('诊断与协议')
         .fontSize(Tokens.fsCaption)
@@ -133,8 +143,8 @@ export struct AboutPanel {
 
       Column() {
         this.actionRow(
-          this.exporting ? '正在导出诊断日志…' : '导出连接诊断日志',
-          String(this.logCount) + ' 条脱敏记录 · 自动剥离令牌与正文',
+          this.exporting ? '正在导出运行诊断日志…' : '导出运行诊断日志',
+          String(this.logCount) + ' 条脱敏记录 · 网络/引擎/运行状态，不含令牌与正文',
           () => {
             void this.exportDiagLog();
           }
@@ -168,6 +178,7 @@ export struct AboutPanel {
       .shadow(Mat.cardShadow(this.hdsOn))
       .borderRadius(Tokens.rGroup)
       .clip(true)
+      .transition(Motion.bloomCard(1, this.motionMode))
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)

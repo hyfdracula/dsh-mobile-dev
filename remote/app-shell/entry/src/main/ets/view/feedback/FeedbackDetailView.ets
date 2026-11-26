@@ -9,6 +9,8 @@ import {
   timeText
 } from '../../common/Feedback';
 import { Haptics } from '../../common/Haptics';
+import { Mat } from '../../common/Mat';
+import { Motion, MOTION_VIVID } from '../../common/Motion';
 import { Tokens } from '../../common/Tokens';
 import { EmptyState } from '../../common/Widgets';
 import { ticketStatusBg, ticketStatusInk } from './FeedbackTypes';
@@ -23,7 +25,9 @@ export struct FeedbackDetailView {
   @Prop err: string = '';
   @Prop busy: boolean = false;
   onRefresh: (id: string) => void = () => {};
+  @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
 
   build() {
     Column() {
@@ -125,8 +129,10 @@ export struct FeedbackDetailView {
         .alignItems(HorizontalAlign.Start)
         .padding(14)
         .borderRadius(Tokens.rCard)
-        .backgroundColor(Tokens.surface)
-        .border({ width: 1, color: Tokens.lineSoft })
+        .backgroundColor(Mat.cardBg(this.hdsOn))
+        .border(Mat.cardBorder(this.hdsOn))
+        .shadow(Mat.cardShadow(this.hdsOn))
+        .transition(Motion.bloomCard(0, this.motionMode))
 
         Text('处理记录')
           .fontSize(Tokens.fsCaption)
@@ -145,8 +151,10 @@ export struct FeedbackDetailView {
           .width('100%')
           .padding(14)
           .borderRadius(Tokens.rCard)
-          .backgroundColor(Tokens.surface)
-          .border({ width: 1, color: Tokens.lineSoft })
+          .backgroundColor(Mat.cardBg(this.hdsOn))
+          .border(Mat.cardBorder(this.hdsOn))
+          .shadow(Mat.cardShadow(this.hdsOn))
+          .transition(Motion.bloomCard(1, this.motionMode))
         } else {
           ForEach(this.cur.replies, (r: TicketReply, i: number) => {
             Column() {
@@ -179,8 +187,10 @@ export struct FeedbackDetailView {
             .padding(12)
             .margin({ bottom: 8 })
             .borderRadius(Tokens.rMd)
-            .backgroundColor(Tokens.surface)
-            .border({ width: 1, color: Tokens.lineSoft })
+            .backgroundColor(Mat.cardBg(this.hdsOn))
+            .border(Mat.cardBorder(this.hdsOn))
+            .shadow(Mat.cardShadow(this.hdsOn))
+            .transition(Motion.bloomCard(i + 1, this.motionMode))
           }, (r: TicketReply, i: number) => String(r.at) + '-' + String(i))
         }
 

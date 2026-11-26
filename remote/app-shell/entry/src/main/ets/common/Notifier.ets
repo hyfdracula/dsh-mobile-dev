@@ -3,6 +3,7 @@ import wantAgent from '@ohos.app.ability.wantAgent';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@ohos.base';
 import { AppCtx } from './AppCtx';
+import { LinkLog } from './LinkLog';
 
 /**
  * 系统通知与桌面角标管理（F11 / F12）：
@@ -129,8 +130,10 @@ export class Notifier {
     }
     try {
       await notificationManager.publish(req);
+      LinkLog.record('NOTIFY', 'published id=' + String(id) + ' sid=' + (sessionId !== '' ? sessionId : '-'));
       console.info('DSH_NOTIFY published id=' + String(id) + ' sid=' + sessionId);
     } catch (e) {
+      LinkLog.record('NOTIFY', 'publish_fail id=' + String(id) + ' err=' + ((e as BusinessError).message ?? 'unknown'));
       console.info('DSH_NOTIFY publish failed :: ' + (e as BusinessError).message);
     }
     const totalBadge: number | undefined = AppStorage.get<number>('unreadTotalCount');

@@ -40,6 +40,9 @@ export struct RowSwitch {
         .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.92 })
         .onChange((v: boolean) => {
           if (this.switchEnabled) {
+            if (v !== this.value) {
+              Haptics.toggle(v);
+            }
             this.onChanged(v);
           }
         })
@@ -447,7 +450,11 @@ export struct SheetActions {
         if (this.busy) {
           return;
         }
-        Haptics.tap();
+        if (this.destructive) {
+          Haptics.warn();
+        } else {
+          Haptics.confirm();
+        }
         this.onConfirm();
       })
     }

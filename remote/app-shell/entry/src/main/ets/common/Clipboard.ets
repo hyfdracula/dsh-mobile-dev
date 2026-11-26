@@ -10,7 +10,7 @@ export async function copyText(text: string, okToast: string = '已复制'): Pro
   try {
     const data: pasteboard.PasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, text);
     await pasteboard.getSystemPasteboard().setData(data);
-    Haptics.tap();
+    Haptics.success();
     if (okToast !== '') {
       Toast.ok(okToast);
     }

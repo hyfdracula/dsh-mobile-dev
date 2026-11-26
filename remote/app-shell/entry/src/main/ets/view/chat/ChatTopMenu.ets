@@ -6,7 +6,8 @@ import { PopupItem, PopupSection, UnifiedPopupCard } from '../../common/UnifiedP
 
 /**
  * 聊天页右上角更多菜单（F05）：
- * 统一复用 UnifiedPopupCard，与首页工作区、分组方式及会话卡片菜单保持 100% 一致的视觉语言。
+ * 统一复用 UnifiedPopupCard，开放全量「预设与控制台」四项入口，
+ * 无论当前会话引擎为 DSH、Codex、Claude Code、OpenCode 还是 Antigravity 均可直接访问。
  */
 @Component
 export struct ChatMenuPopup {
@@ -20,6 +21,7 @@ export struct ChatMenuPopup {
   onOpenSearch: () => void = () => {};
   onExportMd: () => void = () => {};
   onOpenPresets: () => void = () => {};
+  onOpenWebConsole: () => void = () => {};
   onRefresh: () => void = () => {};
   onArchive: () => void = () => {};
   onDismiss: () => void = () => {};
@@ -39,29 +41,31 @@ export struct ChatMenuPopup {
     }
     sessionItems.push({ id: 'search', label: '搜索消息' });
     sessionItems.push({ id: 'export', label: '导出 Markdown' });
-    if (isDsh) {
-      sessionItems.push({ id: 'presets', label: '预设与权限' });
-    }
     sessionItems.push({ id: 'refresh', label: '刷新消息' });
     if (isDsh || this.caps.archivePin) {
       sessionItems.push({ id: 'archive', label: '归档此会话', danger: true });
     }
-    if (!isDsh) {
-      return [{ title: '会话操作', items: sessionItems }];
+
+    const consoleItems: PopupItem[] = [
+      { id: 'presets', label: '智能体预设与权限' },
+      { id: 'plugins', label: '插件管理' },
+      { id: 'schedules', label: '自动化任务' },
+      { id: 'web_console', label: '电脑完整网页控制台' }
+    ];
+
+    const sections: PopupSection[] = [];
+    if (isDsh) {
+      const workbenchItems: PopupItem[] = [
+        { id: 'files', label: '工作区文件' },
+        { id: 'git', label: 'Git 变更与对比' },
+        { id: 'terminal', label: '远程终端' },
+        { id: 'preview', label: '本机端口预览' },
+        { id: 'team', label: '智能体团队' }
+      ];
+      sections.push({ title: '远控工作台', items: workbenchItems });
     }
-    const workbenchItems: PopupItem[] = [
-      { id: 'files', label: '工作区文件' },
-      { id: 'git', label: 'Git 变更与对比' },
-      { id: 'terminal', label: '远程终端' },
-      { id: 'preview', label: '本机端口预览' },
-      { id: 'team', label: '智能体团队' },
-      { id: 'plugins', label: '插件' },
-      { id: 'schedules', label: '自动化任务' }
-    ];
-    const sections: PopupSection[] = [
-      { title: '远控工作台', items: workbenchItems },
-      { title: '会话管理', items: sessionItems }
-    ];
+    sections.push({ title: '预设与控制台', items: consoleItems });
+    sections.push({ title: '会话管理', items: sessionItems });
     return sections;
   }
 
@@ -84,6 +88,8 @@ export struct ChatMenuPopup {
       this.onExportMd();
     } else if (id === 'presets') {
       this.onOpenPresets();
+    } else if (id === 'web_console') {
+      this.onOpenWebConsole();
     } else if (id === 'refresh') {
       this.onRefresh();
     } else if (id === 'archive') {
@@ -94,8 +100,8 @@ export struct ChatMenuPopup {
   build() {
     UnifiedPopupCard({
       sections: this.buildSections(),
-      cardWidth: 252,
-      maxCardHeight: 468,
+      cardWidth: 256,
+      maxCardHeight: 492,
       onSelect: (id: string): void => {
         this.handleSelect(id);
       }
@@ -198,7 +204,7 @@ export struct RenameSessionSheet {
             if (this.text.trim() === '') {
               return;
             }
-            Haptics.tap();
+            Haptics.confirm();
             this.onSave(this.text);
           })
       }

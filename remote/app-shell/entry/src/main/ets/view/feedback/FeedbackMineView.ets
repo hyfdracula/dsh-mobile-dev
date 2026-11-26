@@ -1,11 +1,13 @@
 import { Ticket, statusText, timeText } from '../../common/Feedback';
 import { Haptics } from '../../common/Haptics';
+import { Mat } from '../../common/Mat';
+import { Motion, MOTION_VIVID } from '../../common/Motion';
 import { Tokens } from '../../common/Tokens';
 import { EmptyState } from '../../common/Widgets';
 import { feedbackKindName, ticketStatusBg, ticketStatusInk } from './FeedbackTypes';
 
 /**
- * 「我的反馈」工单列表视图：区分加载中、空态与工单卡片列表。
+ * 「我的反馈」工单列表视图：区分加载中、空态与工单卡片列表（统一材质与逐卡绽放）。
  */
 @Component
 export struct FeedbackMineView {
@@ -16,7 +18,9 @@ export struct FeedbackMineView {
   onGoSubmit: () => void = () => {};
   onOpenTicket: (id: string) => void = () => {};
   onRetry: () => void = () => {};
+  @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
 
   private replySuffix(t: Ticket): string {
     if (t.replies !== undefined && t.replies.length > 0) {
@@ -83,7 +87,7 @@ export struct FeedbackMineView {
           }
         })
       } else {
-        ForEach(this.rows, (t: Ticket) => {
+        ForEach(this.rows, (t: Ticket, idx: number) => {
           Column() {
             Row() {
               Text(t.id)
@@ -122,8 +126,10 @@ export struct FeedbackMineView {
           .padding(14)
           .margin({ bottom: 10 })
           .borderRadius(Tokens.rCard)
-          .backgroundColor(Tokens.surface)
-          .border({ width: 1, color: Tokens.lineSoft })
+          .backgroundColor(Mat.cardBg(this.hdsOn))
+          .border(Mat.cardBorder(this.hdsOn))
+          .shadow(Mat.cardShadow(this.hdsOn))
+          .transition(Motion.bloomCard(idx, this.motionMode))
           .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
           .onClick(() => {
             Haptics.tap();

@@ -3,6 +3,7 @@ import { Drafts } from '../common/Drafts';
 import { Haptics } from '../common/Haptics';
 import { Marks } from '../common/Marks';
 import { Mat } from '../common/Mat';
+import { Motion, MOTION_VIVID } from '../common/Motion';
 import { Outbox } from '../common/Outbox';
 import { Toast } from '../common/Toast';
 import { Tokens } from '../common/Tokens';
@@ -20,6 +21,7 @@ export struct DataStoragePanel {
   @State private markN: number = 0;
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
 
   aboutToAppear(): void {
     this.reloadCounts();
@@ -145,6 +147,7 @@ export struct DataStoragePanel {
       .shadow(Mat.cardShadow(this.hdsOn))
       .borderRadius(Tokens.rGroup)
       .clip(true)
+      .transition(Motion.bloomCard(0, this.motionMode))
 
       Text('应用数据')
         .fontSize(Tokens.fsCaption)
@@ -165,6 +168,7 @@ export struct DataStoragePanel {
       .shadow(Mat.cardShadow(this.hdsOn))
       .borderRadius(Tokens.rGroup)
       .clip(true)
+      .transition(Motion.bloomCard(1, this.motionMode))
 
       Text('数据说明')
         .fontSize(Tokens.fsCaption)
@@ -189,6 +193,7 @@ export struct DataStoragePanel {
       .shadow(Mat.cardShadow(this.hdsOn))
       .borderRadius(Tokens.rGroup)
       .clip(true)
+      .transition(Motion.bloomCard(2, this.motionMode))
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)

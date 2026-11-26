@@ -1,5 +1,5 @@
 import { inputMethod } from '@kit.IMEKit';
-import { HdsNavDestination, HdsNavigationTitleBarOptions } from '@kit.UIDesignKit';
+import { HdsNavDestination, HdsNavigationTitleBarOptions, hdsEffect } from '@kit.UIDesignKit';
 import window from '@ohos.window';
 import { KeyboardAvoidMode as KbMode } from '@ohos.arkui.UIContext';
 import {
@@ -38,6 +38,7 @@ import { FilePart } from '../common/Files';
 import { dayLabel, sameDay } from '../common/Format';
 import { Haptics } from '../common/Haptics';
 import { ImagePart, pickImages } from '../common/Images';
+import { Machines } from '../common/Machines';
 import { Marks } from '../common/Marks';
 import { Mat } from '../common/Mat';
 import { MdBlock, parseMd } from '../common/Md';
@@ -53,6 +54,7 @@ import { ExtrasPanel } from './ExtrasPanel';
 import { PendingBoard, PendRow } from './PendingBoard';
 import { PendingImages } from './PendingImages';
 import { TypingBubble } from './TypingBubble';
+import { WebConsolePage } from './WebConsolePage';
 import { AiFlowGlow } from './chat/AiFlowGlow';
 import { AskQuestionCard } from './chat/AskQuestionCard';
 import { BigEditorOverlay } from './chat/BigEditorOverlay';
@@ -215,6 +217,12 @@ export struct ChatPage {
   @State private menuMsg: Message | null = null;
   @State private asks: PendingAsk[] = [];
   @State private extrasMode: string = '';
+  @State private webConsoleOn: boolean = false;
+  @State private composerPressed: boolean = false;
+  @State private composerTouchXPct: number = 50;
+  @State private composerTouchYPct: number = 50;
+  private composerW: number = 340;
+  private composerH: number = 104;
 
   @State private err: string = '';
   @State private errCard: string = '';
@@ -1754,6 +1762,7 @@ export struct ChatPage {
       },
       onExportMd: (): void => { void this.exportMd(); },
       onOpenPresets: (): void => { this.openPresetsPage(); },
+      onOpenWebConsole: (): void => { this.hideKb(); this.webConsoleOn = true; },
       onRefresh: (): void => { void this.refreshSoft(); },
       onArchive: (): void => { void this.archiveCurrentSession(); },
       onDismiss: (): void => { this.menuOn = false; }
@@ -1772,11 +1781,88 @@ export struct ChatPage {
     }
   }
 
+  private buildComposerEffect(): VisualEffect {
+    if (!this.hdsOn) {
+      const offLight: hdsEffect.PointLightEffect = {
+        sourceType: hdsEffect.PointLightSourceType.NONE,
+        illuminatedType: hdsEffect.PointLightIlluminatedType.NONE
+      };
+      return new hdsEffect.HdsEffectBuilder()
+        .pointLight(offLight)
+        .pressShadow(hdsEffect.PressShadowType.NONE)
+        .buildEffect();
+    }
+    const lightOpts: hdsEffect.PointLightOptions = {
+      color: this.themeDark ? '#CCFFFFFF' : '#FFFFFFFF',
+      intensity: this.composerPressed ? 1.45 : 0.92,
+      height: 46,
+      bloom: this.composerPressed ? 0.85 : 0.42
+    };
+    const lightEff: hdsEffect.PointLightEffect = {
+      sourceType: hdsEffect.PointLightSourceType.BRIGHT,
+      illuminatedType: hdsEffect.PointLightIlluminatedType.DEFAULT_FEATHERING_BORDER,
+      options: lightOpts
+    };
+    return new hdsEffect.HdsEffectBuilder()
+      .pointLight(lightEff)
+      .pressShadow(hdsEffect.PressShadowType.BLEND_GRADIENT)
+      .buildEffect();
+  }
+
   @Builder
   private composerGlowOverlay() {
-    if (this.running && Motion.isVivid(this.motionMode)) {
-      AiFlowGlow({ radius: Tokens.rCard, glowOpacity: 0.58 })
+    Stack() {
+      // 1. 沉浸光感非均一折射高光与顶边晶体棱线
+      if (this.hdsOn) {
+        Row()
+          .width('100%')
+          .height('100%')
+          .linearGradient({
+            angle: 155,
+            colors: this.themeDark
+              ? [['#29FFFFFF', 0.0], ['#0AFFFFFF', 0.34], ['#00FFFFFF', 0.68], ['#1494B8FF', 1.0]]
+              : [['#78FFFFFF', 0.0], ['#24FFFFFF', 0.38], ['#00FFFFFF', 0.72], ['#1A3B6EF6', 1.0]]
+          })
+          .hitTestBehavior(HitTestMode.None)
+
+        Row()
+          .width('86%')
+          .height(1)
+          .linearGradient({
+            angle: 90,
+            colors: [
+              ['#00FFFFFF', 0.0],
+              [this.themeDark ? '#5CFFFFFF' : '#E6FFFFFF', 0.5],
+              ['#00FFFFFF', 1.0]
+            ]
+          })
+          .position({ x: '7%', y: 0 })
+          .hitTestBehavior(HitTestMode.None)
+
+        // 2. 点击跟手径向高光晕染
+        Row()
+          .width('100%')
+          .height('100%')
+          .radialGradient({
+            center: [String(this.composerTouchXPct) + '%', String(this.composerTouchYPct) + '%'],
+            radius: 150,
+            colors: this.themeDark
+              ? [['#42FFFFFF', 0.0], ['#1CA6C8FF', 0.42], ['#00FFFFFF', 1.0]]
+              : [['#85FFFFFF', 0.0], ['#303B6EF6', 0.42], ['#00FFFFFF', 1.0]]
+          })
+          .opacity(this.composerPressed ? 1 : 0)
+          .animation(Motion.flagshipSnappy())
+          .hitTestBehavior(HitTestMode.None)
+      }
+
+      // 3. AI 回复中双边流光
+      if (this.running && Motion.isVivid(this.motionMode)) {
+        AiFlowGlow({ radius: Tokens.rCard, glowOpacity: 0.58 })
+      }
     }
+    .width('100%')
+    .height('100%')
+    .hitTestBehavior(HitTestMode.None)
   }
 
   /** HDS 标题栏内容：放回 HdsNavDestination.titleBar 以激活 HarmonyOS 6 真实沉浸光感材质，并保持四控件单行水平居中对齐 */
@@ -1818,16 +1904,14 @@ export struct ChatPage {
             onTap: (): void => { this.hideKb(); this.menuOn = true; }
           })
             .accessibilityText('更多菜单')
-            .bindPopup(this.menuOn, Mat.popupOpts(
+              .bindPopup(this.menuOn, Mat.popupOpts(
               this.hdsOn,
               (): void => { this.chatMenuBuilder(); },
               Placement.BottomRight,
               { x: 0, y: 6 },
               (vis: boolean): void => { if (!vis) this.menuOn = false; },
               20,
-              TransitionEffect.OPACITY
-                .combine(TransitionEffect.scale({ x: 0.94, y: 0.94, centerX: '100%', centerY: '0%' }))
-                .animation({ duration: Motion.fade, curve: Motion.std })
+              Motion.popupMenuTransition(this.motionMode, true)
             ))
         }
         .width('100%')
@@ -1998,7 +2082,7 @@ export struct ChatPage {
         .hitTestBehavior(HitTestMode.Transparent)
 
         // 顶部柔和渐隐/非沉浸回退衬板（四枚顶栏控件已归位至 HdsNavDestination.titleBar 以启用真实沉浸光感）
-        if (!this.bigEditOn && this.extrasMode === '' && !this.searchOn) {
+        if (!this.bigEditOn && this.extrasMode === '' && !this.searchOn && !this.webConsoleOn) {
           ChatTopBackdrop({
             immersive: this.immersiveOn(),
             topInset: this.topInset
@@ -2274,14 +2358,36 @@ export struct ChatPage {
               .padding({ top: 6, bottom: 6 })
               .backgroundColor(this.hdsOn ? Color.Transparent : Tokens.surface)
               .backgroundEffect(Mat.glassEffect(this.hdsOn, this.attachOn || this.pendImgs.length > 0))
+              .visualEffect(this.buildComposerEffect())
               .borderRadius(Tokens.rCard)
               .border(Mat.glassRimBorder(this.hdsOn))
               .shadow(Mat.glassFloatShadow(this.hdsOn))
               .overlay(this.composerGlowOverlay())
               .clip(true)
+              .onTouch((e: TouchEvent) => {
+                if (!this.hdsOn) {
+                  return;
+                }
+                if (e.touches !== undefined && e.touches.length > 0) {
+                  const w: number = this.composerW > 40 ? this.composerW : 340;
+                  const h: number = this.composerH > 30 ? this.composerH : 104;
+                  const xp: number = Math.round(Math.max(5, Math.min(95, (e.touches[0].x / w) * 100)));
+                  const yp: number = Math.round(Math.max(5, Math.min(95, (e.touches[0].y / h) * 100)));
+                  this.composerTouchXPct = xp;
+                  this.composerTouchYPct = yp;
+                }
+                if (e.type === TouchType.Down) {
+                  this.composerPressed = true;
+                } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+                  this.composerPressed = false;
+                }
+              })
               .onAreaChange((oldValue: Area, newValue: Area) => {
+                const w: number = Number(newValue.width);
                 const h: number = Number(newValue.height);
+                if (w > 40) this.composerW = w;
                 if (h > 0 && Math.abs(h - this.inputH) > 1) this.inputH = h;
+                if (h > 0) this.composerH = h;
               })
             }
             .width('100%')
@@ -2315,6 +2421,14 @@ export struct ChatPage {
             sessionId: this.param.id,
             api: this.api,
             onExit: (): void => { this.extrasMode = ''; }
+          })
+        }
+
+        if (this.webConsoleOn) {
+          WebConsolePage({
+            api: this.api,
+            hostName: Machines.displayName(),
+            onExit: (): void => { this.webConsoleOn = false; }
           })
         }
 
@@ -2409,10 +2523,11 @@ export struct ChatPage {
       .width('100%')
       .height('100%')
     }
-    .hideTitleBar(this.bigEditOn || this.extrasMode !== '' || this.searchOn)
+    .hideTitleBar(this.bigEditOn || this.extrasMode !== '' || this.searchOn || this.webConsoleOn)
     .titleBar(this.hdsTitle())
     .padding({ top: 0 })
     .onBackPressed(() => {
+      if (this.webConsoleOn) { this.webConsoleOn = false; return true; }
       if (this.extrasMode !== '') { this.extrasMode = ''; return true; }
       if (this.searchOn) { this.searchOn = false; return true; }
       if (this.bigEditOn) {

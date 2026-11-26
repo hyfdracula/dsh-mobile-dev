@@ -102,14 +102,8 @@ export struct MdBody {
     if (forUser) {
       return '#FFFFFF';
     }
-    if (this.isHref(s)) {
-      return Tokens.accent;
-    }
     if (s.s === true) {
       return Tokens.dim;
-    }
-    if (s.c) {
-      return Tokens.accent;
     }
     return Tokens.fg;
   }
@@ -125,7 +119,7 @@ export struct MdBody {
     if (this.isHref(s)) {
       const deco: DecorationStyleInterface = {
         type: TextDecorationType.Underline,
-        color: forUser ? '#FFFFFF' : Tokens.accent
+        color: forUser ? '#FFFFFF' : Tokens.dim
       };
       return deco;
     }
@@ -279,7 +273,7 @@ export struct MdBody {
     Text() {
       ForEach(segs, (s: MdSeg, i: number) => {
         Span(s.t)
-          .fontWeight((forceBold || s.b) ? FontWeight.Bold : FontWeight.Normal)
+          .fontWeight((forceBold || s.b) ? FontWeight.Bold : (s.c ? FontWeight.Medium : FontWeight.Normal))
           .fontStyle(s.i === true ? FontStyle.Italic : FontStyle.Normal)
           .fontFamily(s.c ? 'monospace' : 'HarmonyOS Sans')
           .fontColor(this.spanColor(s, false))
@@ -306,7 +300,7 @@ export struct MdBody {
     Text() {
       ForEach(segs, (s: MdSeg, i: number) => {
         Span(s.t)
-          .fontWeight(s.b ? FontWeight.Bold : FontWeight.Normal)
+          .fontWeight(s.b ? FontWeight.Bold : (s.c ? FontWeight.Medium : FontWeight.Normal))
           .fontStyle(s.i === true ? FontStyle.Italic : FontStyle.Normal)
           .fontFamily(s.c ? 'monospace' : 'HarmonyOS Sans')
           .fontColor(this.spanColor(s, false))
@@ -382,7 +376,7 @@ export struct MdBody {
       Text() {
         ForEach(this.inlineOf(raw), (s: MdSeg, si: number) => {
           Span(s.t)
-            .fontWeight(s.b ? FontWeight.Bold : (isHead ? FontWeight.Medium : FontWeight.Normal))
+            .fontWeight(s.b ? FontWeight.Bold : ((isHead || s.c) ? FontWeight.Medium : FontWeight.Normal))
             .fontStyle(s.i === true ? FontStyle.Italic : FontStyle.Normal)
             .fontFamily(s.c ? 'monospace' : 'HarmonyOS Sans')
             .fontColor(this.spanColor(s, false))

@@ -168,8 +168,7 @@ export class Mat {
     return Mat.fabCache as uiMaterial.Material;
   }
 
-  /**
-   * 页面内悬浮玻璃材质（用于 HDS titleBar / 弹窗作用域之外的沉底按键、底部对话框与展开菜单）：
+  /** 页面内悬浮玻璃材质（用于 HDS titleBar / 弹窗作用域之外的沉底按键、底部对话框与展开菜单）：
    * 使用 Rosen 实时 GPU 背景模糊 backgroundEffect，与顶部 HDS ULTRA_THIN 胶囊及弹窗 THIN 卡片视觉 100% 统一。
    */
   static glassEffect(glass: boolean, dense: boolean = false): BackgroundEffectOptions {
@@ -184,6 +183,26 @@ export class Mat {
       color: dense
         ? (Tokens.isDark ? '#5C141A26' : '#6EFFFFFF')
         : (Tokens.isDark ? '#38161B26' : '#40FFFFFF'),
+      adaptiveColor: AdaptiveColor.DEFAULT,
+      policy: BlurStyleActivePolicy.ALWAYS_ACTIVE
+    };
+    return opts;
+  }
+
+  /**
+   * 底部悬浮阅读卡（隐私政策 / 用户协议 / 开源许可 / 外网配置向导）专用沉浸光感雾面玻璃：
+   * 在保持正文清晰可读的同时，透出后方景深虚化色彩，关闭沉浸光感时退回完全实色零模糊表面。
+   */
+  static readingGlassEffect(glass: boolean): BackgroundEffectOptions {
+    if (!glass) {
+      const off: BackgroundEffectOptions = { radius: 0, color: Color.Transparent };
+      return off;
+    }
+    const opts: BackgroundEffectOptions = {
+      radius: 32,
+      saturation: Tokens.isDark ? 1.50 : 1.38,
+      brightness: Tokens.isDark ? 0.94 : 1.03,
+      color: Tokens.isDark ? '#4F141A26' : '#5EFFFFFF',
       adaptiveColor: AdaptiveColor.DEFAULT,
       policy: BlurStyleActivePolicy.ALWAYS_ACTIVE
     };

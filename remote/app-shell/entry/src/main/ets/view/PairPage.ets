@@ -8,7 +8,7 @@ import { PageHeader, TopFade } from '../common/Chrome';
 import { copyText } from '../common/Clipboard';
 import { Haptics } from '../common/Haptics';
 import { Mat } from '../common/Mat';
-import { Motion } from '../common/Motion';
+import { Motion, MOTION_VIVID } from '../common/Motion';
 import { PairClaim, PairError, PairInfo, Pairing, PairLink } from '../common/Pairing';
 import { Tokens } from '../common/Tokens';
 import { ConnectionStageCard, SheetHeader } from '../common/Widgets';
@@ -52,8 +52,10 @@ export struct PairPage {
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('appIconStyle') appIconStyle: string = ICON_DARK;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
 
   @State private screen: string = 'connect';
+  @State private stepForward: boolean = true;
   @State private tab: string = 'code';
   @State private code: string = '';
   @State private addr: string = '';
@@ -129,7 +131,11 @@ export struct PairPage {
     this.okMsg = '';
     this.stageErr = '';
     this.stageActive = false;
-    this.getUIContext().animateTo({ duration: Motion.move, curve: Motion.std }, () => {
+    this.stepForward = next === 'connect';
+    const anim: AnimateParam = Motion.isFlagship(this.motionMode)
+      ? Motion.flagshipParallax()
+      : { duration: Motion.move, curve: Motion.std };
+    this.getUIContext().animateTo(anim, () => {
       this.screen = next;
     });
     this.scroller.scrollTo({ xOffset: 0, yOffset: 0, animation: true });
@@ -272,7 +278,7 @@ export struct PairPage {
       this.stageIdx = 3;
       this.stageDetail = '正在写入本机加密凭据 · ' + hostLabel;
       this.okMsg = '已连接 · ' + hostLabel;
-      Haptics.soft();
+      Haptics.success();
       await new Promise<void>((r: () => void) => setTimeout(r, 240));
       if (seq !== this.claimSeq) {
         return;
@@ -378,7 +384,7 @@ export struct PairPage {
       this.stageIdx = 3;
       this.stageDetail = '正在写入本机加密凭据 · ' + hostName;
       this.okMsg = '已验证 · ' + hostName;
-      Haptics.soft();
+      Haptics.success();
       await new Promise<void>((r: () => void) => setTimeout(r, 200));
       if (seq !== this.claimSeq) {
         return;
@@ -967,6 +973,21 @@ export struct PairPage {
   @Builder
   connectScreen() {
     Column() {
+      Row({ space: 8 }) {
+        Text('第 2 步 / 共 2 步')
+          .fontSize(Tokens.fsCaption)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(Tokens.accent)
+          .backgroundColor(Tokens.accentSoft)
+          .borderRadius(Tokens.rPill)
+          .padding({ left: 9, right: 9, top: 3, bottom: 3 })
+        Text('扫码或填入配对码连接')
+          .fontSize(Tokens.fsCaption)
+          .fontColor(Tokens.dim2)
+      }
+      .width('100%')
+      .margin({ bottom: 10 })
+
       this.heroScanCard()
       this.segmentedTabs()
       this.modeContentCard()
@@ -1014,6 +1035,20 @@ export struct PairPage {
   prepareScreen() {
     Column({ space: 10 }) {
       Column({ space: 4 }) {
+        Row({ space: 8 }) {
+          Text('第 1 步 / 共 2 步')
+            .fontSize(Tokens.fsCaption)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(Tokens.accent)
+            .backgroundColor(Tokens.accentSoft)
+            .borderRadius(Tokens.rPill)
+            .padding({ left: 9, right: 9, top: 3, bottom: 3 })
+          Text('先完成电脑端准备，再进入下一步连接')
+            .fontSize(Tokens.fsCaption)
+            .fontColor(Tokens.dim2)
+        }
+        .margin({ bottom: 4 })
+
         Text('在电脑上准备 Agent Mobile 网关')
           .fontSize(Tokens.fsDisplay)
           .fontWeight(FontWeight.Bold)
@@ -1071,7 +1106,7 @@ export struct PairPage {
         .margin({ top: 10 })
         .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
         .onClick(() => {
-          Haptics.tap();
+          Haptics.confirm();
           this.switchScreen('connect');
         })
     }
@@ -1083,16 +1118,24 @@ export struct PairPage {
     Stack({ alignContent: Alignment.Top }) {
       Scroll(this.scroller) {
         Column() {
-          Column() {
+          Stack({ alignContent: Alignment.TopStart }) {
             if (this.screen === 'prepare') {
-              this.prepareScreen()
+              Column() {
+                this.prepareScreen()
+              }
+              .width('100%')
+              .transition(Motion.stepSlide(this.stepForward, this.motionMode))
             } else {
-              this.connectScreen()
+              Column() {
+                this.connectScreen()
+              }
+              .width('100%')
+              .transition(Motion.stepSlide(this.stepForward, this.motionMode))
             }
           }
           .width('100%')
           .constraintSize({ maxWidth: this.wideScreen ? 560 : 520 })
-          .alignItems(HorizontalAlign.Start)
+          .clip(true)
         }
         .width('100%')
         .padding({

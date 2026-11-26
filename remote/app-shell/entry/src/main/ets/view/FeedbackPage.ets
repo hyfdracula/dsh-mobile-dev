@@ -19,7 +19,7 @@ import {
   UploadSpec
 } from '../common/Feedback';
 import { Haptics } from '../common/Haptics';
-import { Motion } from '../common/Motion';
+import { Motion, MOTION_VIVID } from '../common/Motion';
 import { Notifier } from '../common/Notifier';
 import { Toast } from '../common/Toast';
 import { Tokens } from '../common/Tokens';
@@ -43,9 +43,11 @@ export struct FeedbackPage {
   @StorageLink('themeBg') themeBg: string = Tokens.bg;
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('wideScreen') wideScreen: boolean = false;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
   @StorageLink('fbBack') @Watch('onFbBack') private fbBack: number = 0;
 
   @State @Watch('onStage') private stage: string = 'entry';
+  @State private stageForward: boolean = true;
   @State private busy: boolean = false;
   @State private err: string = '';
   @State private note: string = '';
@@ -82,8 +84,22 @@ export struct FeedbackPage {
     this.contact = contactPref();
   }
 
+  private stageDepth(s: string): number {
+    if (s === 'detail') {
+      return 2;
+    }
+    if (s === 'submit' || s === 'mine') {
+      return 1;
+    }
+    return 0;
+  }
+
   private switchStage(next: string): void {
-    this.getUIContext().animateTo({ duration: Motion.move, curve: Motion.std }, () => {
+    this.stageForward = this.stageDepth(next) >= this.stageDepth(this.stage);
+    const anim: AnimateParam = Motion.isFlagship(this.motionMode)
+      ? Motion.flagshipParallax()
+      : { duration: Motion.move, curve: Motion.std };
+    this.getUIContext().animateTo(anim, () => {
       this.stage = next;
     });
     try {
@@ -104,7 +120,7 @@ export struct FeedbackPage {
   }
 
   private back(): void {
-    Haptics.tap();
+    Haptics.soft();
     if (this.stage === 'submit' || this.stage === 'mine') {
       this.err = '';
       this.note = '';
@@ -349,10 +365,7 @@ export struct FeedbackPage {
                   })
                 }
                 .width('100%')
-                .transition(
-                  TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std })
-                    .combine(TransitionEffect.translate({ y: 8 }).animation({ duration: Motion.move, curve: Motion.std }))
-                )
+                .transition(Motion.stepSlide(this.stageForward, this.motionMode))
               } else if (this.stage === 'mine') {
                 Column() {
                   FeedbackMineView({
@@ -375,10 +388,7 @@ export struct FeedbackPage {
                   })
                 }
                 .width('100%')
-                .transition(
-                  TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std })
-                    .combine(TransitionEffect.translate({ y: 8 }).animation({ duration: Motion.move, curve: Motion.std }))
-                )
+                .transition(Motion.stepSlide(this.stageForward, this.motionMode))
               } else if (this.stage === 'detail') {
                 Column() {
                   FeedbackDetailView({
@@ -392,10 +402,7 @@ export struct FeedbackPage {
                   })
                 }
                 .width('100%')
-                .transition(
-                  TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std })
-                    .combine(TransitionEffect.translate({ y: 8 }).animation({ duration: Motion.move, curve: Motion.std }))
-                )
+                .transition(Motion.stepSlide(this.stageForward, this.motionMode))
               } else {
                 Column() {
                   FeedbackEntryView({
@@ -413,13 +420,11 @@ export struct FeedbackPage {
                   })
                 }
                 .width('100%')
-                .transition(
-                  TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std })
-                    .combine(TransitionEffect.translate({ y: 8 }).animation({ duration: Motion.move, curve: Motion.std }))
-                )
+                .transition(Motion.stepSlide(this.stageForward, this.motionMode))
               }
             }
             .width('100%')
+            .clip(true)
           }
           .width('100%')
           .constraintSize({ maxWidth: this.wideScreen ? 680 : 520 })

@@ -1,5 +1,5 @@
 import { Haptics } from './Haptics';
-import { Motion, MOTION_VIVID, SPEED_NORMAL } from './Motion';
+import { Motion, MOTION_VIVID } from './Motion';
 import { Tokens } from './Tokens';
 
 export interface SegmentOption {
@@ -30,7 +30,6 @@ export struct SlidingSegment {
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
-  @StorageLink('motionSpeed') motionSpeed: string = SPEED_NORMAL;
 
   @State private thumbX: number = 0;
   @State private thumbW: number = 0;
@@ -52,7 +51,7 @@ export struct SlidingSegment {
       this.thumbReady = true;
       return;
     }
-    this.getUIContext().animateTo(Motion.flagshipSnappy(this.motionSpeed), () => {
+    this.getUIContext().animateTo(Motion.flagshipSnappy(), () => {
       this.thumbX = box.x;
       this.thumbW = box.w;
       this.thumbH = box.h;
@@ -86,7 +85,7 @@ export struct SlidingSegment {
               x: this.pressingId === this.selected ? 0.95 : 1,
               y: this.pressingId === this.selected ? 0.95 : 1
             })
-            .animation(Motion.flagshipSnappy(this.motionSpeed))
+            .animation(Motion.flagshipSnappy())
             .hitTestBehavior(HitTestMode.None)
         }
 
@@ -108,7 +107,7 @@ export struct SlidingSegment {
                 x: this.pressingId === opt.id && this.selected !== opt.id ? 0.93 : 1,
                 y: this.pressingId === opt.id && this.selected !== opt.id ? 0.93 : 1
               })
-              .animation(Motion.flagshipSnappy(this.motionSpeed))
+              .animation(Motion.flagshipSnappy())
               .onAreaChange((_oldVal: Area, newVal: Area) => {
                 const x: number = Number(newVal.position.x);
                 const w: number = Number(newVal.width);

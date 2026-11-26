@@ -3,6 +3,7 @@ import { Want } from '@kit.AbilityKit';
 import { AppCtx } from '../common/AppCtx';
 import { Haptics } from '../common/Haptics';
 import { Mat } from '../common/Mat';
+import { Motion, MOTION_VIVID } from '../common/Motion';
 import { Notifier } from '../common/Notifier';
 import { Toast } from '../common/Toast';
 import { Tokens } from '../common/Tokens';
@@ -26,6 +27,7 @@ export struct NotifyPanel {
   @StorageLink('unreadCount') unreadCount: number = 0;
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
   private pollTimer: number = -1;
 
   aboutToAppear(): void {
@@ -161,6 +163,7 @@ export struct NotifyPanel {
       .shadow(Mat.cardShadow(this.hdsOn))
       .borderRadius(Tokens.rGroup)
       .margin({ top: 6 })
+      .transition(Motion.bloomCard(0, this.motionMode))
 
       Text('提醒偏好')
         .fontSize(Tokens.fsCaption)
@@ -196,6 +199,7 @@ export struct NotifyPanel {
       .shadow(Mat.cardShadow(this.hdsOn))
       .borderRadius(Tokens.rGroup)
       .clip(true)
+      .transition(Motion.bloomCard(1, this.motionMode))
 
       Text('调试与未读')
         .fontSize(Tokens.fsCaption)
@@ -280,6 +284,7 @@ export struct NotifyPanel {
       .shadow(Mat.cardShadow(this.hdsOn))
       .borderRadius(Tokens.rGroup)
       .clip(true)
+      .transition(Motion.bloomCard(2, this.motionMode))
 
       Text('应用在前台及切回前台时会自动巡检会话变化，并将结果同步至未读角标与系统通知栏。')
         .fontSize(Tokens.fsFoot)

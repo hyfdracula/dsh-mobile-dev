@@ -1,16 +1,26 @@
 import { Api } from '../../common/Api';
 import { copyText } from '../../common/Clipboard';
-import { envLine, FEEDBACK_KINDS, FeedbackKind, setNotifyPref } from '../../common/Feedback';
+import { envLine, setNotifyPref } from '../../common/Feedback';
 import { Haptics } from '../../common/Haptics';
 import { LinkLog } from '../../common/LinkLog';
+import { Mat } from '../../common/Mat';
+import { Motion, MOTION_VIVID } from '../../common/Motion';
 import { Net } from '../../common/Net';
+import { PickerOption, PopupPicker } from '../../common/PopupPicker';
 import { Tokens } from '../../common/Tokens';
 import { RowSwitch } from '../../common/Widgets';
 import { PendingAttachment } from './FeedbackTypes';
 
+const KIND_PICKER_OPTIONS: PickerOption[] = [
+  { id: 'bug', label: '问题反馈', sub: '异常报错、崩溃或功能失效' },
+  { id: 'feature', label: '功能建议', sub: '希望新增的能力或体验改进' },
+  { id: 'ux', label: '体验问题', sub: '界面布局、动效或交互细节' },
+  { id: 'other', label: '其他', sub: '使用咨询与其他说明' }
+];
+
 /**
  * 提交反馈表单视图：
- * 分类选择、描述输入、附件管理、环境与脱敏诊断一键复制、进度通知与联系方式。
+ * 分类下拉选择（PopupPicker）、描述输入、附件管理、运行环境与运行诊断日志一键复制、进度通知与联系方式。
  */
 @Component
 export struct FeedbackSubmitView {
@@ -29,7 +39,9 @@ export struct FeedbackSubmitView {
   onBottomFieldFocus: () => void = () => {};
   onSubmit: () => void = () => {};
 
+  @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
 
   private countOf(targetKind: string): number {
     let n: number = 0;
@@ -54,14 +66,14 @@ export struct FeedbackSubmitView {
         parts.push('  ' + errs[i]);
       }
     }
-    const logs: string[] = LinkLog.recent(10);
+    const logs: string[] = LinkLog.recent(16);
     if (logs.length > 0) {
-      parts.push('最近链路记录：');
+      parts.push('最近运行记录：');
       for (let i = 0; i < logs.length; i++) {
         parts.push('  ' + logs[i]);
       }
     }
-    void copyText(parts.join('\n'), '诊断信息已复制');
+    void copyText(parts.join('\n'), '运行诊断信息已复制');
   }
 
   @Builder
@@ -87,8 +99,8 @@ export struct FeedbackSubmitView {
     .padding({ left: 12, right: 12, top: 8, bottom: 8 })
     .margin({ right: 8, bottom: 6 })
     .borderRadius(Tokens.rPill)
-    .backgroundColor(Tokens.surface)
-    .border({ width: 1, color: Tokens.lineSoft })
+    .backgroundColor(Mat.cardBg(this.hdsOn))
+    .border(Mat.cardBorder(this.hdsOn))
     .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.95 })
     .onClick(() => {
       Haptics.tap();
@@ -98,58 +110,63 @@ export struct FeedbackSubmitView {
 
   build() {
     Column() {
-      Text('反馈类型')
-        .fontSize(Tokens.fsCaption)
-        .fontColor(Tokens.dim2)
-        .letterSpacing(1.4)
-        .width('100%')
-        .margin({ left: 4, bottom: 8 })
-
-      Flex({ wrap: FlexWrap.Wrap }) {
-        ForEach(FEEDBACK_KINDS, (k: FeedbackKind) => {
-          Text(k.name)
-            .fontSize(Tokens.fsBody)
-            .fontColor(this.kind === k.id ? Tokens.accentInk : Tokens.dim)
-            .backgroundColor(this.kind === k.id ? Tokens.accent : Tokens.surface2)
-            .borderRadius(Tokens.rPill)
-            .padding({ left: 14, right: 14, top: 8, bottom: 8 })
-            .margin({ right: 8, bottom: 8 })
-            .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.94 })
-            .onClick(() => {
-              Haptics.tap();
-              this.kind = k.id;
-            })
-        }, (k: FeedbackKind) => k.id)
-      }
-      .width('100%')
-
-      TextArea({
-        placeholder: '请描述发生了什么：在哪一步、看到什么提示、期待什么结果。第一行会自动作为工单标题。',
-        text: this.text
-      })
-        .fontSize(Tokens.fsBody)
-        .fontColor(Tokens.fg)
-        .placeholderColor(Tokens.dim2)
-        .lineHeight(21)
-        .padding(12)
-        .backgroundColor(Tokens.surface)
-        .borderRadius(Tokens.rCard)
-        .border({ width: 1, color: Tokens.lineSoft })
-        .constraintSize({ minHeight: 136, maxHeight: 240 })
-        .barState(BarState.Auto)
-        .margin({ top: 6 })
-        .onChange((v: string) => {
-          this.text = v;
-        })
-
       Row() {
-        Blank()
-        Text(String(this.text.length) + ' / 10000')
-          .fontSize(Tokens.fsCaption)
-          .fontColor(this.text.length > 10000 ? Tokens.err : Tokens.dim2)
+        Text('反馈类型')
+          .fontSize(Tokens.fsBodyLg)
+          .fontColor(Tokens.fg)
+          .layoutWeight(1)
+
+        PopupPicker({
+          options: KIND_PICKER_OPTIONS,
+          selected: this.kind,
+          title: '选择反馈类型',
+          popupWidth: 236,
+          onSelect: (id: string) => {
+            this.kind = id;
+          }
+        })
       }
       .width('100%')
-      .margin({ top: 4, bottom: 14 })
+      .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+      .borderRadius(Tokens.rCard)
+      .backgroundColor(Mat.cardBg(this.hdsOn))
+      .border(Mat.cardBorder(this.hdsOn))
+      .shadow(Mat.cardShadow(this.hdsOn))
+      .alignItems(VerticalAlign.Center)
+      .transition(Motion.bloomCard(0, this.motionMode))
+
+      Column() {
+        TextArea({
+          placeholder: '请描述发生了什么：在哪一步、看到什么提示、期待什么结果。第一行会自动作为工单标题。',
+          text: this.text
+        })
+          .fontSize(Tokens.fsBody)
+          .fontColor(Tokens.fg)
+          .placeholderColor(Tokens.dim2)
+          .lineHeight(21)
+          .padding(12)
+          .backgroundColor(Mat.cardBg(this.hdsOn))
+          .borderRadius(Tokens.rCard)
+          .border(Mat.cardBorder(this.hdsOn))
+          .shadow(Mat.cardShadow(this.hdsOn))
+          .constraintSize({ minHeight: 136, maxHeight: 240 })
+          .barState(BarState.Auto)
+          .margin({ top: 12 })
+          .onChange((v: string) => {
+            this.text = v;
+          })
+
+        Row() {
+          Blank()
+          Text(String(this.text.length) + ' / 10000')
+            .fontSize(Tokens.fsCaption)
+            .fontColor(this.text.length > 10000 ? Tokens.err : Tokens.dim2)
+        }
+        .width('100%')
+        .margin({ top: 4, bottom: 14 })
+      }
+      .width('100%')
+      .transition(Motion.bloomCard(1, this.motionMode))
 
       Text('附件（可选）')
         .fontSize(Tokens.fsCaption)
@@ -204,9 +221,9 @@ export struct FeedbackSubmitView {
         .width('100%')
         .padding({ left: 12, right: 12, top: 6, bottom: 6 })
         .margin({ top: 6 })
-        .backgroundColor(Tokens.surface)
+        .backgroundColor(Mat.cardBg(this.hdsOn))
         .borderRadius(Tokens.rMd)
-        .border({ width: 1, color: Tokens.lineSoft })
+        .border(Mat.cardBorder(this.hdsOn))
       }
 
       Column() {
@@ -235,7 +252,7 @@ export struct FeedbackSubmitView {
           .width('100%')
           .margin({ top: 3 })
 
-        Text('复制诊断信息')
+        Text('复制运行诊断信息')
           .fontSize(Tokens.fsFoot)
           .fontColor(Tokens.accent)
           .backgroundColor(Tokens.accentSoft)
@@ -252,8 +269,10 @@ export struct FeedbackSubmitView {
       .padding(14)
       .margin({ top: 14 })
       .borderRadius(Tokens.rCard)
-      .backgroundColor(Tokens.surface)
-      .border({ width: 1, color: Tokens.lineSoft })
+      .backgroundColor(Mat.cardBg(this.hdsOn))
+      .border(Mat.cardBorder(this.hdsOn))
+      .shadow(Mat.cardShadow(this.hdsOn))
+      .transition(Motion.bloomCard(2, this.motionMode))
 
       Column() {
         RowSwitch({
@@ -269,9 +288,11 @@ export struct FeedbackSubmitView {
       .width('100%')
       .margin({ top: 10 })
       .borderRadius(Tokens.rCard)
-      .backgroundColor(Tokens.surface)
-      .border({ width: 1, color: Tokens.lineSoft })
+      .backgroundColor(Mat.cardBg(this.hdsOn))
+      .border(Mat.cardBorder(this.hdsOn))
+      .shadow(Mat.cardShadow(this.hdsOn))
       .clip(true)
+      .transition(Motion.bloomCard(3, this.motionMode))
 
       Column() {
         Row() {
@@ -294,7 +315,8 @@ export struct FeedbackSubmitView {
           .fontColor(Tokens.fg)
           .placeholderColor(Tokens.dim2)
           .height(42)
-          .backgroundColor(Tokens.surface2)
+          .backgroundColor(Mat.subCardBg(this.hdsOn))
+          .border(Mat.subCardBorder(this.hdsOn))
           .borderRadius(Tokens.rInput)
           .margin({ top: 8 })
           .onEditChange((editing: boolean) => {
@@ -311,8 +333,10 @@ export struct FeedbackSubmitView {
       .padding(14)
       .margin({ top: 10 })
       .borderRadius(Tokens.rCard)
-      .backgroundColor(Tokens.surface)
-      .border({ width: 1, color: Tokens.lineSoft })
+      .backgroundColor(Mat.cardBg(this.hdsOn))
+      .border(Mat.cardBorder(this.hdsOn))
+      .shadow(Mat.cardShadow(this.hdsOn))
+      .transition(Motion.bloomCard(4, this.motionMode))
 
       if (this.err !== '') {
         Text(this.err)
@@ -342,6 +366,7 @@ export struct FeedbackSubmitView {
         .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
         .onClick(() => {
           if (!this.busy) {
+            Haptics.confirm();
             this.onSubmit();
           }
         })

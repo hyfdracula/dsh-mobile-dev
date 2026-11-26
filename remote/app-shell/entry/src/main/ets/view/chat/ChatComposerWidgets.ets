@@ -515,7 +515,7 @@ export struct ComposerSendCluster {
           .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.9 })
           .margin({ left: 6 })
           .onClick(() => {
-            Haptics.tap();
+            Haptics.confirm();
             this.onSendQueue();
           })
         Text('插队')
@@ -529,7 +529,7 @@ export struct ComposerSendCluster {
           .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.9 })
           .margin({ left: 6 })
           .onClick(() => {
-            Haptics.tap();
+            Haptics.confirm();
             this.onSendSteer();
           })
       } else if (Motion.isVivid(this.motionMode)) {
@@ -552,9 +552,10 @@ export struct ComposerSendCluster {
         .accessibilityText(this.running && !this.hasContent ? '停止生成' : '发送')
         .onClick(() => {
           if (this.running && !this.hasContent) {
-            Haptics.tap();
+            Haptics.warn();
             this.onStop();
           } else {
+            Haptics.confirm();
             this.onSendNormal();
           }
         })
@@ -571,7 +572,7 @@ export struct ComposerSendCluster {
           .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.9 })
           .accessibilityText('停止生成')
           .onClick(() => {
-            Haptics.tap();
+            Haptics.warn();
             this.onStop();
           })
       } else {
@@ -590,6 +591,7 @@ export struct ComposerSendCluster {
           .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.9 })
           .accessibilityText('发送')
           .onClick(() => {
+            Haptics.confirm();
             this.onSendNormal();
           })
       }

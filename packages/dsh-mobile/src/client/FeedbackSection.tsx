@@ -2,7 +2,13 @@
  * DSH 设置对话框中的「用户反馈」管理面板（仅本机持有管理员密钥时注册显示）。
  * @module @deepseek-ai/dsh-mobile/client/FeedbackSection
  */
-import { useCallback, useEffect, useState, type CSSProperties, type ReactElement } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react'
+
+interface TicketFile {
+  name: string
+  kind: string
+  size: number
+}
 
 interface Ticket {
   id: string
@@ -14,7 +20,7 @@ interface Ticket {
   contact: string
   created_at: number
   updated_at: number
-  files: { name: string; kind: string; size: number }[]
+  files: TicketFile[]
   replies: { author: string; text: string; at: number }[]
 }
 
@@ -59,6 +65,129 @@ const stamp = (ms: number): string => {
   const d = new Date(ms)
   const two = (n: number): string => (n < 10 ? `0${String(n)}` : String(n))
   return `${String(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`
+}
+
+const formatIso = (ms: number): string => {
+  if (!Number.isFinite(ms) || ms <= 0) return '未知'
+  try {
+    return `${stamp(ms)} (${new Date(ms).toISOString()})`
+  } catch {
+    return stamp(ms)
+  }
+}
+
+const formatSize = (n: number): string => (
+  n >= 1024 * 1024
+    ? `${(n / 1024 / 1024).toFixed(1)} MB`
+    : `${String(Math.max(1, Math.round(n / 1024)))} KB`
+)
+
+const isInlineTextFile = (f: TicketFile): boolean => (
+  f.size <= 65536 && (f.kind === 'log' || /\.(?:txt|log|json|md|csv|yml|yaml)$/i.test(f.name))
+)
+
+async function writeClipboard(text: string): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && navigator.clipboard !== undefined) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch {
+      // 回退到 DOM execCommand，兼容非 HTTPS 内嵌宿主面板
+    }
+  }
+  if (typeof document === 'undefined') return false
+  const ta = document.createElement('textarea')
+  ta.value = text
+  ta.setAttribute('readonly', 'true')
+  ta.style.position = 'fixed'
+  ta.style.left = '-9999px'
+  ta.style.opacity = '0'
+  document.body.appendChild(ta)
+  ta.select()
+  let copied = false
+  try {
+    copied = document.execCommand('copy')
+  } catch {
+    copied = false
+  }
+  document.body.removeChild(ta)
+  return copied
+}
+
+async function fetchInlineTextAttachment(ticketId: string, fileName: string): Promise<string> {
+  try {
+    const res = await fetch(
+      `${ROUTE}/file?id=${encodeURIComponent(ticketId)}&name=${encodeURIComponent(fileName)}`,
+      { credentials: 'same-origin', cache: 'no-store' },
+    )
+    if (!res.ok) return `[读取失败 HTTP ${String(res.status)}]`
+    const text = await res.text()
+    if (text.length > 16000) {
+      return `${text.slice(0, 16000)}\n... [已截断，总长度 ${String(text.length)} 字符]`
+    }
+    return text
+  } catch (e) {
+    return `[读取失败: ${e instanceof Error ? e.message : String(e)}]`
+  }
+}
+
+async function buildAiTriageText(t: Ticket): Promise<string> {
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  const kindLabel = KIND[t.kind] ?? t.kind
+  const statusLabel = STATUS[t.status]?.label ?? t.status
+  const lines: string[] = [
+    `# Agent Mobile 用户反馈工单 (${t.id})`,
+    '',
+    '## 工单元数据',
+    `- 工单编号: ${t.id}`,
+    `- 反馈分类: ${kindLabel} (${t.kind})`,
+    `- 当前状态: ${statusLabel} (${t.status})`,
+    `- 提交时间: ${formatIso(t.created_at)}`,
+    `- 最后更新: ${formatIso(t.updated_at)}`,
+    `- 运行环境: ${t.env !== '' ? t.env : '（未采集）'}`,
+    `- 联系方式: ${t.contact !== '' ? t.contact : '（未填写）'}`,
+    '',
+    '## 问题标题',
+    t.title,
+    '',
+    '## 详细描述',
+    t.body !== '' ? t.body : '（无正文）',
+    '',
+    '## 附件清单与内容',
+  ]
+
+  if (t.files.length === 0) {
+    lines.push('无附件')
+  } else {
+    for (const f of t.files) {
+      const fileUrl = `${origin}${ROUTE}/file?id=${encodeURIComponent(t.id)}&name=${encodeURIComponent(f.name)}`
+      lines.push(`- ${f.name} [类型: ${f.kind} | 大小: ${formatSize(f.size)}] -> ${fileUrl}`)
+      if (isInlineTextFile(f)) {
+        const inlineContent = await fetchInlineTextAttachment(t.id, f.name)
+        lines.push('```text')
+        lines.push(inlineContent)
+        lines.push('```')
+      }
+    }
+  }
+
+  lines.push('')
+  lines.push('## 处理与回复记录')
+  if (t.replies.length === 0) {
+    lines.push('暂无历史回复')
+  } else {
+    for (const r of t.replies) {
+      const role = r.author === 'admin' ? '开发者' : '用户'
+      lines.push(`- [${stamp(r.at)}] ${role}: ${r.text}`)
+    }
+  }
+
+  lines.push('')
+  lines.push('## 工程上下文与排查要求')
+  lines.push('- 项目仓库: Agent Mobile（app-shell/ 鸿蒙客户端 + gateway/ DSH 桌面端网关插件）')
+  lines.push('- 请结合上述工单描述、运行环境、日志/附件与历史回复定位根因，列出涉及的文件路径与修改方案。')
+  lines.push('- 如需补充给用户的中文回复或状态变更建议，请一并给出。')
+  return lines.join('\n')
 }
 
 async function readErrorMessage(res: Response): Promise<string> {
@@ -116,6 +245,9 @@ export function FeedbackSection(): ReactElement | null {
   const [error, setError] = useState('')
   const [reply, setReply] = useState<Record<string, string>>({})
   const [open, setOpen] = useState('')
+  const [copyingId, setCopyingId] = useState('')
+  const [copiedId, setCopiedId] = useState('')
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true)
@@ -144,11 +276,38 @@ export function FeedbackSection(): ReactElement | null {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
       void load()
     }, 30000)
-    return () => clearInterval(timer)
+    return () => {
+      clearInterval(timer)
+      if (copyTimerRef.current !== null) clearTimeout(copyTimerRef.current)
+    }
   }, [load])
 
   if (!seen || state === null || state.configured !== true) {
     return null
+  }
+
+  const handleCopyForAi = async (t: Ticket): Promise<void> => {
+    if (copyingId === t.id) return
+    setCopyingId(t.id)
+    setError('')
+    try {
+      const text = await buildAiTriageText(t)
+      const ok = await writeClipboard(text)
+      if (!ok) {
+        setError('复制到剪贴板失败，请检查浏览器或系统剪贴板权限。')
+        return
+      }
+      setCopiedId(t.id)
+      if (copyTimerRef.current !== null) clearTimeout(copyTimerRef.current)
+      copyTimerRef.current = setTimeout(() => {
+        setCopiedId('')
+        copyTimerRef.current = null
+      }, 2000)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setCopyingId('')
+    }
   }
 
   const act = async (id: string, work: () => Promise<void>): Promise<void> => {
@@ -206,7 +365,7 @@ export function FeedbackSection(): ReactElement | null {
             whiteSpace: 'nowrap',
           }}
         >
-          ↻ 刷新
+          刷新
         </button>
       </div>
 
@@ -241,6 +400,9 @@ export function FeedbackSection(): ReactElement | null {
         const expanded = open === t.id
         const replyText = (reply[t.id] ?? '').trim()
         const replyDisabled = busy === t.id || replyText === ''
+        const isCopying = copyingId === t.id
+        const isCopied = copiedId === t.id
+        const copyLabel = isCopying ? '整理中...' : (isCopied ? '已复制给 AI' : '复制给 AI')
         return (
           <div
             key={t.id}
@@ -275,6 +437,30 @@ export function FeedbackSection(): ReactElement | null {
                 <span style={{ fontSize: 11, color: C.fgDim, flexShrink: 0, whiteSpace: 'nowrap' }}>{KIND[t.kind] ?? t.kind}</span>
                 <span style={{ fontSize: 11, color: C.fgFaint, flexShrink: 0, whiteSpace: 'nowrap' }}>{stamp(t.created_at)}</span>
                 <span style={{ flex: 1 }} />
+                <button
+                  type="button"
+                  disabled={isCopying}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    void handleCopyForAi(t)
+                  }}
+                  style={{
+                    fontSize: 11,
+                    fontFamily: 'inherit',
+                    lineHeight: 1.4,
+                    padding: '2px 9px',
+                    borderRadius: 999,
+                    border: `1px solid ${isCopied ? C.ok : C.border}`,
+                    background: isCopied ? 'rgba(26,154,94,0.12)' : C.cardSoft,
+                    color: isCopied ? C.ok : C.accent,
+                    cursor: isCopying ? 'default' : 'pointer',
+                    opacity: isCopying ? 0.6 : 1,
+                    flexShrink: 0,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {copyLabel}
+                </button>
                 <span style={{
                   fontSize: 11,
                   color: st.color,
@@ -347,9 +533,7 @@ export function FeedbackSection(): ReactElement | null {
                               wordBreak: 'break-word',
                             }}
                           >
-                            {f.name} · {f.size >= 1024 * 1024
-                              ? `${(f.size / 1024 / 1024).toFixed(1)} MB`
-                              : `${String(Math.max(1, Math.round(f.size / 1024)))} KB`}
+                            {f.name} · {formatSize(f.size)}
                           </a>
                         ))}
                       </div>
@@ -399,6 +583,18 @@ export function FeedbackSection(): ReactElement | null {
                     }}
                   />
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      disabled={isCopying}
+                      onClick={() => { void handleCopyForAi(t) }}
+                      style={{
+                        ...btn(false, isCopying),
+                        borderColor: isCopied ? C.ok : C.border,
+                        color: isCopied ? C.ok : C.accent,
+                      }}
+                    >
+                      {copyLabel}
+                    </button>
                     <button
                       type="button"
                       disabled={replyDisabled}
