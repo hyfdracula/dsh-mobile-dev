@@ -16,7 +16,12 @@ export class Motion {
   static readonly move: number = 220;
   static readonly emph: number = 320;
 
+  static readonly BLOOM_SCALE_START: number = 0.45;
+  static readonly BLOOM_HEADER_SCALE_START: number = 0.90;
+  static readonly HEADER_BTN_SCALE_START: number = 0.35;
+
   static readonly std = curves.cubicBezierCurve(0.2, 0.72, 0.32, 1);
+  static readonly growCurve = curves.cubicBezierCurve(0.16, 0.90, 0.28, 1.0);
   static readonly spring = curves.springCurve(0.42, 0.62, 200, 12);
 
   /** 基础物理弹簧曲线：自然阻尼与速度继承 */
@@ -138,21 +143,105 @@ export class Motion {
     );
   }
 
+  /** 卡片瀑布绽放统一错峰延时计算 */
+  static bloomDelay(idx: number, baseDelay: number = 40): number {
+    const clamped: number = idx < 0 ? 0 : (idx > 12 ? 12 : idx);
+    return baseDelay + clamped * 26;
+  }
+
+  /** 卡片从小到大长大显隐动画参数（透明度更快到达，与缩放错峰叠加出倒金字塔感） */
+  static bloomOpacityAnim(idx: number, mode: string, baseDelay: number = 40): AnimateParam | undefined {
+    if (!Motion.isFlagship(mode) || idx < 0 || idx >= 16) {
+      return undefined;
+    }
+    const opts: AnimateParam = {
+      duration: 155,
+      delay: Motion.bloomDelay(idx, baseDelay),
+      curve: Motion.std
+    };
+    return opts;
+  }
+
+  /** 卡片从小到大长大缩放/微升动画参数（0.45 -> 1.0，顺滑减速零多余回弹） */
+  static bloomScaleAnim(idx: number, mode: string, baseDelay: number = 40): AnimateParam | undefined {
+    if (!Motion.isFlagship(mode) || idx < 0 || idx >= 16) {
+      return undefined;
+    }
+    const opts: AnimateParam = {
+      duration: 310,
+      delay: Motion.bloomDelay(idx, baseDelay),
+      curve: Motion.growCurve
+    };
+    return opts;
+  }
+
+  /** 分组小标题显隐动画参数 */
+  static bloomHeaderOpacityAnim(idx: number, mode: string, baseDelay: number = 40): AnimateParam | undefined {
+    if (!Motion.isFlagship(mode) || idx < 0 || idx >= 16) {
+      return undefined;
+    }
+    const opts: AnimateParam = {
+      duration: 150,
+      delay: Motion.bloomDelay(idx, baseDelay),
+      curve: Motion.std
+    };
+    return opts;
+  }
+
+  /** 分组小标题缩放/轻推入场动画参数 */
+  static bloomHeaderScaleAnim(idx: number, mode: string, baseDelay: number = 40): AnimateParam | undefined {
+    if (!Motion.isFlagship(mode) || idx < 0 || idx >= 16) {
+      return undefined;
+    }
+    const opts: AnimateParam = {
+      duration: 240,
+      delay: Motion.bloomDelay(idx, baseDelay),
+      curve: Motion.growCurve
+    };
+    return opts;
+  }
+
+  /** 顶栏圆钮弹出透明度动画参数 */
+  static headerPopOpacityAnim(delayMs: number, mode: string): AnimateParam | undefined {
+    if (!Motion.isFlagship(mode)) {
+      return undefined;
+    }
+    const opts: AnimateParam = { duration: 145, delay: delayMs, curve: Motion.std };
+    return opts;
+  }
+
+  /** 顶栏圆钮轻弹缩放动画参数（0.35 -> 1.0） */
+  static headerPopScaleAnim(delayMs: number, mode: string): AnimateParam | undefined {
+    if (!Motion.isFlagship(mode)) {
+      return undefined;
+    }
+    const opts: AnimateParam = { delay: delayMs, curve: curves.springMotion(0.28, 0.78) };
+    return opts;
+  }
+
+  /** 顶栏标题横移渐变入场动画参数 */
+  static headerTitleSlideAnim(delayMs: number, mode: string): AnimateParam | undefined {
+    if (!Motion.isFlagship(mode)) {
+      return undefined;
+    }
+    const opts: AnimateParam = { duration: 210, delay: delayMs, curve: Motion.growCurve };
+    return opts;
+  }
+
   /**
-   * 由上到下逐卡景深绽放（仅灵动档生效，经典档零延迟）：
-   * 卡片从 0.94 倍缩放入场 + 微幅上抬 + 淡入，每张卡错峰 26ms，适配单条卡片长列表。
+   * 由上到下逐卡景深绽放（供仍依赖 TransitionEffect 的辅助场景复用）：
+   * 卡片从 0.45 倍居中缩放入场 + 微幅上抬 + 淡入，每张卡错峰 26ms。
    */
-  static bloomCard(idx: number, mode: string, baseDelay: number = 30): TransitionEffect {
+  static bloomCard(idx: number, mode: string, baseDelay: number = 40): TransitionEffect {
     if (!Motion.isFlagship(mode) || idx < 0 || idx >= 16) {
       return TransitionEffect.IDENTITY;
     }
-    const clamped: number = idx > 11 ? 11 : idx;
-    const wait: number = baseDelay + clamped * 26;
-    const springCurve = curves.springMotion(0.36, 0.86);
+    const wait: number = Motion.bloomDelay(idx, baseDelay);
     return TransitionEffect.asymmetric(
-      TransitionEffect.OPACITY.animation({ duration: 200, curve: Motion.std, delay: wait })
-        .combine(TransitionEffect.translate({ y: 12 }).animation({ curve: springCurve, delay: wait }))
-        .combine(TransitionEffect.scale({ x: 0.94, y: 0.94 }).animation({ curve: springCurve, delay: wait })),
+      TransitionEffect.OPACITY.animation({ duration: 155, curve: Motion.std, delay: wait })
+        .combine(TransitionEffect.translate({ y: 6 }).animation({ duration: 310, curve: Motion.growCurve, delay: wait }))
+        .combine(TransitionEffect.scale({ x: Motion.BLOOM_SCALE_START, y: Motion.BLOOM_SCALE_START })
+          .animation({ duration: 310, curve: Motion.growCurve, delay: wait })),
       TransitionEffect.IDENTITY
     );
   }

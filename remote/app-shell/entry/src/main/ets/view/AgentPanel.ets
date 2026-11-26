@@ -29,16 +29,34 @@ export struct AgentPanel {
   onOpenWebConsole: () => void = () => {};
 
   @State private cachedList: BackendInfo[] = [];
+  @State private entered: boolean = true;
 
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
   @StorageLink('backendsDirty') @Watch('onBackendsDirty') backendsDirty: number = 0;
+  private enterTimer: number = -1;
 
   aboutToAppear(): void {
+    if (Motion.isFlagship(this.motionMode)) {
+      this.entered = false;
+      this.enterTimer = setTimeout(() => {
+        this.enterTimer = -1;
+        this.entered = true;
+      }, 16);
+    } else {
+      this.entered = true;
+    }
     this.syncCached();
     if (this.cachedList.length === 0) {
       void this.prefetchEngines();
+    }
+  }
+
+  aboutToDisappear(): void {
+    if (this.enterTimer >= 0) {
+      clearTimeout(this.enterTimer);
+      this.enterTimer = -1;
     }
   }
 
@@ -119,7 +137,17 @@ export struct AgentPanel {
     .borderRadius(Tokens.rRow)
     .clip(true)
     .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
-    .transition(Motion.bloomCard(idx, this.motionMode))
+    .animation(null)
+    .opacity(this.entered ? 1 : 0)
+    .animation(Motion.bloomOpacityAnim(idx, this.motionMode))
+    .scale({
+      x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      centerX: '50%',
+      centerY: '50%'
+    })
+    .translate({ y: this.entered ? 0 : 6 })
+    .animation(Motion.bloomScaleAnim(idx, this.motionMode))
     .onClick(() => {
       Haptics.tap();
       onTap();
@@ -143,7 +171,17 @@ export struct AgentPanel {
       .width('100%')
       .padding({ left: 6, right: 6, top: 6, bottom: 8 })
       .alignItems(VerticalAlign.Center)
-      .transition(Motion.bloomHeader(0, this.motionMode))
+      .animation(null)
+      .opacity(this.entered ? 1 : 0)
+      .animation(Motion.bloomHeaderOpacityAnim(0, this.motionMode))
+      .scale({
+        x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+        y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+        centerX: '0%',
+        centerY: '50%'
+      })
+      .translate({ y: this.entered ? 0 : 6 })
+      .animation(Motion.bloomHeaderScaleAnim(0, this.motionMode))
 
       this.entryCard('电脑端智能体引擎', this.enginesSummary(), 0, () => {
         this.onOpenEngines();
@@ -155,7 +193,17 @@ export struct AgentPanel {
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
         .margin({ left: 6, top: 16, bottom: 8 })
-        .transition(Motion.bloomHeader(1, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomHeaderOpacityAnim(1, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          centerX: '0%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomHeaderScaleAnim(1, this.motionMode))
 
       Row() {
         Row() {
@@ -190,7 +238,17 @@ export struct AgentPanel {
       .shadow(Mat.rowShadow(this.hdsOn))
       .borderRadius(Tokens.rRow)
       .clip(true)
-      .transition(Motion.bloomCard(1, this.motionMode))
+      .animation(null)
+      .opacity(this.entered ? 1 : 0)
+      .animation(Motion.bloomOpacityAnim(1, this.motionMode))
+      .scale({
+        x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+        y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+        centerX: '50%',
+        centerY: '50%'
+      })
+      .translate({ y: this.entered ? 0 : 6 })
+      .animation(Motion.bloomScaleAnim(1, this.motionMode))
 
       // 3. 预设、插件与网页控制台（逐条独立卡片）
       Row() {
@@ -207,7 +265,17 @@ export struct AgentPanel {
       .width('100%')
       .padding({ left: 6, right: 6, top: 16, bottom: 8 })
       .alignItems(VerticalAlign.Center)
-      .transition(Motion.bloomHeader(2, this.motionMode))
+      .animation(null)
+      .opacity(this.entered ? 1 : 0)
+      .animation(Motion.bloomHeaderOpacityAnim(2, this.motionMode))
+      .scale({
+        x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+        y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+        centerX: '0%',
+        centerY: '50%'
+      })
+      .translate({ y: this.entered ? 0 : 6 })
+      .animation(Motion.bloomHeaderScaleAnim(2, this.motionMode))
 
       Column({ space: 9 }) {
         this.entryCard('智能体预设与权限', '查看和调整默认模型、系统预设与执行权限', 2, () => {

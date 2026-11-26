@@ -14,6 +14,7 @@ export struct DeviceCard {
   @Prop pluginVersion: string = '';
   @Prop sessions: number = -1;
   @Prop startIdx: number = 7;
+  @Prop entered: boolean = true;
   onReconnect: () => void = () => {};
   onRemove: () => void = () => {};
   @StorageLink('hdsOn') hdsOn: boolean = true;
@@ -53,7 +54,17 @@ export struct DeviceCard {
     .borderRadius(Tokens.rRow)
     .clip(true)
     .clickEffect(copyable && this.base !== '' ? { level: ClickEffectLevel.LIGHT, scale: 0.98 } : null)
-    .transition(Motion.bloomCard(idx, this.motionMode))
+    .animation(null)
+    .opacity(this.entered ? 1 : 0)
+    .animation(Motion.bloomOpacityAnim(idx, this.motionMode))
+    .scale({
+      x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      centerX: '50%',
+      centerY: '50%'
+    })
+    .translate({ y: this.entered ? 0 : 6 })
+    .animation(Motion.bloomScaleAnim(idx, this.motionMode))
     .onClick(() => {
       if (copyable && this.base !== '') {
         void copyText(this.base, '已复制当前地址');
@@ -69,7 +80,17 @@ export struct DeviceCard {
         .letterSpacing(1.4)
         .width('100%')
         .margin({ left: 6, top: 16, bottom: 8 })
-        .transition(Motion.bloomHeader(this.startIdx, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomHeaderOpacityAnim(this.startIdx, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          centerX: '0%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomHeaderScaleAnim(this.startIdx, this.motionMode))
 
       Column({ space: 9 }) {
         this.devRowCard('名称', this.name !== '' ? this.name : '-', false, false, this.startIdx)
@@ -101,7 +122,17 @@ export struct DeviceCard {
         .borderRadius(Tokens.rRow)
         .clip(true)
         .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
-        .transition(Motion.bloomCard(this.startIdx + 4, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomOpacityAnim(this.startIdx + 4, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomScaleAnim(this.startIdx + 4, this.motionMode))
         .onClick(() => {
           Haptics.tap();
           this.onReconnect();
@@ -131,7 +162,17 @@ export struct DeviceCard {
         .borderRadius(Tokens.rRow)
         .clip(true)
         .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
-        .transition(Motion.bloomCard(this.startIdx + 5, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomOpacityAnim(this.startIdx + 5, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomScaleAnim(this.startIdx + 5, this.motionMode))
         .onClick(() => {
           Haptics.tap();
           this.onRemove();

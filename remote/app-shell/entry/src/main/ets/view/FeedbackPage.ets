@@ -1,6 +1,7 @@
 import { BusinessError } from '@kit.BasicServicesKit';
 import { picker } from '@kit.CoreFileKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
+import { HdsNavDestination } from '@kit.UIDesignKit';
 import { AppCtx } from '../common/AppCtx';
 import { PageHeader, TopFade } from '../common/Chrome';
 import {
@@ -47,7 +48,6 @@ export struct FeedbackPage {
   @StorageLink('fbBack') @Watch('onFbBack') private fbBack: number = 0;
 
   @State @Watch('onStage') private stage: string = 'entry';
-  @State private depth1Tab: string = 'submit';
   @State private busy: boolean = false;
   @State private err: string = '';
   @State private note: string = '';
@@ -66,12 +66,19 @@ export struct FeedbackPage {
   // 工单详情状态
   @State private cur: Ticket | null = null;
 
-  private entryScroller: Scroller = new Scroller();
-  private midScroller: Scroller = new Scroller();
-  private detailScroller: Scroller = new Scroller();
+  private fbStack: NavPathStack = new NavPathStack();
+  private submitScroller: Scroller = new Scroller();
 
   private onStage(): void {
     AppStorage.setOrCreate('fbStage', this.stage);
+  }
+
+  private syncStageFromStack(): void {
+    const names: string[] = this.fbStack.getAllPathName();
+    const top: string = names.length > 0 ? names[names.length - 1] : 'entry';
+    if (this.stage !== top) {
+      this.stage = top;
+    }
   }
 
   private onFbBack(): void {
@@ -86,46 +93,19 @@ export struct FeedbackPage {
     this.contact = contactPref();
   }
 
-  private stageDepth(s: string): number {
-    if (s === 'detail') {
-      return 2;
-    }
-    if (s === 'submit' || s === 'mine') {
-      return 1;
-    }
-    return 0;
-  }
-
-  private switchStage(next: string): void {
-    if (this.stage === next) {
-      return;
-    }
+  private pushStage(next: string): void {
     try {
       this.getUIContext().getFocusController().clearFocus();
     } catch (_e) {
     }
-    if (next === 'submit' || next === 'mine') {
-      this.depth1Tab = next;
-    } else if (next === 'detail') {
-      this.depth1Tab = 'mine';
-    }
-    try {
-      const targetScroller: Scroller = next === 'entry'
-        ? this.entryScroller
-        : (next === 'detail' ? this.detailScroller : this.midScroller);
-      targetScroller.scrollEdge(Edge.Top);
-    } catch (e) {
-      // 滚动容器未就绪时忽略
-    }
-    this.getUIContext().animateTo(Motion.stepPaneAnim(this.motionMode), () => {
-      this.stage = next;
-    });
+    this.fbStack.pushPathByName(next, null);
+    this.syncStageFromStack();
   }
 
   private scrollToBottomSoon(): void {
     setTimeout(() => {
       try {
-        this.midScroller.scrollEdge(Edge.Bottom);
+        this.submitScroller.scrollEdge(Edge.Bottom);
       } catch (e) {
         // 忽略
       }
@@ -134,15 +114,10 @@ export struct FeedbackPage {
 
   private back(): void {
     Haptics.soft();
-    if (this.stage === 'submit' || this.stage === 'mine') {
+    if (this.fbStack.size() > 0) {
       this.err = '';
-      this.note = '';
-      this.switchStage('entry');
-      return;
-    }
-    if (this.stage === 'detail') {
-      this.err = '';
-      this.switchStage('mine');
+      this.fbStack.pop();
+      this.syncStageFromStack();
       return;
     }
     this.onExit();
@@ -320,7 +295,20 @@ export struct FeedbackPage {
     this.err = '';
     try {
       this.cur = await detail(id);
-      this.switchStage('detail');
+      try {
+        this.getUIContext().getFocusController().clearFocus();
+      } catch (_e) {
+      }
+      const names: string[] = this.fbStack.getAllPathName();
+      if (names.length > 0 && names[names.length - 1] === 'submit') {
+        this.fbStack.pop(false);
+        const remain: string[] = this.fbStack.getAllPathName();
+        if (remain.length === 0 || remain[remain.length - 1] !== 'mine') {
+          this.fbStack.pushPathByName('mine', null, false);
+        }
+      }
+      this.fbStack.pushPathByName('detail', null, true);
+      this.syncStageFromStack();
     } catch (e) {
       this.err = (e as BusinessError).message;
     } finally {
@@ -328,68 +316,27 @@ export struct FeedbackPage {
     }
   }
 
-  private titleOf(): string {
-    if (this.stage === 'submit') {
+  private titleOf(name: string): string {
+    if (name === 'submit') {
       return '提交反馈';
     }
-    if (this.stage === 'mine') {
+    if (name === 'mine') {
       return '我的反馈';
     }
-    if (this.stage === 'detail') {
+    if (name === 'detail') {
       return '工单详情';
     }
     return '反馈与支持';
   }
 
-  build() {
-    Stack({ alignContent: Alignment.Top }) {
-      Stack({ alignContent: Alignment.TopStart }) {
-        // 深度 0：反馈入口
-        Scroll(this.entryScroller) {
-          Column() {
+  @Builder
+  fbDest(name: string) {
+    HdsNavDestination() {
+      Stack({ alignContent: Alignment.Top }) {
+        if (name === 'submit') {
+          Scroll(this.submitScroller) {
             Column() {
-              FeedbackEntryView({
-                onGoSubmit: (): void => {
-                  this.note = '';
-                  this.err = '';
-                  this.switchStage('submit');
-                },
-                onGoMine: (): void => {
-                  this.note = '';
-                  this.err = '';
-                  this.switchStage('mine');
-                  void this.loadMine();
-                }
-              })
-            }
-            .width('100%')
-            .constraintSize({ maxWidth: this.wideScreen ? 680 : 520 })
-            .alignItems(HorizontalAlign.Start)
-          }
-          .width('100%')
-          .padding({
-            left: 16,
-            right: 16,
-            top: this.topInset + 64,
-            bottom: this.bottomInset + 40
-          })
-          .alignItems(HorizontalAlign.Center)
-        }
-        .width('100%')
-        .height('100%')
-        .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring)
-        .align(Alignment.Top)
-        .backgroundColor(this.themeBg)
-        .translate({ x: String((0 - this.stageDepth(this.stage)) * 100) + '%' })
-        .hitTestBehavior(this.stage === 'entry' ? HitTestMode.Default : HitTestMode.None)
-        .enabled(this.stage === 'entry')
-
-        // 深度 1：提交反馈 / 我的反馈
-        Scroll(this.midScroller) {
-          Column() {
-            Column() {
-              if (this.depth1Tab === 'submit') {
+              Column() {
                 FeedbackSubmitView({
                   kind: $kind,
                   text: $text,
@@ -417,7 +364,29 @@ export struct FeedbackPage {
                     void this.doSubmit();
                   }
                 })
-              } else {
+              }
+              .width('100%')
+              .constraintSize({ maxWidth: this.wideScreen ? 680 : 520 })
+              .alignItems(HorizontalAlign.Start)
+            }
+            .width('100%')
+            .padding({
+              left: 16,
+              right: 16,
+              top: this.topInset + 64,
+              bottom: this.bottomInset + 72
+            })
+            .alignItems(HorizontalAlign.Center)
+          }
+          .width('100%')
+          .height('100%')
+          .scrollBar(BarState.Off)
+          .edgeEffect(EdgeEffect.Spring)
+          .align(Alignment.Top)
+        } else if (name === 'mine') {
+          Scroll() {
+            Column() {
+              Column() {
                 FeedbackMineView({
                   rows: this.rows,
                   loaded: this.loaded,
@@ -426,7 +395,7 @@ export struct FeedbackPage {
                   onGoSubmit: (): void => {
                     this.err = '';
                     this.note = '';
-                    this.switchStage('submit');
+                    this.pushStage('submit');
                   },
                   onOpenTicket: (id: string): void => {
                     this.note = '';
@@ -437,35 +406,28 @@ export struct FeedbackPage {
                   }
                 })
               }
+              .width('100%')
+              .constraintSize({ maxWidth: this.wideScreen ? 680 : 520 })
+              .alignItems(HorizontalAlign.Start)
             }
             .width('100%')
-            .constraintSize({ maxWidth: this.wideScreen ? 680 : 520 })
-            .alignItems(HorizontalAlign.Start)
+            .padding({
+              left: 16,
+              right: 16,
+              top: this.topInset + 64,
+              bottom: this.bottomInset + 40
+            })
+            .alignItems(HorizontalAlign.Center)
           }
           .width('100%')
-          .padding({
-            left: 16,
-            right: 16,
-            top: this.topInset + 64,
-            bottom: this.bottomInset + (this.depth1Tab === 'submit' ? 72 : 40)
-          })
-          .alignItems(HorizontalAlign.Center)
-        }
-        .width('100%')
-        .height('100%')
-        .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.Spring)
-        .align(Alignment.Top)
-        .backgroundColor(this.themeBg)
-        .translate({ x: String((1 - this.stageDepth(this.stage)) * 100) + '%' })
-        .hitTestBehavior(this.stage === 'submit' || this.stage === 'mine' ? HitTestMode.Default : HitTestMode.None)
-        .enabled(this.stage === 'submit' || this.stage === 'mine')
-
-        // 深度 2：工单详情
-        Scroll(this.detailScroller) {
-          Column() {
+          .height('100%')
+          .scrollBar(BarState.Off)
+          .edgeEffect(EdgeEffect.Spring)
+          .align(Alignment.Top)
+        } else {
+          Scroll() {
             Column() {
-              if (this.cur !== null || this.stage === 'detail') {
+              Column() {
                 FeedbackDetailView({
                   cur: this.cur,
                   note: this.note,
@@ -476,6 +438,82 @@ export struct FeedbackPage {
                   }
                 })
               }
+              .width('100%')
+              .constraintSize({ maxWidth: this.wideScreen ? 680 : 520 })
+              .alignItems(HorizontalAlign.Start)
+            }
+            .width('100%')
+            .padding({
+              left: 16,
+              right: 16,
+              top: this.topInset + 64,
+              bottom: this.bottomInset + 40
+            })
+            .alignItems(HorizontalAlign.Center)
+          }
+          .width('100%')
+          .height('100%')
+          .scrollBar(BarState.Off)
+          .edgeEffect(EdgeEffect.Spring)
+          .align(Alignment.Top)
+        }
+
+        TopFade({ fadeHeight: this.topInset + 68 })
+        Column() {
+          PageHeader({
+            title: this.titleOf(name),
+            padTop: true,
+            popIn: true,
+            rightKind: name === 'mine' ? 'glyph' : 'none',
+            onBack: () => {
+              this.back();
+            },
+            onRight: () => {
+              void this.loadMine();
+            }
+          })
+        }
+        .width('100%')
+        .padding({ left: 16, right: 16 })
+      }
+      .width('100%')
+      .height('100%')
+      .backgroundColor(this.themeBg)
+    }
+    .hideTitleBar(true)
+    .hideBackButton(true)
+    .backgroundColor(this.themeBg)
+    .onShown(() => {
+      this.syncStageFromStack();
+    })
+    .onHidden(() => {
+      this.syncStageFromStack();
+    })
+    .onBackPressed(() => {
+      this.back();
+      return true;
+    })
+  }
+
+  build() {
+    Navigation(this.fbStack) {
+      Stack({ alignContent: Alignment.Top }) {
+        Scroll() {
+          Column() {
+            Column() {
+              FeedbackEntryView({
+                onGoSubmit: (): void => {
+                  this.note = '';
+                  this.err = '';
+                  this.pushStage('submit');
+                },
+                onGoMine: (): void => {
+                  this.note = '';
+                  this.err = '';
+                  this.pushStage('mine');
+                  void this.loadMine();
+                }
+              })
             }
             .width('100%')
             .constraintSize({ maxWidth: this.wideScreen ? 680 : 520 })
@@ -495,32 +533,29 @@ export struct FeedbackPage {
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
         .align(Alignment.Top)
-        .backgroundColor(this.themeBg)
-        .translate({ x: String((2 - this.stageDepth(this.stage)) * 100) + '%' })
-        .hitTestBehavior(this.stage === 'detail' ? HitTestMode.Default : HitTestMode.None)
-        .enabled(this.stage === 'detail')
+
+        TopFade({ fadeHeight: this.topInset + 68 })
+        Column() {
+          PageHeader({
+            title: '反馈与支持',
+            padTop: true,
+            popIn: true,
+            onBack: () => {
+              this.back();
+            }
+          })
+        }
+        .width('100%')
+        .padding({ left: 16, right: 16 })
       }
       .width('100%')
       .height('100%')
-      .clip(true)
-
-      TopFade({ fadeHeight: this.topInset + 68 })
-      Column() {
-        PageHeader({
-          title: this.titleOf(),
-          padTop: true,
-          rightKind: this.stage === 'mine' ? 'glyph' : 'none',
-          onBack: () => {
-            this.back();
-          },
-          onRight: () => {
-            void this.loadMine();
-          }
-        })
-      }
-      .width('100%')
-      .padding({ left: 16, right: 16 })
+      .backgroundColor(this.themeBg)
     }
+    .hideTitleBar(true)
+    .hideToolBar(true)
+    .mode(NavigationMode.Stack)
+    .navDestination(this.fbDest)
     .width('100%')
     .height('100%')
     .backgroundColor(this.themeBg)

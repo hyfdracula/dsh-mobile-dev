@@ -70,6 +70,27 @@ export struct ConnectPanel {
   @State private renameId: string = '';
   @State private renameName: string = '';
   @State private renameErr: string = '';
+  @State private entered: boolean = true;
+  private enterTimer: number = -1;
+
+  aboutToAppear(): void {
+    if (Motion.isFlagship(this.motionMode)) {
+      this.entered = false;
+      this.enterTimer = setTimeout(() => {
+        this.enterTimer = -1;
+        this.entered = true;
+      }, 16);
+    } else {
+      this.entered = true;
+    }
+  }
+
+  aboutToDisappear(): void {
+    if (this.enterTimer >= 0) {
+      clearTimeout(this.enterTimer);
+      this.enterTimer = -1;
+    }
+  }
 
   private confirmRemoveMachine(id: string): void {
     Haptics.warn();
@@ -136,7 +157,17 @@ export struct ConnectPanel {
       .fontColor(Tokens.dim2)
       .letterSpacing(1.4)
       .margin({ left: 6, top: topMargin, bottom: 8 })
-      .transition(Motion.bloomHeader(bloomIdx, this.motionMode))
+      .animation(null)
+      .opacity(this.entered ? 1 : 0)
+      .animation(Motion.bloomHeaderOpacityAnim(bloomIdx, this.motionMode))
+      .scale({
+        x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+        y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+        centerX: '0%',
+        centerY: '50%'
+      })
+      .translate({ y: this.entered ? 0 : 6 })
+      .animation(Motion.bloomHeaderScaleAnim(bloomIdx, this.motionMode))
   }
 
   @Builder
@@ -413,7 +444,17 @@ export struct ConnectPanel {
     .clip(true)
     .alignItems(HorizontalAlign.Start)
     .margin({ top: 6, bottom: 6 })
-    .transition(Motion.bloomCard(0, this.motionMode))
+    .animation(null)
+    .opacity(this.entered ? 1 : 0)
+    .animation(Motion.bloomOpacityAnim(0, this.motionMode))
+    .scale({
+      x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      centerX: '50%',
+      centerY: '50%'
+    })
+    .translate({ y: this.entered ? 0 : 6 })
+    .animation(Motion.bloomScaleAnim(0, this.motionMode))
   }
 
   @Builder
@@ -461,7 +502,17 @@ export struct ConnectPanel {
     .borderRadius(Tokens.rRow)
     .clip(true)
     .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
-    .transition(Motion.bloomCard(idx, this.motionMode))
+    .animation(null)
+    .opacity(this.entered ? 1 : 0)
+    .animation(Motion.bloomOpacityAnim(idx, this.motionMode))
+    .scale({
+      x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      centerX: '50%',
+      centerY: '50%'
+    })
+    .translate({ y: this.entered ? 0 : 6 })
+    .animation(Motion.bloomScaleAnim(idx, this.motionMode))
     .onClick(() => {
       Haptics.tap();
       this.onOpenGuide(kind);
@@ -493,7 +544,17 @@ export struct ConnectPanel {
         })
       }
       .width('100%')
-      .transition(Motion.bloomCard(1, this.motionMode))
+      .animation(null)
+      .opacity(this.entered ? 1 : 0)
+      .animation(Motion.bloomOpacityAnim(1, this.motionMode))
+      .scale({
+        x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+        y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+        centerX: '50%',
+        centerY: '50%'
+      })
+      .translate({ y: this.entered ? 0 : 6 })
+      .animation(Motion.bloomScaleAnim(1, this.motionMode))
       .bindSheet($$this.renameOn, this.renameMachineSheet(),
         Mat.sheetOpts(this.hdsOn, SheetSize.FIT_CONTENT, () => {
           this.renameOn = false;
@@ -506,7 +567,17 @@ export struct ConnectPanel {
       }
       .width('100%')
       .margin({ top: 2, bottom: 4 })
-      .transition(Motion.bloomCard(2, this.motionMode))
+      .animation(null)
+      .opacity(this.entered ? 1 : 0)
+      .animation(Motion.bloomOpacityAnim(2, this.motionMode))
+      .scale({
+        x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+        y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+        centerX: '50%',
+        centerY: '50%'
+      })
+      .translate({ y: this.entered ? 0 : 6 })
+      .animation(Motion.bloomScaleAnim(2, this.motionMode))
       .bindSheet($$this.addOn, this.addMachineSheet(),
         Mat.sheetOpts(this.hdsOn, SheetSize.FIT_CONTENT, () => {
           this.addOn = false;
@@ -546,7 +617,17 @@ export struct ConnectPanel {
       .shadow(Mat.rowShadow(this.hdsOn))
       .borderRadius(Tokens.rRow)
       .clip(true)
-      .transition(Motion.bloomCard(3, this.motionMode))
+      .animation(null)
+      .opacity(this.entered ? 1 : 0)
+      .animation(Motion.bloomOpacityAnim(3, this.motionMode))
+      .scale({
+        x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+        y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+        centerX: '50%',
+        centerY: '50%'
+      })
+      .translate({ y: this.entered ? 0 : 6 })
+      .animation(Motion.bloomScaleAnim(3, this.motionMode))
 
       // 4. 连接地址与外网（表单复合卡）
       this.sectionTitle('连接地址与外网', 16, 4)
@@ -569,7 +650,17 @@ export struct ConnectPanel {
         })
       }
       .width('100%')
-      .transition(Motion.bloomCard(4, this.motionMode))
+      .animation(null)
+      .opacity(this.entered ? 1 : 0)
+      .animation(Motion.bloomOpacityAnim(4, this.motionMode))
+      .scale({
+        x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+        y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+        centerX: '50%',
+        centerY: '50%'
+      })
+      .translate({ y: this.entered ? 0 : 6 })
+      .animation(Motion.bloomScaleAnim(4, this.motionMode))
 
       // 5-6. 外网访问配置（逐条独立卡片）
       this.sectionTitle('外网访问配置', 16, 5)
@@ -586,6 +677,7 @@ export struct ConnectPanel {
         pluginVersion: this.pluginVersion,
         sessions: this.sessionsCount,
         startIdx: 7,
+        entered: this.entered,
         onReconnect: (): void => {
           this.onReconnect();
         },

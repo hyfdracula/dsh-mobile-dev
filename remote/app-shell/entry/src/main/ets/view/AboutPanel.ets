@@ -28,12 +28,30 @@ export struct AboutPanel {
 
   @State private logCount: number = 0;
   @State private exporting: boolean = false;
+  @State private entered: boolean = true;
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
+  private enterTimer: number = -1;
 
   aboutToAppear(): void {
     this.logCount = LinkLog.count();
+    if (Motion.isFlagship(this.motionMode)) {
+      this.entered = false;
+      this.enterTimer = setTimeout(() => {
+        this.enterTimer = -1;
+        this.entered = true;
+      }, 16);
+    } else {
+      this.entered = true;
+    }
+  }
+
+  aboutToDisappear(): void {
+    if (this.enterTimer >= 0) {
+      clearTimeout(this.enterTimer);
+      this.enterTimer = -1;
+    }
   }
 
   private async exportDiagLog(): Promise<void> {
@@ -102,7 +120,17 @@ export struct AboutPanel {
     .borderRadius(Tokens.rRow)
     .clip(true)
     .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
-    .transition(Motion.bloomCard(idx, this.motionMode))
+    .animation(null)
+    .opacity(this.entered ? 1 : 0)
+    .animation(Motion.bloomOpacityAnim(idx, this.motionMode))
+    .scale({
+      x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      centerX: '50%',
+      centerY: '50%'
+    })
+    .translate({ y: this.entered ? 0 : 6 })
+    .animation(Motion.bloomScaleAnim(idx, this.motionMode))
     .onClick(() => {
       Haptics.tap();
       onTap();
@@ -116,7 +144,17 @@ export struct AboutPanel {
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
         .margin({ left: 6, top: 6, bottom: 8 })
-        .transition(Motion.bloomHeader(0, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomHeaderOpacityAnim(0, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          centerX: '0%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomHeaderScaleAnim(0, this.motionMode))
 
       Column({ space: 9 }) {
         ForEach(this.rows, (r: AboutRow, i: number) => {
@@ -142,7 +180,17 @@ export struct AboutPanel {
           .shadow(Mat.rowShadow(this.hdsOn))
           .borderRadius(Tokens.rRow)
           .clip(true)
-          .transition(Motion.bloomCard(i, this.motionMode))
+          .animation(null)
+          .opacity(this.entered ? 1 : 0)
+          .animation(Motion.bloomOpacityAnim(i, this.motionMode))
+          .scale({
+            x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+            y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+            centerX: '50%',
+            centerY: '50%'
+          })
+          .translate({ y: this.entered ? 0 : 6 })
+          .animation(Motion.bloomScaleAnim(i, this.motionMode))
         }, (r: AboutRow) => r.k + ':' + r.v)
       }
       .width('100%')
@@ -152,7 +200,17 @@ export struct AboutPanel {
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
         .margin({ left: 6, top: 16, bottom: 8 })
-        .transition(Motion.bloomHeader(this.diagBaseIdx(), this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomHeaderOpacityAnim(this.diagBaseIdx(), this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          centerX: '0%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomHeaderScaleAnim(this.diagBaseIdx(), this.motionMode))
 
       Column({ space: 9 }) {
         this.actionCard(

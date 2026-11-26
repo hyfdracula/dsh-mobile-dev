@@ -19,12 +19,30 @@ export struct DataStoragePanel {
   @State private draftN: number = 0;
   @State private outN: number = 0;
   @State private markN: number = 0;
+  @State private entered: boolean = true;
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
+  private enterTimer: number = -1;
 
   aboutToAppear(): void {
+    if (Motion.isFlagship(this.motionMode)) {
+      this.entered = false;
+      this.enterTimer = setTimeout(() => {
+        this.enterTimer = -1;
+        this.entered = true;
+      }, 16);
+    } else {
+      this.entered = true;
+    }
     this.reloadCounts();
+  }
+
+  aboutToDisappear(): void {
+    if (this.enterTimer >= 0) {
+      clearTimeout(this.enterTimer);
+      this.enterTimer = -1;
+    }
   }
 
   private onRefreshTick(): void {
@@ -88,7 +106,17 @@ export struct DataStoragePanel {
     .shadow(Mat.rowShadow(this.hdsOn))
     .borderRadius(Tokens.rRow)
     .clip(true)
-    .transition(Motion.bloomCard(idx, this.motionMode))
+    .animation(null)
+    .opacity(this.entered ? 1 : 0)
+    .animation(Motion.bloomOpacityAnim(idx, this.motionMode))
+    .scale({
+      x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      centerX: '50%',
+      centerY: '50%'
+    })
+    .translate({ y: this.entered ? 0 : 6 })
+    .animation(Motion.bloomScaleAnim(idx, this.motionMode))
   }
 
   @Builder
@@ -115,7 +143,17 @@ export struct DataStoragePanel {
     .shadow(Mat.rowShadow(this.hdsOn))
     .borderRadius(Tokens.rRow)
     .clip(true)
-    .transition(Motion.bloomCard(idx, this.motionMode))
+    .animation(null)
+    .opacity(this.entered ? 1 : 0)
+    .animation(Motion.bloomOpacityAnim(idx, this.motionMode))
+    .scale({
+      x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      centerX: '50%',
+      centerY: '50%'
+    })
+    .translate({ y: this.entered ? 0 : 6 })
+    .animation(Motion.bloomScaleAnim(idx, this.motionMode))
   }
 
   build() {
@@ -125,7 +163,17 @@ export struct DataStoragePanel {
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
         .margin({ left: 6, top: 6, bottom: 8 })
-        .transition(Motion.bloomHeader(0, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomHeaderOpacityAnim(0, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          centerX: '0%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomHeaderScaleAnim(0, this.motionMode))
 
       // 0. 存储空间
       Row() {
@@ -160,7 +208,17 @@ export struct DataStoragePanel {
       .borderRadius(Tokens.rRow)
       .clip(true)
       .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
-      .transition(Motion.bloomCard(0, this.motionMode))
+      .animation(null)
+      .opacity(this.entered ? 1 : 0)
+      .animation(Motion.bloomOpacityAnim(0, this.motionMode))
+      .scale({
+        x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+        y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+        centerX: '50%',
+        centerY: '50%'
+      })
+      .translate({ y: this.entered ? 0 : 6 })
+      .animation(Motion.bloomScaleAnim(0, this.motionMode))
       .onClick(() => {
         Haptics.tap();
         this.onStorage();
@@ -171,7 +229,17 @@ export struct DataStoragePanel {
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
         .margin({ left: 6, top: 16, bottom: 8 })
-        .transition(Motion.bloomHeader(1, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomHeaderOpacityAnim(1, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          centerX: '0%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomHeaderScaleAnim(1, this.motionMode))
 
       Column({ space: 9 }) {
         this.dataRowCard('草稿', this.draftN, 'draft', 1)
@@ -185,7 +253,17 @@ export struct DataStoragePanel {
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
         .margin({ left: 6, top: 16, bottom: 8 })
-        .transition(Motion.bloomHeader(4, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomHeaderOpacityAnim(4, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          centerX: '0%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomHeaderScaleAnim(4, this.motionMode))
 
       Column({ space: 9 }) {
         this.noteCard('本地设置', '服务器地址 · 令牌 · 主题', false, 4)

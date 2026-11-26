@@ -15,6 +15,27 @@ export struct FeedbackEntryView {
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
+  @State private entered: boolean = true;
+  private enterTimer: number = -1;
+
+  aboutToAppear(): void {
+    if (Motion.isFlagship(this.motionMode)) {
+      this.entered = false;
+      this.enterTimer = setTimeout(() => {
+        this.enterTimer = -1;
+        this.entered = true;
+      }, 16);
+    } else {
+      this.entered = true;
+    }
+  }
+
+  aboutToDisappear(): void {
+    if (this.enterTimer >= 0) {
+      clearTimeout(this.enterTimer);
+      this.enterTimer = -1;
+    }
+  }
 
   @Builder
   entryRow(title: string, sub: string, idx: number, act: () => void) {
@@ -54,8 +75,19 @@ export struct FeedbackEntryView {
     .backgroundColor(Mat.cardBg(this.hdsOn))
     .border(Mat.cardBorder(this.hdsOn))
     .shadow(Mat.rowShadow(this.hdsOn))
-    .transition(Motion.bloomCard(idx, this.motionMode))
+    .clip(true)
     .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
+    .animation(null)
+    .opacity(this.entered ? 1 : 0)
+    .animation(Motion.bloomOpacityAnim(idx, this.motionMode))
+    .scale({
+      x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      centerX: '50%',
+      centerY: '50%'
+    })
+    .translate({ y: this.entered ? 0 : 6 })
+    .animation(Motion.bloomScaleAnim(idx, this.motionMode))
     .onClick(act)
   }
 
@@ -67,6 +99,17 @@ export struct FeedbackEntryView {
         .lineHeight(19)
         .width('100%')
         .margin({ bottom: 16 })
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomHeaderOpacityAnim(0, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          centerX: '0%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomHeaderScaleAnim(0, this.motionMode))
 
       this.entryRow('提交反馈', '填写描述并附带截图、录屏或脱敏日志', 0, () => {
         Haptics.tap();
@@ -88,6 +131,17 @@ export struct FeedbackEntryView {
         .lineHeight(17)
         .width('100%')
         .margin({ top: 14 })
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomHeaderOpacityAnim(3, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          centerX: '0%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomHeaderScaleAnim(3, this.motionMode))
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)

@@ -45,9 +45,20 @@ export struct NotifyPanel {
   @State private relayErr: string = '';
   @State private testPushBusy: boolean = false;
   @State private rotateBusy: boolean = false;
+  @State private entered: boolean = true;
   private pollTimer: number = -1;
+  private enterTimer: number = -1;
 
   aboutToAppear(): void {
+    if (Motion.isFlagship(this.motionMode)) {
+      this.entered = false;
+      this.enterTimer = setTimeout(() => {
+        this.enterTimer = -1;
+        this.entered = true;
+      }, 16);
+    } else {
+      this.entered = true;
+    }
     Unread.count();
     void this.refreshPermission();
     void this.refreshPushChannel(false);
@@ -57,6 +68,10 @@ export struct NotifyPanel {
     if (this.pollTimer >= 0) {
       clearInterval(this.pollTimer);
       this.pollTimer = -1;
+    }
+    if (this.enterTimer >= 0) {
+      clearTimeout(this.enterTimer);
+      this.enterTimer = -1;
     }
   }
 
@@ -309,14 +324,34 @@ export struct NotifyPanel {
       .borderRadius(Tokens.rRow)
       .clip(true)
       .margin({ top: 6 })
-      .transition(Motion.bloomCard(0, this.motionMode))
+      .animation(null)
+      .opacity(this.entered ? 1 : 0)
+      .animation(Motion.bloomOpacityAnim(0, this.motionMode))
+      .scale({
+        x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+        y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+        centerX: '50%',
+        centerY: '50%'
+      })
+      .translate({ y: this.entered ? 0 : 6 })
+      .animation(Motion.bloomScaleAnim(0, this.motionMode))
 
       Text('提醒偏好')
         .fontSize(Tokens.fsCaption)
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
         .margin({ left: 6, top: 16, bottom: 8 })
-        .transition(Motion.bloomHeader(1, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomHeaderOpacityAnim(1, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          centerX: '0%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomHeaderScaleAnim(1, this.motionMode))
 
       Column({ space: 9 }) {
         // 1. 回合结束提醒
@@ -336,7 +371,17 @@ export struct NotifyPanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
-        .transition(Motion.bloomCard(1, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomOpacityAnim(1, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomScaleAnim(1, this.motionMode))
 
         // 2. 仅在后台提醒
         Column() {
@@ -356,7 +401,17 @@ export struct NotifyPanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
-        .transition(Motion.bloomCard(2, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomOpacityAnim(2, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomScaleAnim(2, this.motionMode))
 
         // 3. 推送显示会话标题
         Column() {
@@ -376,7 +431,17 @@ export struct NotifyPanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
-        .transition(Motion.bloomCard(3, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomOpacityAnim(3, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomScaleAnim(3, this.motionMode))
       }
       .width('100%')
 
@@ -385,7 +450,17 @@ export struct NotifyPanel {
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
         .margin({ left: 6, top: 16, bottom: 8 })
-        .transition(Motion.bloomHeader(4, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomHeaderOpacityAnim(4, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          centerX: '0%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomHeaderScaleAnim(4, this.motionMode))
 
       // 4. 华为系统推送通道（多行状态与操作复合卡）
       Column({ space: 10 }) {
@@ -464,14 +539,34 @@ export struct NotifyPanel {
       .shadow(Mat.rowShadow(this.hdsOn))
       .borderRadius(Tokens.rCard)
       .alignItems(HorizontalAlign.Start)
-      .transition(Motion.bloomCard(4, this.motionMode))
+      .animation(null)
+      .opacity(this.entered ? 1 : 0)
+      .animation(Motion.bloomOpacityAnim(4, this.motionMode))
+      .scale({
+        x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+        y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+        centerX: '50%',
+        centerY: '50%'
+      })
+      .translate({ y: this.entered ? 0 : 6 })
+      .animation(Motion.bloomScaleAnim(4, this.motionMode))
 
       Text('调试与未读')
         .fontSize(Tokens.fsCaption)
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
         .margin({ left: 6, top: 16, bottom: 8 })
-        .transition(Motion.bloomHeader(5, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomHeaderOpacityAnim(5, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          centerX: '0%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomHeaderScaleAnim(5, this.motionMode))
 
       Column({ space: 9 }) {
         // 5. 测试本地通知
@@ -509,7 +604,17 @@ export struct NotifyPanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
-        .transition(Motion.bloomCard(5, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomOpacityAnim(5, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomScaleAnim(5, this.motionMode))
 
         // 6. 清除未读与桌面角标
         Row() {
@@ -554,7 +659,17 @@ export struct NotifyPanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
-        .transition(Motion.bloomCard(6, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomOpacityAnim(6, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomScaleAnim(6, this.motionMode))
       }
       .width('100%')
 
@@ -564,7 +679,17 @@ export struct NotifyPanel {
         .lineHeight(18)
         .width('100%')
         .margin({ top: 12, left: 4, right: 4 })
-        .transition(Motion.bloomHeader(7, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomHeaderOpacityAnim(7, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          centerX: '0%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomHeaderScaleAnim(7, this.motionMode))
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)

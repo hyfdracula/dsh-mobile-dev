@@ -1,6 +1,7 @@
 import preferences from '@ohos.data.preferences';
 import ConfigurationConstant from '@ohos.app.ability.ConfigurationConstant';
 import { Configuration } from '@ohos.app.ability.Configuration';
+import { HdsNavDestination } from '@kit.UIDesignKit';
 import { Api } from '../common/Api';
 import { AppCtx } from '../common/AppCtx';
 import { AppIcon, ICON_DARK } from '../common/AppIcon';
@@ -863,6 +864,29 @@ struct Index {
       ChatPage({ api: this.api, param: param })
     } else if (name === 'presets') {
       PresetsPage({ api: this.api, param: param })
+    } else if (name === 'pair_prepare' || name === 'pair_connect') {
+      HdsNavDestination() {
+        PairPage({
+          api: this.api,
+          defaultBase: '',
+          mode: name === 'pair_prepare' ? 'prepare' : 'connect',
+          hasBack: true,
+          popHeader: true,
+          onExit: () => {
+            this.stack.pop();
+          },
+          onGoOtherStep: () => {
+            this.stack.pop();
+          },
+          onPaired: (b: string, t: string, host: string, lan: string[], hostId?: string, e2eePub?: string) => {
+            this.stack.clear(false);
+            void this.saveCfg(b, t, lan, host, hostId !== undefined ? hostId : '', e2eePub !== undefined ? e2eePub : '');
+          }
+        })
+      }
+      .hideTitleBar(true)
+      .hideBackButton(true)
+      .backgroundColor(this.themeBg)
     }
   }
 
@@ -933,8 +957,13 @@ struct Index {
               PairPage({
                 api: this.api,
                 defaultBase: '',
+                mode: 'connect',
                 hasBack: false,
+                popHeader: false,
                 onExit: () => {
+                },
+                onGoOtherStep: () => {
+                  this.stack.pushPathByName('pair_prepare', null);
                 },
                 onPaired: (b: string, t: string, host: string, lan: string[], hostId?: string, e2eePub?: string) => {
                   void this.saveCfg(b, t, lan, host, hostId !== undefined ? hostId : '', e2eePub !== undefined ? e2eePub : '');

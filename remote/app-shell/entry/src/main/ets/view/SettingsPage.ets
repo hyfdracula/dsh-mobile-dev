@@ -109,6 +109,8 @@ export struct SettingsPage {
   @State private enterSendUi: boolean = true;
   @State private compactHistoryUi: boolean = false;
   @State private textScaleUi: number = 1;
+  @State private rootEntered: boolean = true;
+  private rootEnterTimer: number = -1;
 
   // 仅用于「隐私政策 / 用户协议 / 开源许可 / 外网向导（AI 与隧道）」的景深悬浮阅读浮卡
   @State private readingRoute: string = '';
@@ -312,6 +314,15 @@ export struct SettingsPage {
     this.notifyShowTitle = nst !== undefined ? nst : true;
     this.editBase = this.wanBase;
     this.editToken = this.token0;
+    if (Motion.isFlagship(this.motionMode)) {
+      this.rootEntered = false;
+      this.rootEnterTimer = setTimeout(() => {
+        this.rootEnterTimer = -1;
+        this.rootEntered = true;
+      }, 16);
+    } else {
+      this.rootEntered = true;
+    }
     void this.load();
     if (this.token0 !== '' && this.wanBase !== '' && Api.cachedBackends().length === 0) {
       void this.api.backends(false).catch(() => {});
@@ -331,6 +342,10 @@ export struct SettingsPage {
     }
     this.stopSaveTimer();
     this.clearReadingTimer();
+    if (this.rootEnterTimer >= 0) {
+      clearTimeout(this.rootEnterTimer);
+      this.rootEnterTimer = -1;
+    }
   }
 
   private startSaveTimer(): void {
@@ -517,6 +532,30 @@ export struct SettingsPage {
     this.syncSubFromStack();
   }
 
+  private popAllPairSub(): void {
+    let guard: number = 0;
+    while (this.subStack.size() > 0 && guard < 8) {
+      const names: string[] = this.subStack.getAllPathName();
+      const top: string = names.length > 0 ? names[names.length - 1] : '';
+      if (top !== 'pair' && top !== 'pair_prepare' && top !== 'pair_connect') {
+        break;
+      }
+      this.subStack.pop(false);
+      guard++;
+    }
+    this.syncSubFromStack();
+  }
+
+  private switchPairSub(target: string): void {
+    const names: string[] = this.subStack.getAllPathName();
+    if (names.length >= 2 && names[names.length - 2] === target) {
+      this.subStack.pop();
+    } else {
+      this.subStack.pushPathByName(target, null);
+    }
+    this.syncSubFromStack();
+  }
+
   private clearUnread(): void {
     Unread.clearAll();
     Haptics.success();
@@ -539,7 +578,8 @@ export struct SettingsPage {
   }
 
   private isFullScreenSub(name: string): boolean {
-    return name === 'pair' || name === 'feedback' || name === 'storage' ||
+    return name === 'pair' || name === 'pair_prepare' || name === 'pair_connect' ||
+      name === 'feedback' || name === 'storage' ||
       name === 'extras_plugins' || name === 'extras_schedules' || name === 'web_console';
   }
 
@@ -589,7 +629,17 @@ export struct SettingsPage {
       .fontColor(Tokens.dim2)
       .letterSpacing(1.4)
       .margin({ left: 6, top: topGap, bottom: 8 })
-      .transition(Motion.bloomHeader(bloomIdx, this.motionMode, 16))
+      .animation(null)
+      .opacity(this.rootEntered ? 1 : 0)
+      .animation(Motion.bloomHeaderOpacityAnim(bloomIdx, this.motionMode, 20))
+      .scale({
+        x: this.rootEntered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+        y: this.rootEntered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+        centerX: '0%',
+        centerY: '50%'
+      })
+      .translate({ y: this.rootEntered ? 0 : 6 })
+      .animation(Motion.bloomHeaderScaleAnim(bloomIdx, this.motionMode, 20))
   }
 
   @Builder
@@ -638,7 +688,17 @@ export struct SettingsPage {
     .borderRadius(Tokens.rRow)
     .clip(true)
     .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
-    .transition(Motion.bloomCard(idx, this.motionMode, 16))
+    .animation(null)
+    .opacity(this.rootEntered ? 1 : 0)
+    .animation(Motion.bloomOpacityAnim(idx, this.motionMode, 20))
+    .scale({
+      x: this.rootEntered ? 1 : Motion.BLOOM_SCALE_START,
+      y: this.rootEntered ? 1 : Motion.BLOOM_SCALE_START,
+      centerX: '50%',
+      centerY: '50%'
+    })
+    .translate({ y: this.rootEntered ? 0 : 6 })
+    .animation(Motion.bloomScaleAnim(idx, this.motionMode, 20))
     .onClick(() => { this.openSettingEntry(r.id); })
   }
 
@@ -701,7 +761,17 @@ export struct SettingsPage {
     }
     .width('100%').padding(16).backgroundColor(Mat.cardBg(this.hdsOn))
     .border(Mat.cardBorder(this.hdsOn)).shadow(Mat.cardShadow(this.hdsOn)).borderRadius(Tokens.rCard)
-    .transition(Motion.bloomCard(0, this.motionMode, 16))
+    .animation(null)
+    .opacity(this.rootEntered ? 1 : 0)
+    .animation(Motion.bloomOpacityAnim(0, this.motionMode, 20))
+    .scale({
+      x: this.rootEntered ? 1 : Motion.BLOOM_SCALE_START,
+      y: this.rootEntered ? 1 : Motion.BLOOM_SCALE_START,
+      centerX: '50%',
+      centerY: '50%'
+    })
+    .translate({ y: this.rootEntered ? 0 : 6 })
+    .animation(Motion.bloomScaleAnim(0, this.motionMode, 20))
   }
 
   @Builder
@@ -736,19 +806,37 @@ export struct SettingsPage {
         .width('100%')
         .textAlign(TextAlign.Center)
         .padding({ top: 22, bottom: 8 })
-        .transition(Motion.bloomHeader(7, this.motionMode, 16))
+        .animation(null)
+        .opacity(this.rootEntered ? 1 : 0)
+        .animation(Motion.bloomHeaderOpacityAnim(7, this.motionMode, 20))
+        .scale({
+          x: this.rootEntered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          y: this.rootEntered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+          centerX: '0%',
+          centerY: '50%'
+        })
+        .translate({ y: this.rootEntered ? 0 : 6 })
+        .animation(Motion.bloomHeaderScaleAnim(7, this.motionMode, 20))
     }
     .width('100%').alignItems(HorizontalAlign.Start)
   }
 
   @Builder
   fullScreenSubBody(name: string) {
-    if (name === 'pair') {
+    if (name === 'pair_prepare' || name === 'pair_connect' || name === 'pair') {
       PairPage({
-        api: this.api, defaultBase: this.defaultLan, entry: this.pairEntry, hasBack: true,
+        api: this.api,
+        defaultBase: this.defaultLan,
+        entry: name === 'pair_prepare' ? 'guide' : this.pairEntry,
+        mode: name === 'pair_prepare' ? 'prepare' : 'connect',
+        hasBack: true,
+        popHeader: true,
         onExit: () => { this.closeSub(); },
+        onGoOtherStep: () => {
+          this.switchPairSub(name === 'pair_prepare' ? 'pair_connect' : 'pair_prepare');
+        },
         onPaired: (b: string, t: string, host: string, lan: string[], hostId?: string, e2eePub?: string) => {
-          this.closeSub();
+          this.popAllPairSub();
           this.onSaveLan(b, t, lan, hostId, e2eePub, host);
           this.editBase = b;
           this.editToken = t;
@@ -793,8 +881,9 @@ export struct SettingsPage {
         },
         onOpenPair: (entry: string): void => {
           this.pairEntry = entry;
-          LinkLog.record('NAV', 'open pair ' + entry);
-          this.subStack.pushPathByName('pair', null);
+          const target: string = entry === 'guide' ? 'pair_prepare' : 'pair_connect';
+          LinkLog.record('NAV', 'open ' + target + ' (' + entry + ')');
+          this.subStack.pushPathByName(target, null);
           this.syncSubFromStack();
         },
         onOpenGuide: (kind: string): void => {
@@ -921,7 +1010,7 @@ export struct SettingsPage {
         onBack: () => { this.closeSub(); },
         onRight: () => {
           this.pairEntry = 'scan';
-          this.subStack.pushPathByName('pair', null);
+          this.subStack.pushPathByName('pair_connect', null);
           this.syncSubFromStack();
         }
       })

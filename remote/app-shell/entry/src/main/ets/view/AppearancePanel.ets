@@ -54,6 +54,27 @@ export struct AppearancePanel {
   @StorageLink('appIconStyle') appIconStyle: string = ICON_DARK;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
   @State private iconBusy: boolean = false;
+  @State private entered: boolean = true;
+  private enterTimer: number = -1;
+
+  aboutToAppear(): void {
+    if (Motion.isFlagship(this.motionMode)) {
+      this.entered = false;
+      this.enterTimer = setTimeout(() => {
+        this.enterTimer = -1;
+        this.entered = true;
+      }, 16);
+    } else {
+      this.entered = true;
+    }
+  }
+
+  aboutToDisappear(): void {
+    if (this.enterTimer >= 0) {
+      clearTimeout(this.enterTimer);
+      this.enterTimer = -1;
+    }
+  }
 
   private scaleIdOf(val: number): string {
     if (val < 0.96) {
@@ -143,7 +164,17 @@ export struct AppearancePanel {
       .fontColor(Tokens.dim2)
       .letterSpacing(1.4)
       .margin({ left: 6, top: topMargin, bottom: 8 })
-      .transition(Motion.bloomHeader(bloomIdx, this.motionMode))
+      .animation(null)
+      .opacity(this.entered ? 1 : 0)
+      .animation(Motion.bloomHeaderOpacityAnim(bloomIdx, this.motionMode))
+      .scale({
+        x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+        y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+        centerX: '0%',
+        centerY: '50%'
+      })
+      .translate({ y: this.entered ? 0 : 6 })
+      .animation(Motion.bloomHeaderScaleAnim(bloomIdx, this.motionMode))
   }
 
   @Builder
@@ -190,7 +221,17 @@ export struct AppearancePanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
-        .transition(Motion.bloomCard(0, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomOpacityAnim(0, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomScaleAnim(0, this.motionMode))
 
         // 1. 沉浸光感
         Row() {
@@ -225,7 +266,17 @@ export struct AppearancePanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
-        .transition(Motion.bloomCard(1, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomOpacityAnim(1, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomScaleAnim(1, this.motionMode))
 
         // 2. 交互动效
         Row() {
@@ -262,7 +313,17 @@ export struct AppearancePanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
-        .transition(Motion.bloomCard(2, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomOpacityAnim(2, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomScaleAnim(2, this.motionMode))
 
         // 3. 应用图标（语义整体单卡）
         Column({ space: 10 }) {
@@ -296,7 +357,17 @@ export struct AppearancePanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rCard)
         .clip(true)
-        .transition(Motion.bloomCard(3, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomOpacityAnim(3, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomScaleAnim(3, this.motionMode))
 
         // 4. 正文字号
         Row() {
@@ -327,7 +398,17 @@ export struct AppearancePanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
-        .transition(Motion.bloomCard(4, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomOpacityAnim(4, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomScaleAnim(4, this.motionMode))
       }
       .width('100%')
 
@@ -361,7 +442,17 @@ export struct AppearancePanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
-        .transition(Motion.bloomCard(5, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomOpacityAnim(5, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomScaleAnim(5, this.motionMode))
 
         // 6. 回车发送
         Row() {
@@ -388,7 +479,17 @@ export struct AppearancePanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
-        .transition(Motion.bloomCard(6, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomOpacityAnim(6, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomScaleAnim(6, this.motionMode))
 
         // 7. 会话精简加载
         Column() {
@@ -409,7 +510,17 @@ export struct AppearancePanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
-        .transition(Motion.bloomCard(7, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomOpacityAnim(7, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomScaleAnim(7, this.motionMode))
       }
       .width('100%')
     }

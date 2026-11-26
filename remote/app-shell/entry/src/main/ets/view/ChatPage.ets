@@ -232,6 +232,8 @@ export struct ChatPage {
   private sseActive: boolean = false;
   private poller: number = 0;
   @State private dotOn: number = 0;
+  @State private hdrEntered: boolean = true;
+  private hdrTimer: number = -1;
   private dotTimer: number = 0;
   private alive: boolean = false;
   private gen: number = 0;
@@ -243,6 +245,15 @@ export struct ChatPage {
   aboutToAppear(): void {
     this.alive = true;
     this.gen++;
+    if (Motion.isFlagship(this.motionMode)) {
+      this.hdrEntered = false;
+      this.hdrTimer = setTimeout(() => {
+        this.hdrTimer = -1;
+        this.hdrEntered = true;
+      }, 16);
+    } else {
+      this.hdrEntered = true;
+    }
     this.initialMaxSeq = Number.MAX_SAFE_INTEGER;
     this.seenSeqs.clear();
     this.pinKeyboard();
@@ -276,6 +287,10 @@ export struct ChatPage {
     AppStorage.setOrCreate('openSession', '');
     this.alive = false;
     this.gen++;
+    if (this.hdrTimer >= 0) {
+      clearTimeout(this.hdrTimer);
+      this.hdrTimer = -1;
+    }
     if (this.retryTimer !== 0) {
       clearTimeout(this.retryTimer);
       this.retryTimer = 0;
@@ -1878,6 +1893,16 @@ export struct ChatPage {
             onTap: (): void => { this.stack.pop(); }
           })
             .accessibilityText('返回')
+            .animation(null)
+            .opacity(this.hdrEntered ? 1 : 0)
+            .animation(Motion.headerPopOpacityAnim(170, this.motionMode))
+            .scale({
+              x: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
+              y: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
+              centerX: '50%',
+              centerY: '50%'
+            })
+            .animation(Motion.headerPopScaleAnim(170, this.motionMode))
 
           HeaderTitleCapsule({
             title: this.titleNow !== '' ? this.titleNow : '会话',
@@ -1891,6 +1916,11 @@ export struct ChatPage {
             }
           })
             .layoutWeight(1)
+            .animation(null)
+            .opacity(this.hdrEntered ? 1 : 0)
+            .animation(Motion.headerPopOpacityAnim(55, this.motionMode))
+            .translate({ x: this.hdrEntered ? 0 : 14 })
+            .animation(Motion.headerTitleSlideAnim(55, this.motionMode))
 
           HeaderCirclePill({
             glyph: 'stats',
@@ -1898,6 +1928,16 @@ export struct ChatPage {
             onTap: (): void => { this.hideKb(); this.statsOn = true; }
           })
             .accessibilityText('上下文与统计')
+            .animation(null)
+            .opacity(this.hdrEntered ? 1 : 0)
+            .animation(Motion.headerPopOpacityAnim(120, this.motionMode))
+            .scale({
+              x: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
+              y: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
+              centerX: '50%',
+              centerY: '50%'
+            })
+            .animation(Motion.headerPopScaleAnim(120, this.motionMode))
 
           HeaderCirclePill({
             glyph: '···',
@@ -1905,7 +1945,17 @@ export struct ChatPage {
             onTap: (): void => { this.hideKb(); this.menuOn = true; }
           })
             .accessibilityText('更多菜单')
-              .bindPopup(this.menuOn, Mat.popupOpts(
+            .animation(null)
+            .opacity(this.hdrEntered ? 1 : 0)
+            .animation(Motion.headerPopOpacityAnim(155, this.motionMode))
+            .scale({
+              x: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
+              y: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
+              centerX: '50%',
+              centerY: '50%'
+            })
+            .animation(Motion.headerPopScaleAnim(155, this.motionMode))
+            .bindPopup(this.menuOn, Mat.popupOpts(
               this.hdsOn,
               (): void => { this.chatMenuBuilder(); },
               Placement.BottomRight,

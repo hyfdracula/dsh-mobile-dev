@@ -46,7 +46,7 @@ export struct StoragePage {
   @State private clearing: boolean = false;
   @State private detailOn: boolean = false;
   @State private detailKey: string = '';
-  @State private bloomDone: boolean = false;
+  @State private entered: boolean = false;
 
   @StorageLink('topInset') topInset: number = 40;
   @StorageLink('bottomInset') bottomInset: number = 20;
@@ -61,11 +61,12 @@ export struct StoragePage {
   private canvasReady: boolean = false;
   private scanTimer: number = -1;
   private clearTimer: number = -1;
-  private bloomTimer: number = -1;
+  private enterTimer: number = -1;
   private disposed: boolean = false;
 
   aboutToAppear(): void {
     this.disposed = false;
+    this.entered = !Motion.isFlagship(this.motionMode);
     this.scheduleScan(true);
   }
 
@@ -79,9 +80,9 @@ export struct StoragePage {
       clearTimeout(this.clearTimer);
       this.clearTimer = -1;
     }
-    if (this.bloomTimer >= 0) {
-      clearTimeout(this.bloomTimer);
-      this.bloomTimer = -1;
+    if (this.enterTimer >= 0) {
+      clearTimeout(this.enterTimer);
+      this.enterTimer = -1;
     }
   }
 
@@ -130,11 +131,17 @@ export struct StoragePage {
       this.device = { free: 0, total: 0 };
     }
     this.loading = false;
-    if (!this.bloomDone && this.bloomTimer < 0) {
-      this.bloomTimer = setTimeout(() => {
-        this.bloomTimer = -1;
-        this.bloomDone = true;
-      }, 480);
+    if (!this.entered) {
+      if (Motion.isFlagship(this.motionMode)) {
+        if (this.enterTimer < 0) {
+          this.enterTimer = setTimeout(() => {
+            this.enterTimer = -1;
+            this.entered = true;
+          }, 16);
+        }
+      } else {
+        this.entered = true;
+      }
     }
     setTimeout(() => {
       if (!this.disposed && this.canvasReady) {
@@ -378,7 +385,17 @@ export struct StoragePage {
       .fontColor(Tokens.dim2)
       .letterSpacing(1.4)
       .margin({ left: 6, top: topMargin, bottom: 8 })
-      .transition(this.bloomDone ? TransitionEffect.IDENTITY : Motion.bloomHeader(bloomIdx, this.motionMode))
+      .animation(null)
+      .opacity(this.entered ? 1 : 0)
+      .animation(Motion.bloomHeaderOpacityAnim(bloomIdx, this.motionMode))
+      .scale({
+        x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+        y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+        centerX: '0%',
+        centerY: '50%'
+      })
+      .translate({ y: this.entered ? 0 : 6 })
+      .animation(Motion.bloomHeaderScaleAnim(bloomIdx, this.motionMode))
   }
 
   @Builder
@@ -549,7 +566,17 @@ export struct StoragePage {
     .border(Mat.cardBorder(this.hdsOn))
     .shadow(Mat.cardShadow(this.hdsOn))
     .clip(true)
-    .transition(this.bloomDone ? TransitionEffect.IDENTITY : Motion.bloomCard(0, this.motionMode))
+    .animation(null)
+    .opacity(this.entered ? 1 : 0)
+    .animation(Motion.bloomOpacityAnim(0, this.motionMode))
+    .scale({
+      x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      centerX: '50%',
+      centerY: '50%'
+    })
+    .translate({ y: this.entered ? 0 : 6 })
+    .animation(Motion.bloomScaleAnim(0, this.motionMode))
   }
 
   @Builder
@@ -663,7 +690,17 @@ export struct StoragePage {
         .border(Mat.cardBorder(this.hdsOn))
         .shadow(Mat.rowShadow(this.hdsOn))
         .clip(true)
-        .transition(this.bloomDone ? TransitionEffect.IDENTITY : Motion.bloomCard(1 + i, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomOpacityAnim(1 + i, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomScaleAnim(1 + i, this.motionMode))
       }, (b: Bucket) => b.key + ':' + String(b.bytes) + ':' + String(this.cacheBytes) + ':' + String(this.themeDark))
     }
     .width('100%')
@@ -719,7 +756,17 @@ export struct StoragePage {
     .border(Mat.cardBorder(this.hdsOn))
     .shadow(Mat.cardShadow(this.hdsOn))
     .alignItems(HorizontalAlign.Start)
-    .transition(this.bloomDone ? TransitionEffect.IDENTITY : Motion.bloomCard(1 + this.buckets.length, this.motionMode))
+    .animation(null)
+    .opacity(this.entered ? 1 : 0)
+    .animation(Motion.bloomOpacityAnim(1 + this.buckets.length, this.motionMode))
+    .scale({
+      x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      centerX: '50%',
+      centerY: '50%'
+    })
+    .translate({ y: this.entered ? 0 : 6 })
+    .animation(Motion.bloomScaleAnim(1 + this.buckets.length, this.motionMode))
   }
 
   @Builder
@@ -772,7 +819,17 @@ export struct StoragePage {
     .border(Mat.cardBorder(this.hdsOn))
     .shadow(Mat.cardShadow(this.hdsOn))
     .alignItems(HorizontalAlign.Start)
-    .transition(this.bloomDone ? TransitionEffect.IDENTITY : Motion.bloomCard(2 + this.buckets.length, this.motionMode))
+    .animation(null)
+    .opacity(this.entered ? 1 : 0)
+    .animation(Motion.bloomOpacityAnim(2 + this.buckets.length, this.motionMode))
+    .scale({
+      x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+      centerX: '50%',
+      centerY: '50%'
+    })
+    .translate({ y: this.entered ? 0 : 6 })
+    .animation(Motion.bloomScaleAnim(2 + this.buckets.length, this.motionMode))
   }
 
   build() {
@@ -812,7 +869,17 @@ export struct StoragePage {
                 .fontColor(Tokens.dim2)
                 .lineHeight(18)
                 .margin({ top: 12, left: 4, right: 4 })
-                .transition(this.bloomDone ? TransitionEffect.IDENTITY : Motion.bloomHeader(3 + this.buckets.length, this.motionMode))
+                .animation(null)
+                .opacity(this.entered ? 1 : 0)
+                .animation(Motion.bloomHeaderOpacityAnim(3 + this.buckets.length, this.motionMode))
+                .scale({
+                  x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+                  y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+                  centerX: '0%',
+                  centerY: '50%'
+                })
+                .translate({ y: this.entered ? 0 : 6 })
+                .animation(Motion.bloomHeaderScaleAnim(3 + this.buckets.length, this.motionMode))
             }
             .width('100%')
             .constraintSize({ maxWidth: this.wideScreen ? 680 : 520 })

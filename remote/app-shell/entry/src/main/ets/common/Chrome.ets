@@ -10,6 +10,7 @@ import {
 import { Tokens } from './Tokens';
 import { Haptics } from './Haptics';
 import { Mat } from './Mat';
+import { Motion, MOTION_VIVID } from './Motion';
 
 /**
  * 统一页面头部、透明 HDS 顶栏与顶部渐隐。
@@ -80,8 +81,13 @@ export struct PageHeader {
   padTop: boolean = false;
   /** 位于 HDS titleBar 中时传 true，按钮随全局沉浸光感开关切换 */
   @Prop immersive: boolean = false;
+  /** 是否在页面推入时展示顶部按钮轻弹弹出与标题滑入 */
+  @Prop popIn: boolean = true;
   @StorageLink('topInset') topInset: number = 44;
   @StorageLink('themeDark') themeDark: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
+  @State private hdrEntered: boolean = true;
+  private hdrTimer: number = -1;
   /** none | glyph | icon | label */
   rightKind: string = 'none';
   rightGlyph: string = '\u21bb';
@@ -94,6 +100,25 @@ export struct PageHeader {
   onRight: () => void = () => {};
   onRight2: () => void = () => {};
 
+  aboutToAppear(): void {
+    if (this.popIn && Motion.isFlagship(this.motionMode)) {
+      this.hdrEntered = false;
+      this.hdrTimer = setTimeout(() => {
+        this.hdrTimer = -1;
+        this.hdrEntered = true;
+      }, 16);
+    } else {
+      this.hdrEntered = true;
+    }
+  }
+
+  aboutToDisappear(): void {
+    if (this.hdrTimer >= 0) {
+      clearTimeout(this.hdrTimer);
+      this.hdrTimer = -1;
+    }
+  }
+
   build() {
     Row() {
       if (this.hasBack) {
@@ -105,6 +130,16 @@ export struct PageHeader {
             this.onBack();
           }
         })
+        .animation(null)
+        .opacity(this.hdrEntered ? 1 : 0)
+        .animation(Motion.headerPopOpacityAnim(170, this.motionMode))
+        .scale({
+          x: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
+          y: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .animation(Motion.headerPopScaleAnim(170, this.motionMode))
       }
       Column() {
         Text(this.title)
@@ -127,6 +162,11 @@ export struct PageHeader {
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
       .margin({ left: this.hasBack ? 12 : 0 })
+      .animation(null)
+      .opacity(this.hdrEntered ? 1 : 0)
+      .animation(Motion.headerPopOpacityAnim(55, this.motionMode))
+      .translate({ x: this.hdrEntered ? 0 : 14 })
+      .animation(Motion.headerTitleSlideAnim(55, this.motionMode))
       if (this.rightKind === 'glyph') {
         GlassIconButton({
           glyph: this.rightGlyph,
@@ -136,6 +176,16 @@ export struct PageHeader {
             this.onRight();
           }
         })
+        .animation(null)
+        .opacity(this.hdrEntered ? 1 : 0)
+        .animation(Motion.headerPopOpacityAnim(120, this.motionMode))
+        .scale({
+          x: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
+          y: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .animation(Motion.headerPopScaleAnim(120, this.motionMode))
       } else if (this.rightKind === 'icon') {
         GlassIconButton({
           icon: this.rightIcon,
@@ -145,6 +195,16 @@ export struct PageHeader {
             this.onRight();
           }
         })
+        .animation(null)
+        .opacity(this.hdrEntered ? 1 : 0)
+        .animation(Motion.headerPopOpacityAnim(120, this.motionMode))
+        .scale({
+          x: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
+          y: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .animation(Motion.headerPopScaleAnim(120, this.motionMode))
       } else if (this.rightKind === 'label') {
         Text(this.rightLabel)
           .fontSize(Tokens.fsBody)
@@ -157,6 +217,16 @@ export struct PageHeader {
             Haptics.tap();
             this.onRight();
           })
+          .animation(null)
+          .opacity(this.hdrEntered ? 1 : 0)
+          .animation(Motion.headerPopOpacityAnim(120, this.motionMode))
+          .scale({
+            x: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
+            y: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
+            centerX: '50%',
+            centerY: '50%'
+          })
+          .animation(Motion.headerPopScaleAnim(120, this.motionMode))
       }
       if (this.hasRight2) {
         GlassIconButton({
@@ -168,6 +238,16 @@ export struct PageHeader {
           }
         })
         .margin({ left: 8 })
+        .animation(null)
+        .opacity(this.hdrEntered ? 1 : 0)
+        .animation(Motion.headerPopOpacityAnim(155, this.motionMode))
+        .scale({
+          x: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
+          y: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .animation(Motion.headerPopScaleAnim(155, this.motionMode))
       }
     }
     .width('100%')

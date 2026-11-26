@@ -19,29 +19,34 @@ export struct AgentEnginesPanel {
   @State private backendsLoading: boolean = false;
   @State private backendsHint: string = '';
   @State private togglingBackend: string = '';
-  @State private bloomDone: boolean = false;
+  @State private entered: boolean = true;
 
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
-  private bloomTimer: number = -1;
+  private enterTimer: number = -1;
 
   aboutToAppear(): void {
     const cached: BackendInfo[] = Api.cachedBackends();
     if (cached.length > 0) {
       this.backends = cached;
     }
-    this.bloomTimer = setTimeout(() => {
-      this.bloomTimer = -1;
-      this.bloomDone = true;
-    }, 480);
+    if (Motion.isFlagship(this.motionMode)) {
+      this.entered = false;
+      this.enterTimer = setTimeout(() => {
+        this.enterTimer = -1;
+        this.entered = true;
+      }, 16);
+    } else {
+      this.entered = true;
+    }
     void this.loadBackends(false);
   }
 
   aboutToDisappear(): void {
-    if (this.bloomTimer >= 0) {
-      clearTimeout(this.bloomTimer);
-      this.bloomTimer = -1;
+    if (this.enterTimer >= 0) {
+      clearTimeout(this.enterTimer);
+      this.enterTimer = -1;
     }
   }
 
@@ -141,7 +146,17 @@ export struct AgentEnginesPanel {
       .width('100%')
       .padding({ left: 6, right: 4, top: 6, bottom: 8 })
       .alignItems(VerticalAlign.Center)
-      .transition(Motion.bloomHeader(0, this.motionMode))
+      .animation(null)
+      .opacity(this.entered ? 1 : 0)
+      .animation(Motion.bloomHeaderOpacityAnim(0, this.motionMode))
+      .scale({
+        x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+        y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+        centerX: '0%',
+        centerY: '50%'
+      })
+      .translate({ y: this.entered ? 0 : 6 })
+      .animation(Motion.bloomHeaderScaleAnim(0, this.motionMode))
 
       if (this.backends.length > 0) {
         Column({ space: 9 }) {
@@ -188,7 +203,17 @@ export struct AgentEnginesPanel {
             .shadow(Mat.rowShadow(this.hdsOn))
             .borderRadius(Tokens.rRow)
             .clip(true)
-            .transition(this.bloomDone ? TransitionEffect.IDENTITY : Motion.bloomCard(idx, this.motionMode))
+            .animation(null)
+            .opacity(this.entered ? 1 : 0)
+            .animation(Motion.bloomOpacityAnim(idx, this.motionMode))
+            .scale({
+              x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+              y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+              centerX: '50%',
+              centerY: '50%'
+            })
+            .translate({ y: this.entered ? 0 : 6 })
+            .animation(Motion.bloomScaleAnim(idx, this.motionMode))
           }, (b: BackendInfo) => b.id + ':' + String(b.enabled) + ':' + String(b.installed))
         }
         .width('100%')
@@ -208,7 +233,17 @@ export struct AgentEnginesPanel {
         .border(Mat.cardBorder(this.hdsOn))
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
-        .transition(Motion.bloomCard(0, this.motionMode))
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(Motion.bloomOpacityAnim(0, this.motionMode))
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .translate({ y: this.entered ? 0 : 6 })
+        .animation(Motion.bloomScaleAnim(0, this.motionMode))
       }
 
       Column() {
@@ -220,7 +255,17 @@ export struct AgentEnginesPanel {
       }
       .width('100%')
       .padding({ left: 6, right: 6, top: 10 })
-      .transition(Motion.bloomHeader(this.backends.length > 0 ? this.backends.length : 1, this.motionMode))
+      .animation(null)
+      .opacity(this.entered ? 1 : 0)
+      .animation(Motion.bloomHeaderOpacityAnim(this.backends.length > 0 ? this.backends.length : 1, this.motionMode))
+      .scale({
+        x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+        y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+        centerX: '0%',
+        centerY: '50%'
+      })
+      .translate({ y: this.entered ? 0 : 6 })
+      .animation(Motion.bloomHeaderScaleAnim(this.backends.length > 0 ? this.backends.length : 1, this.motionMode))
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
