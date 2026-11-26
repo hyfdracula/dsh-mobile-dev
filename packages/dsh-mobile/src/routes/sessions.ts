@@ -5,7 +5,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { AskBridge } from '../ask-bridge.ts'
 import type { BackendRegistry } from '../backends/registry.ts'
-import type { BackendId } from '../backends/types.ts'
+import type { BackendId, BackendSessionRow } from '../backends/types.ts'
 import { buildExportMetaJson, buildZipBuffer, renderSessionMarkdown } from '../export-zip.ts'
 import { readJson, send } from '../http-util.ts'
 import {
@@ -58,6 +58,7 @@ export interface SessionRouteDeps {
   sigTtlSec: number
   logFile: string
   backendRegistry?: BackendRegistry
+  onSessionsListed?: (rows: Array<(SessionRow & { backend?: string }) | BackendSessionRow>) => Array<(SessionRow & { backend?: string }) | BackendSessionRow>
 }
 
 export interface SessionRoutesBundle {
@@ -469,9 +470,10 @@ export function createSessionRoutes(deps: SessionRouteDeps): SessionRoutesBundle
         ? await deps.backendRegistry.listExternalSessions(wantBackend, 30)
         : []
 
-      const sessions = [...dshSessions, ...extSessions].sort(
+      const rawSessions = [...dshSessions, ...extSessions].sort(
         (a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0),
       )
+      const sessions = deps.onSessionsListed ? deps.onSessionsListed(rawSessions) : rawSessions
       send(res, 200, { ok: true, sessions })
       return true
     }

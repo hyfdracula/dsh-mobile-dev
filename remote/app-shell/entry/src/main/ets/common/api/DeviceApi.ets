@@ -6,6 +6,11 @@ import {
   InfoResp,
   PresenceBody,
   PresenceResp,
+  PushRegisterBody,
+  PushRegisterResp,
+  PushStatusResp,
+  PushTestBody,
+  PushTestResp,
   StageCallback,
   WebConsoleGrantRawResp,
   WebConsoleGrantResp
@@ -44,11 +49,25 @@ export class DeviceApi {
   static async presence(t: ApiTransport, online: boolean, sessionId: string = ''): Promise<void> {
     const q: string = sessionId === '' ? '' : '?sessionId=' + encodeURIComponent(sessionId);
     try {
-      const body: PresenceBody = { online: online };
+      const body: PresenceBody = sessionId !== '' ? { online: online, sessionId: sessionId } : { online: online };
       await t.call<PresenceResp>('/api/presence' + q, 'POST', JSON.stringify(body));
     } catch (e) {
       console.info('DSH_PRESENCE fail ' + (e as Error).message);
     }
+  }
+
+  static async registerPush(t: ApiTransport, body: PushRegisterBody): Promise<PushRegisterResp> {
+    return await t.call<PushRegisterResp>('/api/push/register', 'POST', JSON.stringify(body));
+  }
+
+  static async pushStatus(t: ApiTransport, relayUrl: string = ''): Promise<PushStatusResp> {
+    const q: string = relayUrl !== '' ? ('?relayUrl=' + encodeURIComponent(relayUrl)) : '';
+    return await t.call<PushStatusResp>('/api/push/status' + q, 'GET');
+  }
+
+  static async testPush(t: ApiTransport, deviceId: string = '', relayUrl: string = ''): Promise<PushTestResp> {
+    const body: PushTestBody = { deviceId: deviceId, relayUrl: relayUrl };
+    return await t.call<PushTestResp>('/api/push/test', 'POST', JSON.stringify(body));
   }
 
   static async answerMode(t: ApiTransport): Promise<string> {

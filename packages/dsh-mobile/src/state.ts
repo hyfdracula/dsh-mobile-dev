@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path'
 import { decodeBase64Flexible, generateX25519Keypair, x25519PublicFromPrivate } from './crypto/noise.ts'
 import { hostPort, isLocalHostHeader, lanAddresses, lanRank, tokenMatches } from './http-util.ts'
 
-export const VERSION = '3.0.0'
+export const VERSION = '3.1.0'
 export const DEFAULT_PORT = 8901
 export const PAIR_TTL_MS = 15 * 60 * 1000
 export const PAIR_FAIL_LIMIT = 8
@@ -48,6 +48,17 @@ export interface PairedDeviceRecord {
   revoked?: boolean
 }
 
+/** 手机端推送注册记录（仅保存经授权配对手机的 Push Token 与偏好）。 */
+export interface PushRegistration {
+  deviceId: string
+  pushToken: string
+  relayUrl: string
+  enabled: boolean
+  bgOnly: boolean
+  showTitle: boolean
+  updatedAt: number
+}
+
 /** 落盘在 `<dshHome>/dsh-mobile.json` 中的完整结构。 */
 export interface MobileState {
   token: string
@@ -55,6 +66,7 @@ export interface MobileState {
   e2eePriv?: string
   e2eePub?: string
   devices?: PairedDeviceRecord[]
+  pushTargets?: PushRegistration[]
   pair?: Partial<PairPrefs>
   answerMode?: AnswerMode
   allowTerminal?: boolean
@@ -336,6 +348,50 @@ export function setDeviceRevoked(
   list[idx] = { ...current, revoked }
   writeState({ devices: list })
   return { ok: true, devices: list }
+}
+
+const MAX_PUSH_TARGETS = 16
+
+/** 读取已注册的手机推送目标列表（按更新时间倒序）。 */
+export function pushTargets(): PushRegistration[] {
+  const raw = readState().pushTargets
+  if (!Array.isArray(raw)) return []
+  const out: PushRegistration[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const r = item as Partial<PushRegistration>
+    const pushToken = typeof r.pushToken === 'string' ? r.pushToken.trim() : ''
+    if (pushToken.length < 16) continue
+    out.push({
+      deviceId: typeof r.deviceId === 'string' && r.deviceId.trim() !== '' ? r.deviceId.trim() : pushToken.slice(0, 16),
+      pushToken,
+      relayUrl: typeof r.relayUrl === 'string' && r.relayUrl.trim() !== '' ? r.relayUrl.trim() : 'https://feedback.juo.de5.net',
+      enabled: r.enabled !== false,
+      bgOnly: r.bgOnly !== false,
+      showTitle: r.showTitle !== false,
+      updatedAt: Number(r.updatedAt) || 0,
+    })
+  }
+  out.sort((a, b) => b.updatedAt - a.updatedAt)
+  return out
+}
+
+/** 写入或更新手机 Push Token 与推送偏好（按 deviceId 或 pushToken 去重，上限 16 条）。 */
+export function upsertPushTarget(reg: PushRegistration): PushRegistration[] {
+  const list = pushTargets().filter((t) => t.deviceId !== reg.deviceId && t.pushToken !== reg.pushToken)
+  list.unshift({ ...reg, updatedAt: Date.now() })
+  const bounded = list.slice(0, MAX_PUSH_TARGETS)
+  writeState({ pushTargets: bounded })
+  return bounded
+}
+
+/** 按 deviceId 或 pushToken 移除失效的手机推送目标。 */
+export function removePushTarget(deviceIdOrToken: string): PushRegistration[] {
+  const clean = deviceIdOrToken.trim()
+  if (clean === '') return pushTargets()
+  const next = pushTargets().filter((t) => t.deviceId !== clean && t.pushToken !== clean)
+  writeState({ pushTargets: next })
+  return next
 }
 
 /** 生成 6 位密码学随机数字码。 */

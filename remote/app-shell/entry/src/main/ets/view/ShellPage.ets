@@ -51,8 +51,10 @@ export struct ShellPage {
   @StorageLink('settingsSub') settingsSub: string = '';
   private tc: HdsTabsController = new HdsTabsController();
   @StorageLink('themeBg') themeBg: string = Tokens.bg;
-  /** 通知巡检：会话 id -> 上次看到的 updatedAt；同一会话的通知冷却时间 */
-  private lastSeen: Map<string, number> = new Map<string, number>();
+  /** 通知巡检：回合 ID 记录、已提醒回合去重、运行态集合、6 秒冷却时间、待回答记录 */
+  private lastTurnId: Map<string, string> = new Map<string, string>();
+  private notifiedTurn: Map<string, string> = new Map<string, string>();
+  private wasRunning: Set<string> = new Set<string>();
   private lastNote: Map<string, number> = new Map<string, number>();
   /** 记录已提醒过的待回答状态，避免同一提问反复弹通知 */
   private lastAsked: Map<string, boolean> = new Map<string, boolean>();
@@ -63,12 +65,15 @@ export struct ShellPage {
   private watchTimer: number = 0;
   private watchBusy: boolean = false;
   private watchCheckBusy: boolean = false;
-  // 回前台立刻补扫一次：后台被冻结期间可能有回合跑完，靠这一次把漏掉的补上
+  // 回前台立刻补扫一次：更新列表、未读与角标
   @StorageLink('fgProbe') @Watch('onForegroundProbe') fgProbe: number = 0;
   @StorageLink('machineEpoch') @Watch('onMachineEpoch') machineEpoch: number = 0;
+  @StorageLink('pendingOpenSession') pendingOpenSession: string = '';
 
   private onMachineEpoch(): void {
-    this.lastSeen.clear();
+    this.lastTurnId.clear();
+    this.notifiedTurn.clear();
+    this.wasRunning.clear();
     this.lastNote.clear();
     this.lastAsked.clear();
     this.watching.clear();
@@ -143,21 +148,22 @@ export struct ShellPage {
     }, 3000);
   }
 
-  /** 判断用户当前是否正在前台直视指定会话。后台/锁屏时一律为 false。 */
-  private isActivelyViewing(sessionId: string, fromBg: boolean): boolean {
-    if (fromBg) {
-      return false;
-    }
+  /** 判断用户当前是否正在前台直视或正准备打开指定会话。后台/锁屏时一律为 false。 */
+  private isActivelyViewing(sessionId: string): boolean {
     const fg: boolean = AppStorage.get<boolean>('appFg') !== false;
     if (!fg) {
       return false;
+    }
+    if (this.pendingOpenSession !== '' && this.pendingOpenSession === sessionId) {
+      return true;
     }
     return this.openId() === sessionId;
   }
 
   /**
    * 扫一遍会话表并写入共享内存缓存供 SessionList 直接复用，
-   * 同时更新盯梢集合、修剪幽灵未读、检测待回答提问与完成状态。
+   * 仅基于真实运行结束或网关 lastTurnId 变更触发提醒，彻底消除重命名/元数据刷新误报；
+   * 切回前台补扫只更新未读红点与状态，不再于眼前延迟弹横幅。
    */
   private async scanSessions(baseline: boolean, fromBg: boolean = false): Promise<void> {
     if (this.watchBusy || this.token0 === '' || this.wanBase === '') {
@@ -181,16 +187,15 @@ export struct ShellPage {
           visibleIds.add(row.id);
         }
         const title: string = row.title !== '' ? row.title : '未命名会话';
-        const prev = this.lastSeen.get(row.id);
-        const changed: boolean = prev !== undefined && row.updatedAt > prev;
-        if (changed) {
-          changedN++;
-        }
+        const turnId: string = row.lastTurnId !== undefined ? row.lastTurnId : '';
+        const prevTurnId: string | undefined = this.lastTurnId.get(row.id);
+        const wasRunningBefore: boolean = this.wasRunning.has(row.id);
 
         if (row.running === true) {
           Marks.clear(row.id);
           this.watching.set(row.id, title);
           this.watchFails.delete(row.id);
+          this.wasRunning.add(row.id);
         }
 
         // 检测「等你回答」新挂起提问
@@ -198,24 +203,53 @@ export struct ShellPage {
         const wasAsking: boolean = this.lastAsked.get(row.id) === true;
         this.lastAsked.set(row.id, askingNow);
         if (askingNow && !wasAsking) {
-          if (!this.isActivelyViewing(row.id, fromBg)) {
+          if (this.isActivelyViewing(row.id)) {
+            Unread.markRead(row.id, scopeId);
+          } else {
             Unread.markUnread(row.id, scopeId);
-            if (!baseline) {
-              this.notifyAsking(row.id, title, fromBg);
+            if (!baseline && !fromBg) {
+              this.notifyAsking(row.id, title);
             }
           }
         }
 
-        if (!baseline && changed && row.running !== true) {
+        const stoppedFromRunning: boolean = wasRunningBefore && row.running !== true;
+        const turnChangedOnServer: boolean = prevTurnId !== undefined &&
+          turnId !== '' &&
+          turnId !== prevTurnId &&
+          row.running !== true;
+        const finishedKey: string = turnId !== '' ? turnId : String(row.updatedAt);
+
+        if (row.running !== true) {
+          this.wasRunning.delete(row.id);
+        }
+        if (turnId !== '') {
+          this.lastTurnId.set(row.id, turnId);
+        } else if (prevTurnId === undefined) {
+          this.lastTurnId.set(row.id, '');
+        }
+
+        if (!baseline && (stoppedFromRunning || turnChangedOnServer)) {
+          changedN++;
           this.watching.delete(row.id);
           this.watchFails.delete(row.id);
-          if (!this.isActivelyViewing(row.id, fromBg)) {
-            void this.markOutcome(row.id);
-            Unread.markUnread(row.id, scopeId);
-            this.notifyDone(row.id, title, fromBg);
+          if (this.notifiedTurn.get(row.id) !== finishedKey) {
+            this.notifiedTurn.set(row.id, finishedKey);
+            if (this.isActivelyViewing(row.id)) {
+              Unread.markRead(row.id, scopeId);
+            } else {
+              if (row.lastTurnStatus !== undefined && row.lastTurnStatus !== '') {
+                Marks.set(row.id, row.lastTurnStatus === 'completed' ? 'done' : 'interrupted');
+              } else {
+                void this.markOutcome(row.id);
+              }
+              Unread.markUnread(row.id, scopeId);
+              if (!fromBg) {
+                this.notifyDone(row.id, title);
+              }
+            }
           }
         }
-        this.lastSeen.set(row.id, row.updatedAt);
       }
 
       // 彻底清理当前主机下已归档或已删除会话的幽灵未读红点与通知
@@ -262,18 +296,31 @@ export struct ShellPage {
             r.questions.active.length > 0;
           if (hasAsk && this.lastAsked.get(id) !== true) {
             this.lastAsked.set(id, true);
-            if (!this.isActivelyViewing(id, fromBg)) {
+            if (!this.isActivelyViewing(id)) {
               Unread.markUnread(id, scopeId);
-              this.notifyAsking(id, title, fromBg);
+              if (!fromBg) {
+                this.notifyAsking(id, title);
+              }
             }
           }
 
           if (r.running === false) {
             this.watching.delete(id);
-            if (!this.isActivelyViewing(id, fromBg)) {
-              void this.markOutcome(id);
-              Unread.markUnread(id, scopeId);
-              this.notifyDone(id, title, fromBg);
+            this.wasRunning.delete(id);
+            const tailSeq: number = r.messages.length > 0 ? r.messages[r.messages.length - 1].seq : r.total;
+            const kind: string = r.lastTurn !== undefined && r.lastTurn !== '' ? r.lastTurn : 'completed';
+            const turnKey: string = kind + ':' + String(tailSeq);
+            if (this.notifiedTurn.get(id) !== turnKey) {
+              this.notifiedTurn.set(id, turnKey);
+              if (this.isActivelyViewing(id)) {
+                Unread.markRead(id, scopeId);
+              } else {
+                void this.markOutcome(id);
+                Unread.markUnread(id, scopeId);
+                if (!fromBg) {
+                  this.notifyDone(id, title);
+                }
+              }
             }
           }
         } catch (e) {
@@ -315,42 +362,49 @@ export struct ShellPage {
     return o !== undefined ? o : '';
   }
 
-  private shouldDeliverNotification(id: string, forceBg: boolean): boolean {
+  private shouldDeliverNotification(dedupeKey: string, sessionId: string): boolean {
     const on: boolean | undefined = AppStorage.get<boolean>('notifyDone');
     if (on === false) {
       return false;
     }
+    if (this.isActivelyViewing(sessionId)) {
+      return false;
+    }
     const bgOnly: boolean | undefined = AppStorage.get<boolean>('notifyBgOnly');
     const fg: boolean | undefined = AppStorage.get<boolean>('appFg');
-    if ((bgOnly === undefined || bgOnly) && !forceBg && fg === true) {
+    if ((bgOnly === undefined || bgOnly) && fg === true) {
       return false;
     }
     const now: number = Date.now();
-    const n = this.lastNote.get(id);
+    const n = this.lastNote.get(dedupeKey);
     const noted: number = n !== undefined ? n : 0;
     if (now - noted <= 6000) {
       return false;
     }
-    this.lastNote.set(id, now);
+    this.lastNote.set(dedupeKey, now);
     return true;
   }
 
   /** 同一会话 6 秒内只发一条：扫描与盯梢两条路可能同时命中同一次完成。 */
-  private notifyDone(id: string, title: string, forceBg: boolean = false): void {
-    if (!this.shouldDeliverNotification(id, forceBg)) {
+  private notifyDone(id: string, title: string): void {
+    if (!this.shouldDeliverNotification(id, id)) {
       return;
     }
     console.info('DSH_NOTIFY turn finished session=' + id);
-    void Notifier.done('任务完成', '「' + title + '」已经回复，点开看看', id);
+    const showTitle: boolean = AppStorage.get<boolean>('notifyShowTitle') !== false;
+    const body: string = showTitle ? ('「' + title + '」已经回复，点开看看') : '有一条智能体回复已完成，点开查看';
+    void Notifier.done('任务完成', body, id);
   }
 
   /** 待回答提问通知。 */
-  private notifyAsking(id: string, title: string, forceBg: boolean = false): void {
-    if (!this.shouldDeliverNotification('ask:' + id, forceBg)) {
+  private notifyAsking(id: string, title: string): void {
+    if (!this.shouldDeliverNotification('ask:' + id, id)) {
       return;
     }
     console.info('DSH_NOTIFY waiting answer session=' + id);
-    void Notifier.done('等你回答', '「' + title + '」有一个问题需要你确认', id);
+    const showTitle: boolean = AppStorage.get<boolean>('notifyShowTitle') !== false;
+    const body: string = showTitle ? ('「' + title + '」有一个问题需要你确认') : '智能体有一个问题需要你确认，点开查看';
+    void Notifier.done('等你回答', body, id);
   }
 
   aboutToDisappear(): void {

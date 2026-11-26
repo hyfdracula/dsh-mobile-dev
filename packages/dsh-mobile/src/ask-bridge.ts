@@ -29,7 +29,11 @@ export interface AskBridge {
   delegateAll: (reason?: string) => number
 }
 
-export function createAskBridge(ctx: any, logFile: string): AskBridge {
+export function createAskBridge(
+  ctx: any,
+  logFile: string,
+  onNewAsk?: (sessionId: string, callId: string) => void,
+): AskBridge {
   const liveAsks = new Map<string, LiveAsk>()
   let syntheticSeq = 0
 
@@ -108,6 +112,13 @@ export function createAskBridge(ctx: any, logFile: string): AskBridge {
             delegate: () => handOver('ask delegate'),
           }
           liveAsks.set(callId, entry)
+          if (onNewAsk !== undefined && askSessionId !== '*') {
+            try {
+              onNewAsk(askSessionId, callId)
+            } catch {
+              // ignore ask listener failure
+            }
+          }
         })
       },
       { prepend: true },

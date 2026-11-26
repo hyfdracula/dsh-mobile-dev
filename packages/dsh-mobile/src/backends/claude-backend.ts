@@ -26,6 +26,7 @@ import {
   type BackendImageInput,
   type BackendMessagesResult,
   type BackendModelOption,
+  type BackendNotifyEvent,
   type BackendProbeResult,
   type BackendSessionRow,
   type BackendStreamEvent,
@@ -260,6 +261,21 @@ export class ClaudeBackend implements AgentBackend {
   private cli: ResolvedCli | null = null
   private readonly runtime = new Map<string, ClaudeRuntimeSession>()
   private readonly listeners = new Map<string, Set<(ev: BackendStreamEvent) => void>>()
+  private notifyHook: ((ev: BackendNotifyEvent) => void) | null = null
+
+  setNotifyHook(fn: ((ev: BackendNotifyEvent) => void) | null): void {
+    this.notifyHook = fn
+  }
+
+  private emitNotify(rawId: string, kind: 'done' | 'asking', status?: string): void {
+    if (!this.notifyHook) return
+    const title = this.runtime.get(rawId)?.title || 'Claude 会话'
+    try {
+      this.notifyHook({ sessionId: formatSessionId(this.id, rawId), title, kind, status })
+    } catch {
+      // isolate notify listener errors
+    }
+  }
 
   private ensureCli(force = false): ResolvedCli | null {
     if (!force && this.cli) return this.cli
@@ -652,11 +668,13 @@ export class ClaudeBackend implements AgentBackend {
       rt!.updatedAt = Date.now()
       const fp = this.locateSessionFile(rawId)
       if (fp) rt!.filePath = fp
-      if (code !== 0 && code !== null && !accText) {
+      const hadErr = code !== 0 && code !== null && !accText
+      if (hadErr) {
         const hint = stderrText.trim().slice(0, 260) || `Claude Code 退出码 ${String(code)}`
         this.emit(rawId, { type: 'error', error: hint, running: false })
       }
       this.emit(rawId, { type: 'done', running: false })
+      this.emitNotify(rawId, 'done', hadErr ? 'error' : 'completed')
     })
 
     child.on('error', (err) => {
@@ -664,6 +682,7 @@ export class ClaudeBackend implements AgentBackend {
       rt!.activeChild = null
       this.emit(rawId, { type: 'error', error: err.message, running: false })
       this.emit(rawId, { type: 'done', running: false })
+      this.emitNotify(rawId, 'done', 'error')
     })
 
     return { ok: true, runId: `cl-${Date.now()}`, status: 'started' }
@@ -678,6 +697,7 @@ export class ClaudeBackend implements AgentBackend {
     if (rt) {
       rt.running = false
       this.emit(rawId, { type: 'done', running: false })
+      this.emitNotify(rawId, 'done', 'interrupted')
     }
     return true
   }

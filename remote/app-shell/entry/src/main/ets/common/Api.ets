@@ -57,6 +57,10 @@ import {
   PresetRow,
   PresetsResp,
   PreviewRow,
+  PushRegisterBody,
+  PushRegisterResp,
+  PushStatusResp,
+  PushTestResp,
   QueueImage,
   QueueTextBody,
   QueuedItem,
@@ -150,7 +154,11 @@ export {
   TeamMemberRow,
   TeamTaskRow,
   TeamResp,
-  FsFile
+  FsFile,
+  PushRegisterBody,
+  PushRegisterResp,
+  PushStatusResp,
+  PushTestResp
 } from './ApiTypes';
 
 /**
@@ -193,6 +201,18 @@ export class Api extends ApiTransport {
 
   async webConsoleGrant(): Promise<WebConsoleGrantResp> {
     return await DeviceApi.webConsoleGrant(this);
+  }
+
+  async registerPush(body: PushRegisterBody): Promise<PushRegisterResp> {
+    return await DeviceApi.registerPush(this, body);
+  }
+
+  async pushStatus(relayUrl: string = ''): Promise<PushStatusResp> {
+    return await DeviceApi.pushStatus(this, relayUrl);
+  }
+
+  async testPush(deviceId: string = '', relayUrl: string = ''): Promise<PushTestResp> {
+    return await DeviceApi.testPush(this, deviceId, relayUrl);
   }
 
   // ---------- 会话、消息流、队列、计划与指令（SessionApi） ----------

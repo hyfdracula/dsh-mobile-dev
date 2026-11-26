@@ -32,6 +32,7 @@ import {
   tokenMatches,
   validatePublicUrl,
 } from './http-util.ts'
+import { DEFAULT_PUSH_RELAY, NotifyMonitor, sanitizeRelayUrl } from './notify-monitor.ts'
 import { createPanel } from './panel.ts'
 import { createDeepContextReader, createWorkspaceFlags, projectSessions } from './projections.ts'
 import { createE2eeRoutes, type InternalDispatchRequest, type InternalDispatchResult } from './routes/e2ee.ts'
@@ -54,12 +55,15 @@ import {
   pairPrefs,
   PRESENCE_TTL_MS,
   previewPorts,
+  pushTargets,
   record,
+  removePushTarget,
   resolveE2eeKeypair,
   resolveHostId,
   resolveToken,
   setBackendEnabled,
   statePath,
+  upsertPushTarget,
   VERSION,
   writeState,
   type AnswerMode,
@@ -146,8 +150,12 @@ export function apply(ctx: any, rawConfig?: Config): void {
     }
   }
 
+  let notifyMonitor: NotifyMonitor | null = null
+
   const pairing = new PairingRuntime(port, logFile)
-  const askBridge = createAskBridge(ctx, logFile)
+  const askBridge = createAskBridge(ctx, logFile, (sid, callId) => {
+    notifyMonitor?.onDshAsk(sid, callId)
+  })
   const deepContext = createDeepContextReader(service, logFile)
   const flags = createWorkspaceFlags(service)
 
@@ -165,6 +173,15 @@ export function apply(ctx: any, rawConfig?: Config): void {
     setEnabled: (id, on) => setBackendEnabled(id, on),
     dshVersion: VERSION,
   })
+  notifyMonitor = new NotifyMonitor({
+    controller,
+    askBridge,
+    backendRegistry,
+    markArchived: flags.markArchived,
+    markPinned: flags.markPinned,
+    logFile,
+  })
+  notifyMonitor.start()
   const backendRoutes = createBackendRoutes({
     registry: backendRegistry,
     sigOf,
@@ -183,6 +200,11 @@ export function apply(ctx: any, rawConfig?: Config): void {
     sigTtlSec: SIG_TTL_SEC,
     logFile,
     backendRegistry,
+    onSessionsListed: (rows) => {
+      if (!notifyMonitor) return rows
+      notifyMonitor.observeRows(rows, true)
+      return notifyMonitor.enrichRows(rows)
+    },
   })
   const hostExtras = createHostExtrasRoutes({
     service,
@@ -523,25 +545,91 @@ export function apply(ctx: any, rawConfig?: Config): void {
           commands: true,
           webConsole: webConsoleRoutes.isReady(),
           loopback: previewPorts().length > 0,
+          push: true,
         })
         return
       }
 
       if (path === '/api/presence') {
         let online = true
+        let sessionId = String(url.searchParams.get('sessionId') ?? '').trim()
         if (method === 'POST') {
           const body = await readJson(req).catch(() => undefined)
           if (body !== undefined && typeof body === 'object' && body !== null) {
-            if ((body as { online?: unknown }).online === false) online = false
+            const b = body as { online?: unknown; sessionId?: unknown }
+            if (b.online === false) online = false
+            if (typeof b.sessionId === 'string' && b.sessionId.trim() !== '') {
+              sessionId = b.sessionId.trim()
+            }
           }
         }
         pairing.phoneSeenAt = online ? Date.now() : 0
+        notifyMonitor?.updatePresence(online, sessionId)
         send(res, 200, {
           ok: true,
           online,
           ttlMs: PRESENCE_TTL_MS,
-          sessionId: String(url.searchParams.get('sessionId') ?? ''),
+          sessionId,
         })
+        return
+      }
+
+      if (path === '/api/push/register' && method === 'POST') {
+        const body = await readJson(req)
+        const pushToken = String(body.pushToken ?? '').trim()
+        if (pushToken.length < 16 || pushToken.length > 512) {
+          send(res, 400, { ok: false, error: 'invalid pushToken' })
+          return
+        }
+        const deviceId = String(body.deviceId ?? '').trim() || pushToken.slice(0, 16)
+        const relayUrl = sanitizeRelayUrl(typeof body.relayUrl === 'string' ? body.relayUrl : DEFAULT_PUSH_RELAY)
+        const enabled = body.enabled !== false
+        const bgOnly = body.bgOnly !== false
+        const showTitle = body.showTitle !== false
+        const list = upsertPushTarget({
+          deviceId,
+          pushToken,
+          relayUrl,
+          enabled,
+          bgOnly,
+          showTitle,
+          updatedAt: Date.now(),
+        })
+        await record(logFile, `200 PUSH register device=${deviceId} enabled=${String(enabled)} bgOnly=${String(bgOnly)}`)
+        send(res, 200, { ok: true, count: list.length })
+        return
+      }
+
+      if ((path === '/api/push/unregister' && method === 'POST') || (path === '/api/push/register' && method === 'DELETE')) {
+        const body = method === 'POST' ? await readJson(req).catch(() => ({})) : {}
+        const key = String((body as Record<string, unknown>).deviceId ?? (body as Record<string, unknown>).pushToken ?? url.searchParams.get('deviceId') ?? '')
+        const list = removePushTarget(key)
+        send(res, 200, { ok: true, count: list.length })
+        return
+      }
+
+      if (path === '/api/push/status' && method === 'GET') {
+        const targets = pushTargets()
+        const relay = await notifyMonitor!.relayStatus(url.searchParams.get('relayUrl') ?? undefined)
+        send(res, 200, {
+          ok: true,
+          registeredCount: targets.length,
+          enabledCount: targets.filter((t) => t.enabled).length,
+          relayOk: relay.ok,
+          relayConfigured: relay.configured,
+          category: relay.category ?? 'WORK',
+          testMode: relay.testMode === true,
+          relayError: relay.error ?? '',
+        })
+        return
+      }
+
+      if (path === '/api/push/test' && method === 'POST') {
+        const body = await readJson(req).catch(() => ({})) as Record<string, unknown>
+        const deviceId = String(body.deviceId ?? body.pushToken ?? '')
+        const relayUrl = typeof body.relayUrl === 'string' ? body.relayUrl : undefined
+        const result = await notifyMonitor!.sendTestPush(deviceId, relayUrl)
+        send(res, result.ok ? 200 : 200, result)
         return
       }
 
@@ -802,6 +890,7 @@ export function apply(ctx: any, rawConfig?: Config): void {
     yield () => {
       void record(logFile, 'disposing; releasing live asks, streams, terminals, e2ee, web-console and listener')
       askBridge.delegateAll('plugin-dispose')
+      notifyMonitor?.dispose()
       backendRoutes.disposeStreams()
       backendRegistry.dispose()
       sessionRoutes.disposeStreams()

@@ -14,6 +14,7 @@ import {
   type AgentBackend,
   type BackendId,
   type BackendInfo,
+  type BackendNotifyEvent,
   type BackendProbeResult,
   type BackendSessionRow,
 } from './types.ts'
@@ -41,6 +42,12 @@ export class BackendRegistry {
     this.backends.set(claude.id, claude)
     this.backends.set(opencode.id, opencode)
     this.backends.set(antigravity.id, antigravity)
+  }
+
+  setNotifyListener(fn: ((ev: BackendNotifyEvent) => void) | null): void {
+    for (const driver of this.backends.values()) {
+      driver.setNotifyHook?.(fn)
+    }
   }
 
   getExternal(id: BackendId): AgentBackend | null {

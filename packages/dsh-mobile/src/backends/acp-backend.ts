@@ -18,6 +18,7 @@ import {
   type BackendImageInput,
   type BackendMessagesResult,
   type BackendModelOption,
+  type BackendNotifyEvent,
   type BackendPendingAsk,
   type BackendProbeResult,
   type BackendSessionRow,
@@ -58,6 +59,21 @@ export abstract class AcpSessionBackend implements AgentBackend {
   protected cachedModels: BackendModelOption[] = []
   private inflightList: Promise<Array<Record<string, unknown>>> | null = null
   private inflightModels: Promise<BackendModelOption[]> | null = null
+  private notifyHook: ((ev: BackendNotifyEvent) => void) | null = null
+
+  setNotifyHook(fn: ((ev: BackendNotifyEvent) => void) | null): void {
+    this.notifyHook = fn
+  }
+
+  private emitNotify(rawId: string, kind: 'done' | 'asking', status?: string): void {
+    if (!this.notifyHook) return
+    const title = this.sessions.get(rawId)?.title || this.defaultSessionTitle(false)
+    try {
+      this.notifyHook({ sessionId: formatSessionId(this.id, rawId), title, kind, status })
+    } catch {
+      // isolate notify listener errors
+    }
+  }
 
   protected abstract resolveSpec(force?: boolean): AcpCliSpec | null
   protected abstract missingCliMessage(): string
@@ -106,6 +122,7 @@ export abstract class AcpSessionBackend implements AgentBackend {
           if (s.running) {
             s.running = false
             this.emit(s.rawId, { type: 'done', running: false })
+            this.emitNotify(s.rawId, 'done', 'interrupted')
           }
           if (s.pendingAsk) {
             s.pendingAsk = null
@@ -373,6 +390,7 @@ export abstract class AcpSessionBackend implements AgentBackend {
       optionIds: opts.map((o) => o.value ?? ''),
     }
     this.emit(sid, { type: 'ask', asking: true, ask })
+    this.emitNotify(sid, 'asking')
   }
 
   async probe(force = false): Promise<BackendProbeResult> {
@@ -704,6 +722,7 @@ export abstract class AcpSessionBackend implements AgentBackend {
         cache.activeAssistant = null
         cache.updatedAt = Date.now()
         this.emit(rawId, { type: 'done', running: false })
+        this.emitNotify(rawId, 'done', 'completed')
       })
       .catch((err) => {
         cache.running = false
@@ -716,6 +735,7 @@ export abstract class AcpSessionBackend implements AgentBackend {
         cache.updatedAt = Date.now()
         this.emit(rawId, { type: 'error', error: msg, running: false })
         this.emit(rawId, { type: 'done', running: false })
+        this.emitNotify(rawId, 'done', 'error')
       })
 
     return { ok: true, runId, status: 'started' }
@@ -735,6 +755,7 @@ export abstract class AcpSessionBackend implements AgentBackend {
       cache.running = false
       cache.activeAssistant = null
       this.emit(rawId, { type: 'done', running: false })
+      this.emitNotify(rawId, 'done', 'interrupted')
     }
     return true
   }

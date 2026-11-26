@@ -251,6 +251,7 @@ export struct ChatPage {
     Unread.markRead(this.param.id);
     this.draft = Drafts.get(this.param.id);
     AppStorage.setOrCreate('openSession', this.param.id);
+    AppStorage.setOrCreate('pendingOpenSession', '');
     this.curModelId = this.param.model ?? '';
     this.curModel = '';
     this.curEffort = this.param.effort ?? '';

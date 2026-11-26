@@ -67,6 +67,9 @@ export interface BackendSessionRow {
   pinned?: boolean
   preview?: string
   model?: { provider: string; model: string; reasoningEffort: string } | null
+  lastTurnId?: string
+  lastTurnStatus?: string
+  lastDoneAt?: number
 }
 
 export interface BackendImageInput {
@@ -97,6 +100,13 @@ export interface BackendPendingAsk {
 
 export interface BackendAskState {
   pending: BackendPendingAsk | null
+}
+
+export interface BackendNotifyEvent {
+  sessionId: string
+  title: string
+  kind: 'done' | 'asking'
+  status?: string
 }
 
 /** 推送给客户端 SSE 流的统一事件结构（兼容现有 ChatPage 增量消费）。 */
@@ -146,6 +156,7 @@ export interface AgentBackend {
   answerAsk(rawId: string, askId: string, answers: Record<string, string>): Promise<boolean>
   listModels(): Promise<BackendModelOption[]>
   setModel?(rawId: string, model: string): Promise<boolean>
+  setNotifyHook?(fn: ((ev: BackendNotifyEvent) => void) | null): void
   isRunning(rawId: string): boolean
   dispose(): void
 }

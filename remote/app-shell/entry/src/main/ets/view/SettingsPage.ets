@@ -11,6 +11,7 @@ import { LinkLog } from '../common/LinkLog';
 import { Mat } from '../common/Mat';
 import { Motion, MOTION_VIVID } from '../common/Motion';
 import { Pairing } from '../common/Pairing';
+import { PushBridge } from '../common/PushBridge';
 import { Toast } from '../common/Toast';
 import { Tokens } from '../common/Tokens';
 import { ChatParam } from '../common/Types';
@@ -134,6 +135,7 @@ export struct SettingsPage {
 
   @State private notifyDone: boolean = true;
   @State private notifyBgOnly: boolean = true;
+  @State private notifyShowTitle: boolean = true;
   @State private verText: string = 'Agent Mobile';
   @State private answerMode: string = 'phone';
   @State private answerBusy: boolean = false;
@@ -305,8 +307,10 @@ export struct SettingsPage {
     this.syncSubFromStack();
     const nd: boolean | undefined = AppStorage.get<boolean>('notifyDone');
     const nb: boolean | undefined = AppStorage.get<boolean>('notifyBgOnly');
+    const nst: boolean | undefined = AppStorage.get<boolean>('notifyShowTitle');
     this.notifyDone = nd !== undefined ? nd : true;
     this.notifyBgOnly = nb !== undefined ? nb : true;
+    this.notifyShowTitle = nst !== undefined ? nst : true;
     this.editBase = this.wanBase;
     this.editToken = this.token0;
     void this.load();
@@ -878,9 +882,25 @@ export struct SettingsPage {
       })
     } else if (name === 'notify') {
       NotifyPanel({
-        done: this.notifyDone, bgOnly: this.notifyBgOnly,
-        onDone: (v: boolean): void => { this.notifyDone = v; void this.savePrefFlag('notifyDone', v); },
-        onBgOnly: (v: boolean): void => { this.notifyBgOnly = v; void this.savePrefFlag('notifyBgOnly', v); },
+        api: this.api,
+        done: this.notifyDone,
+        bgOnly: this.notifyBgOnly,
+        showTitle: this.notifyShowTitle,
+        onDone: (v: boolean): void => {
+          this.notifyDone = v;
+          void this.savePrefFlag('notifyDone', v);
+          void PushBridge.syncToGateway(this.api, true);
+        },
+        onBgOnly: (v: boolean): void => {
+          this.notifyBgOnly = v;
+          void this.savePrefFlag('notifyBgOnly', v);
+          void PushBridge.syncToGateway(this.api, true);
+        },
+        onShowTitle: (v: boolean): void => {
+          this.notifyShowTitle = v;
+          void this.savePrefFlag('notifyShowTitle', v);
+          void PushBridge.syncToGateway(this.api, true);
+        },
         onClearUnread: (): void => { this.clearUnread(); }
       })
     } else if (name === 'data') {

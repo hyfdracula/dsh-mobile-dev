@@ -27,6 +27,10 @@ export interface SessionRow {
   /** 所属后端引擎：'dsh' | 'codex' | 'claude' | 'opencode' | 'antigravity' */
   backend?: string;
   preview?: string;
+  /** 最近一次已完成回合的唯一标识与状态，用于精准通知去重。 */
+  lastTurnId?: string;
+  lastTurnStatus?: string;
+  lastDoneAt?: number;
 }
 
 /** 电脑端多 Agent 引擎能力声明（客户端按能力动态裁剪界面，零硬编码）。 */
@@ -470,12 +474,52 @@ export interface MessagesResp {
 
 export interface PresenceBody {
   online: boolean;
+  sessionId?: string;
 }
 
 export interface PresenceResp {
   ok?: boolean;
   online?: boolean;
   ttlMs?: number;
+}
+
+export interface PushRegisterBody {
+  deviceId: string;
+  pushToken: string;
+  relayUrl: string;
+  enabled: boolean;
+  bgOnly: boolean;
+  showTitle: boolean;
+}
+
+export interface PushRegisterResp {
+  ok?: boolean;
+  count?: number;
+  error?: string;
+}
+
+export interface PushStatusResp {
+  ok?: boolean;
+  registeredCount?: number;
+  enabledCount?: number;
+  relayOk?: boolean;
+  relayConfigured?: boolean;
+  category?: string;
+  testMode?: boolean;
+  relayError?: string;
+}
+
+export interface PushTestBody {
+  deviceId?: string;
+  relayUrl?: string;
+}
+
+export interface PushTestResp {
+  ok?: boolean;
+  code?: string;
+  hwCode?: string;
+  requestId?: string;
+  message?: string;
 }
 
 export interface InfoResp {

@@ -7,6 +7,7 @@ import { AppCtx } from '../common/AppCtx';
 import { Drafts } from '../common/Drafts';
 import { Marks } from '../common/Marks';
 import { Net } from '../common/Net';
+import { PushBridge } from '../common/PushBridge';
 import { SafeArea } from '../common/SafeArea';
 
 const TAG: string = 'AgentMobile';
@@ -19,6 +20,7 @@ export default class EntryAbility extends UIAbility {
       AppStorage.setOrCreate('sysDark',
         this.context.config.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK);
     }
+    PushBridge.init(this);
     this.takeSession(want);
   }
 
@@ -46,11 +48,33 @@ export default class EntryAbility extends UIAbility {
     if (params === undefined) {
       return;
     }
-    const raw: Object | undefined = params.sessionId;
-    const id: string = raw === undefined ? '' : String(raw).trim();
+    let id: string = '';
+    const direct: Object | undefined = params['sessionId'];
+    if (direct !== undefined) {
+      id = String(direct).trim();
+    }
+    if (id === '') {
+      const nested: Object | undefined = params['data'];
+      if (typeof nested === 'string') {
+        try {
+          const parsed = JSON.parse(nested) as Record<string, Object>;
+          if (parsed !== null && parsed !== undefined && parsed['sessionId'] !== undefined) {
+            id = String(parsed['sessionId']).trim();
+          }
+        } catch (e) {
+          // ignore invalid JSON click data
+        }
+      } else if (nested !== undefined && typeof nested === 'object') {
+        const bag: Record<string, Object> = nested as Record<string, Object>;
+        if (bag['sessionId'] !== undefined) {
+          id = String(bag['sessionId']).trim();
+        }
+      }
+    }
     if (id === '') {
       return;
     }
+    AppStorage.setOrCreate('pendingOpenSession', id);
     AppStorage.setOrCreate('openSessionReq', id + '|' + Date.now());
     hilog.info(0x0000, TAG, 'open session from notification');
   }
@@ -95,6 +119,7 @@ export default class EntryAbility extends UIAbility {
     Adaptive.detach();
     SafeArea.detach();
     Net.stop();
+    PushBridge.dispose();
     AppCtx.clearWindow();
     hilog.info(0x0000, TAG, 'Ability onDestroy');
   }

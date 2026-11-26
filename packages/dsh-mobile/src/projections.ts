@@ -67,6 +67,10 @@ export interface SessionRow {
   model: ModelRef | null
   agents: AgentSummary
   plan?: PlanState
+  backend?: string
+  lastTurnId?: string
+  lastTurnStatus?: string
+  lastDoneAt?: number
 }
 
 export interface AskOption {

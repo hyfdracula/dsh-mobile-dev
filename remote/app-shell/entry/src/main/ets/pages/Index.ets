@@ -21,6 +21,7 @@ import { Machines } from '../common/Machines';
 import { Mat } from '../common/Mat';
 import { Motion, MOTION_VIVID } from '../common/Motion';
 import { Net } from '../common/Net';
+import { PushBridge } from '../common/PushBridge';
 import { Secret } from '../common/Secret';
 import { Toast } from '../common/Toast';
 import { Unread } from '../common/Unread';
@@ -45,6 +46,7 @@ struct Index {
   @StorageLink('themeRev') themeRev: number = 0;
   @StorageLink('sysConfigTick') @Watch('onSysConfigTick') sysConfigTick: number = 0;
   @StorageLink('netBearerTick') @Watch('onNetBearerTick') netBearerTick: number = 0;
+  @StorageLink('openSession') @Watch('onOpenSessionChange') openSession: string = '';
   @StorageLink('topInset') topInset: number = 40;
   @StorageLink('bottomInset') bottomInset: number = 20;
   @State private wanBase: string = DEFAULT_BASE;
@@ -83,6 +85,16 @@ struct Index {
     }
     // 蜂窝 <-> Wi-Fi 切换时重选一次入口：出门秒切公网，回家秒切局域网
     void this.refreshLan();
+  }
+
+  private onOpenSessionChange(): void {
+    if (!this.privacyAccepted || this.token === '' || this.wanBase === '') {
+      return;
+    }
+    if (AppStorage.get<boolean>('appFg') === false) {
+      return;
+    }
+    this.sendPresenceOnce();
   }
 
   private onSysConfigTick(): void {
@@ -146,6 +158,7 @@ struct Index {
         const pub: string = info.e2eePub !== undefined ? info.e2eePub : '';
         Machines.updateMeta(active.id, hid, pub, this.api.lanCandidates());
       }
+      void PushBridge.syncToGateway(this.api);
     } catch (e) {
       // 网络暂不可达时忽略，下次交互重试
     }
@@ -188,7 +201,7 @@ struct Index {
       return;
     }
     this.presenceBusy = true;
-    this.api.presence(true).catch(() => {
+    this.api.presence(true, this.openSession).catch(() => {
     }).finally(() => {
       this.presenceBusy = false;
     });
@@ -315,6 +328,7 @@ struct Index {
       const ic = await p.get('appIconStyle', ICON_DARK) as string;
       const nd = await p.get('notifyDone', '1') as string;
       const nb = await p.get('notifyBgOnly', '1') as string;
+      const nst = await p.get('notifyShowTitle', '1') as string;
       const es = await p.get('enterSend', '1') as string;
       const ch = await p.get('compactHistory', '0') as string;
       const ts = await p.get('textScale', '1') as string;
@@ -322,6 +336,7 @@ struct Index {
       void AppIcon.init();
       AppStorage.setOrCreate('notifyDone', nd !== '0');
       AppStorage.setOrCreate('notifyBgOnly', nb !== '0');
+      AppStorage.setOrCreate('notifyShowTitle', nst !== '0');
       AppStorage.setOrCreate('enterSend', es !== '0');
       AppStorage.setOrCreate('compactHistory', ch === '1');
       const tsN: number = Number(ts);
@@ -382,11 +397,13 @@ struct Index {
           curE2eePub
         );
         this.applyNetMode();
+        PushBridge.bindApi(this.api);
         this.machineName = Machines.displayName();
         Unread.refresh();
         console.info('DSH_CFG loaded base=' + b + ' netMode=' + this.netMode + ' lan=' + (lanSaved !== '' ? lanSaved : '-'));
         if (this.privacyAccepted) {
           void this.syncHostMeta();
+          void PushBridge.syncToGateway(this.api);
         }
       }
       if (th !== this.themeMode) {
@@ -484,6 +501,7 @@ struct Index {
     Unread.refresh();
     AppStorage.setOrCreate('listDirty', Date.now());
     this.applyNetMode();
+    PushBridge.bindApi(this.api);
     try {
       const p = await preferences.getPreferences(AppCtx.ability(), PREF_STORE);
       await p.put('base', saved.wan);
@@ -497,6 +515,7 @@ struct Index {
     if (this.privacyAccepted) {
       this.startPresence();
       void this.syncHostMeta();
+      void PushBridge.syncToGateway(this.api, true);
     }
   }
 
@@ -561,6 +580,7 @@ struct Index {
     this.bumpMachineEpoch();
     Unread.refresh();
     this.applyNetMode();
+    PushBridge.bindApi(this.api);
     try {
       const p = await preferences.getPreferences(AppCtx.ability(), PREF_STORE);
       await p.put('base', m.wan);
@@ -576,6 +596,7 @@ struct Index {
     if (this.privacyAccepted) {
       this.startPresence();
       void this.syncHostMeta();
+      void PushBridge.syncToGateway(this.api, true);
     }
   }
 

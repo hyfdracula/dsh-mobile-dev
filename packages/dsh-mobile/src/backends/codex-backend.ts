@@ -25,6 +25,7 @@ import {
   type BackendImageInput,
   type BackendMessagesResult,
   type BackendModelOption,
+  type BackendNotifyEvent,
   type BackendPendingAsk,
   type BackendProbeResult,
   type BackendSessionRow,
@@ -224,6 +225,21 @@ export class CodexBackend implements AgentBackend {
   private readonly runtime = new Map<string, CodexRuntimeSession>()
   private readonly listeners = new Map<string, Set<(ev: BackendStreamEvent) => void>>()
   private modelsCache: { at: number; items: BackendModelOption[] } | null = null
+  private notifyHook: ((ev: BackendNotifyEvent) => void) | null = null
+
+  setNotifyHook(fn: ((ev: BackendNotifyEvent) => void) | null): void {
+    this.notifyHook = fn
+  }
+
+  private emitNotify(rawId: string, kind: 'done' | 'asking', status?: string): void {
+    if (!this.notifyHook) return
+    const title = this.runtime.get(rawId)?.title || 'Codex 会话'
+    try {
+      this.notifyHook({ sessionId: formatSessionId(this.id, rawId), title, kind, status })
+    } catch {
+      // isolate notify listener errors
+    }
+  }
 
   private ensureCli(force = false): ResolvedCli | null {
     if (!force && this.cli) return this.cli
@@ -300,6 +316,7 @@ export class CodexBackend implements AgentBackend {
           s.running = false
           s.activeTurnId = ''
           this.emit(s.rawId, { type: 'done', running: false })
+          this.emitNotify(s.rawId, 'done', 'interrupted')
         }
         if (s.pendingAsk) {
           s.pendingAsk = null
@@ -462,6 +479,7 @@ export class CodexBackend implements AgentBackend {
         }
         s.pendingAsk = { ask, rpcId, method: msg.method }
         this.emit(threadId, { type: 'ask', asking: true, ask })
+        this.emitNotify(threadId, 'asking')
         return
       }
       try {
@@ -566,10 +584,12 @@ export class CodexBackend implements AgentBackend {
       s.updatedAt = Date.now()
       const turn = params.turn as Record<string, unknown> | undefined
       const errObj = turn?.error as Record<string, unknown> | undefined
-      if (errObj && typeof errObj.message === 'string' && errObj.message.trim() !== '') {
-        this.emit(threadId, { type: 'error', error: errObj.message, running: false })
+      const hasErr = Boolean(errObj && typeof errObj.message === 'string' && errObj.message.trim() !== '')
+      if (hasErr) {
+        this.emit(threadId, { type: 'error', error: String(errObj!.message), running: false })
       }
       this.emit(threadId, { type: 'done', running: false })
+      this.emitNotify(threadId, 'done', hasErr ? 'error' : 'completed')
       return
     }
 
@@ -776,6 +796,7 @@ export class CodexBackend implements AgentBackend {
       rt.running = false
       rt.activeTurnId = ''
       this.emit(rawId, { type: 'done', running: false })
+      this.emitNotify(rawId, 'done', 'interrupted')
     }
     return true
   }
