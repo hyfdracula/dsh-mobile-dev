@@ -67,7 +67,7 @@ export struct ChatBubbleItem {
   @Prop isStreaming: boolean = false;
   @Prop canFork: boolean = true;
   api: Api = new Api('', '');
-  onPreviewImage: (url: string) => void = () => {};
+  onPreviewImage: (url: string, geoId: string) => void = () => {};
   onFork: (m: Message) => void = () => {};
   onLongPress: (m: Message) => void = () => {};
   @StorageLink('hdsOn') hdsOn: boolean = true;
@@ -77,6 +77,33 @@ export struct ChatBubbleItem {
   @StorageLink('appIconStyle') appIconStyle: string = ICON_DARK;
   @State private showRawHeartbeat: boolean = false;
   @State private expandedLong: boolean = false;
+  @State private copied: boolean = false;
+  @State private copyTrigger: number = -1;
+  private copyTimer: number = -1;
+
+  aboutToDisappear(): void {
+    if (this.copyTimer >= 0) {
+      clearTimeout(this.copyTimer);
+      this.copyTimer = -1;
+    }
+  }
+
+  private triggerCopyFeedback(): void {
+    if (!Motion.isVivid(this.motionMode)) {
+      return;
+    }
+    if (this.copyTimer >= 0) {
+      clearTimeout(this.copyTimer);
+      this.copyTimer = -1;
+    }
+    this.copied = true;
+    this.copyTrigger += 1;
+    this.copyTimer = setTimeout(() => {
+      this.copyTimer = -1;
+      this.copied = false;
+      this.copyTrigger += 1;
+    }, 1600);
+  }
 
   private static derivedCache: Map<string, MdBlock[]> = new Map<string, MdBlock[]>();
 
@@ -159,8 +186,8 @@ export struct ChatBubbleItem {
               MessageImages({
                 images: this.msg.images,
                 api: this.api,
-                onTap: (url: string): void => {
-                  this.onPreviewImage(url);
+                onTap: (url: string, geoId: string): void => {
+                  this.onPreviewImage(url, geoId);
                 }
               })
                 .margin({ bottom: this.msg.text !== '' ? 8 : 0 })
@@ -240,8 +267,8 @@ export struct ChatBubbleItem {
             MessageImages({
               images: this.msg.images,
               api: this.api,
-              onTap: (url: string): void => {
-                this.onPreviewImage(url);
+              onTap: (url: string, geoId: string): void => {
+                this.onPreviewImage(url, geoId);
               }
             })
               .margin({ bottom: this.msg.text !== '' ? 8 : 0 })
@@ -335,20 +362,30 @@ export struct ChatBubbleItem {
             }
             if (this.msg.text !== '') {
               Stack() {
-                Image($r('app.media.ic_copy'))
-                  .width(13)
-                  .height(13)
-                  .fillColor(Tokens.dim2)
-                  .objectFit(ImageFit.Contain)
-                  .draggable(false)
+                if (Motion.isVivid(this.motionMode)) {
+                  SymbolGlyph(this.copied ? $r('sys.symbol.checkmark') : $r('sys.symbol.rectangle_on_rectangle'))
+                    .fontSize(13)
+                    .fontColor([this.copied ? Tokens.ok : Tokens.dim2])
+                    .symbolEffect(Motion.replaceEffect(), this.copyTrigger)
+                } else {
+                  Image($r('app.media.ic_copy'))
+                    .width(13)
+                    .height(13)
+                    .fillColor(Tokens.dim2)
+                    .objectFit(ImageFit.Contain)
+                    .draggable(false)
+                }
               }
               .width(26)
               .height(22)
               .borderRadius(Tokens.rPill)
-              .backgroundColor(Tokens.isDark ? '#1FFFFFFF' : '#0F000000')
+              .backgroundColor(this.copied && Motion.isVivid(this.motionMode)
+                ? Tokens.doneBg
+                : (Tokens.isDark ? '#1FFFFFFF' : '#0F000000'))
               .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.94 })
               .accessibilityText('复制回复')
               .onClick(() => {
+                this.triggerCopyFeedback();
                 void copyText(this.msg.text, '已复制回复');
               })
             }

@@ -35,8 +35,10 @@ const PREF_STORE: string = 'dsh_mobile_cfg';
 @Component
 struct Index {
   @Provide('stack') stack: NavPathStack = new NavPathStack();
-  /** 全屏看图的地址：聊天页写，这里负责铺满整屏盖住标题栏 */
+  /** 全屏看图的地址与一镜到底 ID：聊天页写，这里负责铺满整屏盖住标题栏 */
   @StorageLink('bigImg') bigImg: string = '';
+  @StorageLink('bigImgGeoId') bigImgGeoId: string = '';
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
   @StorageLink('themeBg') themeBg: string = Tokens.bg;
   @StorageLink('themeRev') themeRev: number = 0;
   @StorageLink('sysConfigTick') @Watch('onSysConfigTick') sysConfigTick: number = 0;
@@ -224,12 +226,22 @@ struct Index {
     AppCtx.clearWindow();
   }
 
+  private closeBigImg(): void {
+    if (Motion.isVivid(this.motionMode) && this.bigImgGeoId !== '') {
+      this.getUIContext().animateTo(Motion.moveOpts(this.motionMode), () => {
+        this.bigImg = '';
+      });
+    } else {
+      this.bigImg = '';
+    }
+  }
+
   /**
    * 系统返回键：优先关闭全屏看图和合规文档浮层，再退回设置二级页。
    */
   onBackPress(): boolean {
     if (this.bigImg !== '') {
-      this.bigImg = '';
+      this.closeBigImg();
       return true;
     }
     if (this.legalOpen) {
@@ -912,23 +924,27 @@ struct Index {
         .height('100%')
       }
 
-      // 全屏看图：挂在 Navigation 外面，才能盖住状态栏和标题栏
+      // 全屏看图：挂在 Navigation 外面，才能盖住状态栏和标题栏；灵动档启用 geometryTransition 一镜到底
       if (this.bigImg !== '') {
         Stack({ alignContent: Alignment.Center }) {
           Row()
             .width('100%')
             .height('100%')
             .backgroundColor('#F2000000')
+            .transition(TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std }))
           Image(this.bigImg)
             .width('100%')
             .objectFit(ImageFit.Contain)
+            .geometryTransition(Motion.geoId(this.bigImgGeoId, this.motionMode), { follow: false })
         }
         .width('100%')
         .height('100%')
         .onClick(() => {
-          this.bigImg = '';
+          this.closeBigImg();
         })
-        .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }))
+        .transition(Motion.isVivid(this.motionMode)
+          ? TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std })
+          : TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }))
       }
     }
     .width('100%')

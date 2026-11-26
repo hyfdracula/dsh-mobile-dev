@@ -1,5 +1,5 @@
 import { Tokens } from '../../common/Tokens';
-import { Motion } from '../../common/Motion';
+import { Motion, MOTION_VIVID } from '../../common/Motion';
 import { Machine, Machines } from '../../common/Machines';
 import { isLanUrl } from '../../common/ApiUtil';
 import { Marks } from '../../common/Marks';
@@ -44,12 +44,14 @@ export struct SessionHeaderBar {
   @StorageLink('machinesVer') machinesVer: number = 0;
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('hdsOn') hdsOn: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
   @StorageLink('online') online: boolean = true;
   @StorageLink('linkMode') linkMode: string = 'lan';
   @StorageLink('linkEncrypted') linkEncrypted: boolean = false;
   @StorageLink('wideScreen') wideScreen: boolean = false;
 
   @State private searchGrow: number = 1;
+  @State private searchGlyphTrigger: number = -1;
   @State private wsMenuOn: boolean = false;
   @State private viewOn: boolean = false;
   @State private devOn: boolean = false;
@@ -89,8 +91,28 @@ export struct SessionHeaderBar {
     return this.hdsOn ? Mat.whiteOn(this.immersiveOn()) : Mat.empty();
   }
 
+  private openSearch(): void {
+    if (Motion.isVivid(this.motionMode)) {
+      this.searchGrow = 1;
+      this.searchGlyphTrigger += 1;
+      this.getUIContext().animateTo(Motion.moveOpts(this.motionMode), () => {
+        this.onSearchingChange(true);
+      });
+      return;
+    }
+    this.searchGrow = 0.12;
+    this.onSearchingChange(true);
+    setTimeout(() => { this.searchGrow = 1; }, 32);
+  }
+
   private clearSearch(): void {
     this.onQueryChange('');
+    if (Motion.isVivid(this.motionMode)) {
+      this.getUIContext().animateTo(Motion.moveOpts(this.motionMode), () => {
+        this.onSearchingChange(false);
+      });
+      return;
+    }
     this.searchGrow = 0.12;
     setTimeout(() => {
       this.onSearchingChange(false);
@@ -281,9 +303,17 @@ export struct SessionHeaderBar {
       Column() {
         if (this.searching) {
           Row() {
-            Image($r('app.media.ic_search'))
-              .width(17).height(17).fillColor(Tokens.accent)
-              .objectFit(ImageFit.Contain).margin({ left: 16, right: 10 })
+            if (Motion.isVivid(this.motionMode)) {
+              SymbolGlyph($r('sys.symbol.magnifyingglass'))
+                .fontSize(17)
+                .fontColor([Tokens.accent])
+                .symbolEffect(Motion.bounceEffect(EffectDirection.UP), this.searchGlyphTrigger)
+                .margin({ left: 16, right: 10 })
+            } else {
+              Image($r('app.media.ic_search'))
+                .width(17).height(17).fillColor(Tokens.accent)
+                .objectFit(ImageFit.Contain).margin({ left: 16, right: 10 })
+            }
             TextInput({ placeholder: '搜索会话标题', text: this.q })
               .fontSize(Tokens.fsBody).fontColor(Tokens.fg).placeholderColor(Tokens.dim2)
               .backgroundColor(Color.Transparent).height(44).layoutWeight(1).padding({ left: 0, right: 4 })
@@ -304,9 +334,15 @@ export struct SessionHeaderBar {
           .border({ width: 1, color: this.pillBorderColor() })
           .shadow(this.pillShadow())
           .systemMaterial(this.pillMat())
-          .scale({ x: this.searchGrow, y: 1, centerX: '92%', centerY: '50%' })
-          .opacity(this.searchGrow <= 0.12 ? 0 : 1)
-          .animation({ duration: Motion.emph, curve: Motion.std })
+          .geometryTransition(Motion.geoId('session_search_bar', this.motionMode), { follow: true })
+          .scale(Motion.isVivid(this.motionMode)
+            ? { x: 1, y: 1 }
+            : { x: this.searchGrow, y: 1, centerX: '92%', centerY: '50%' })
+          .opacity(Motion.isVivid(this.motionMode) ? 1 : (this.searchGrow <= 0.12 ? 0 : 1))
+          .animation(Motion.isVivid(this.motionMode) ? undefined : { duration: Motion.emph, curve: Motion.std })
+          .transition(Motion.isVivid(this.motionMode)
+            ? TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std })
+            : TransitionEffect.IDENTITY)
         } else {
           Row() {
             // 工作区筛选胶囊 + 极简链路状态徽标（F05 / L3）
@@ -447,10 +483,16 @@ export struct SessionHeaderBar {
                 .animation({ duration: Motion.fade, curve: Motion.std })
             ))
 
-            // 搜索圆钮
+            // 搜索圆钮（灵动档与展开搜索栏共享 geometryTransition 实现一镜到底）
             Stack() {
-              Image($r('app.media.ic_search'))
-                .width(18).height(18).fillColor(Tokens.fg).objectFit(ImageFit.Contain)
+              if (Motion.isVivid(this.motionMode)) {
+                SymbolGlyph($r('sys.symbol.magnifyingglass'))
+                  .fontSize(18)
+                  .fontColor([Tokens.fg])
+              } else {
+                Image($r('app.media.ic_search'))
+                  .width(18).height(18).fillColor(Tokens.fg).objectFit(ImageFit.Contain)
+              }
             }
             .width(40).height(40).borderRadius(Tokens.rPill).margin({ left: 8 })
             .backgroundColor(this.pillBg())
@@ -458,13 +500,12 @@ export struct SessionHeaderBar {
             .border({ width: 1, color: this.pillBorderColor() })
             .shadow(this.pillShadow())
             .systemMaterial(this.pillMat())
+            .geometryTransition(Motion.geoId('session_search_bar', this.motionMode), { follow: true })
             .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.9 })
             .accessibilityText('搜索会话')
             .onClick(() => {
               Haptics.tap();
-              this.searchGrow = 0.12;
-              this.onSearchingChange(true);
-              setTimeout(() => { this.searchGrow = 1; }, 32);
+              this.openSearch();
             })
           }
           .width('100%')

@@ -1,6 +1,6 @@
 import { ToolStep } from '../../common/Api';
 import { Haptics } from '../../common/Haptics';
-import { Motion } from '../../common/Motion';
+import { Motion, MOTION_VIVID } from '../../common/Motion';
 import { Tokens } from '../../common/Tokens';
 
 /**
@@ -14,8 +14,10 @@ export struct TrajectoryCard {
   @Prop tools: ToolStep[] = [];
   @StorageLink('textScale') textScale: number = 1;
   @StorageLink('themeDark') themeDark: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
 
   @State private expanded: boolean = false;
+  @State private chevronTrigger: number = -1;
 
   private hasThinking(): boolean {
     return this.thinking.trim() !== '';
@@ -101,12 +103,20 @@ export struct TrajectoryCard {
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
 
-        Text('›')
-          .fontSize(15)
-          .fontColor(Tokens.dim2)
-          .rotate({ angle: this.expanded ? 90 : 0 })
-          .animation({ duration: Motion.move, curve: Motion.std })
-          .margin({ left: 6 })
+        if (Motion.isVivid(this.motionMode)) {
+          SymbolGlyph(this.expanded ? $r('sys.symbol.chevron_down') : $r('sys.symbol.chevron_right'))
+            .fontSize(13)
+            .fontColor([Tokens.dim2])
+            .symbolEffect(Motion.replaceEffect(), this.chevronTrigger)
+            .margin({ left: 6 })
+        } else {
+          Text('›')
+            .fontSize(15)
+            .fontColor(Tokens.dim2)
+            .rotate({ angle: this.expanded ? 90 : 0 })
+            .animation({ duration: Motion.move, curve: Motion.std })
+            .margin({ left: 6 })
+        }
       }
       .width('100%')
       .padding({ left: 11, right: 11, top: 8, bottom: 8 })
@@ -114,7 +124,10 @@ export struct TrajectoryCard {
       .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
       .onClick(() => {
         Haptics.tap();
-        this.getUIContext().animateTo({ duration: Motion.move, curve: Motion.std }, () => {
+        if (Motion.isVivid(this.motionMode)) {
+          this.chevronTrigger += 1;
+        }
+        this.getUIContext().animateTo(Motion.moveOpts(this.motionMode), () => {
           this.expanded = !this.expanded;
         });
       })

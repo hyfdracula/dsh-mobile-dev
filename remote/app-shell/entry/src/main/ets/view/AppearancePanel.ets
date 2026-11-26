@@ -230,9 +230,9 @@ export struct AppearancePanel {
           Column() {
             this.labelWithHint(
               '交互动效',
-              '灵动：启用鸿蒙原生弹簧物理曲线、首屏错峰入场与数字翻滚；经典：保留简洁干脆的经典贝塞尔动画。'
+              '灵动：启用鸿蒙原生弹簧物理曲线、AI 思考双边流光、图片与搜索栏一镜到底、图标形变、首屏错峰与数字翻滚；经典：关闭高阶视效，保留简洁干脆的经典贝塞尔动画。'
             )
-            Text(Motion.isVivid(this.motionMode) ? '当前：灵动（弹簧 · 错峰 · 翻滚）' : '当前：经典（简洁贝塞尔动效）')
+            Text(Motion.isVivid(this.motionMode) ? '当前：灵动（弹簧 · 流光 · 形变）' : '当前：经典（简洁贝塞尔动效）')
               .fontSize(Tokens.fsCaption)
               .fontColor(Tokens.dim2)
               .margin({ top: 3 })

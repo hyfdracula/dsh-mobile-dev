@@ -53,6 +53,7 @@ import { ExtrasPanel } from './ExtrasPanel';
 import { PendingBoard, PendRow } from './PendingBoard';
 import { PendingImages } from './PendingImages';
 import { TypingBubble } from './TypingBubble';
+import { AiFlowGlow } from './chat/AiFlowGlow';
 import { AskQuestionCard } from './chat/AskQuestionCard';
 import { BigEditorOverlay } from './chat/BigEditorOverlay';
 import { ChatBubbleItem } from './chat/ChatBubbleItem';
@@ -121,6 +122,7 @@ export struct ChatPage {
   @StorageLink('textScale') textScale: number = 1;
   @StorageLink('online') @Watch('onOnline') online: boolean = true;
   @StorageLink('bigImg') bigImg: string = '';
+  @StorageLink('bigImgGeoId') bigImgGeoId: string = '';
   @StorageLink('appFg') @Watch('onAppFgChange') appFg: boolean = true;
   @StorageLink('linkMode') linkMode: string = 'lan';
   @StorageLink('linkEncrypted') linkEncrypted: boolean = false;
@@ -1745,13 +1747,36 @@ export struct ChatPage {
       onStartRename: (): void => { this.hideKb(); this.renaming = true; },
       onTogglePin: (): void => { void this.togglePinSession(); },
       onForkSession: (): void => { void this.forkWholeSession(); },
-      onOpenSearch: (): void => { this.searchOn = true; },
+      onOpenSearch: (): void => {
+        this.getUIContext().animateTo(Motion.moveOpts(this.motionMode), () => {
+          this.searchOn = true;
+        });
+      },
       onExportMd: (): void => { void this.exportMd(); },
       onOpenPresets: (): void => { this.openPresetsPage(); },
       onRefresh: (): void => { void this.refreshSoft(); },
       onArchive: (): void => { void this.archiveCurrentSession(); },
       onDismiss: (): void => { this.menuOn = false; }
     })
+  }
+
+  private openBigImg(url: string, geoId: string): void {
+    if (Motion.isVivid(this.motionMode) && geoId !== '') {
+      this.bigImgGeoId = geoId;
+      this.getUIContext().animateTo(Motion.moveOpts(this.motionMode), () => {
+        this.bigImg = url;
+      });
+    } else {
+      this.bigImgGeoId = '';
+      this.bigImg = url;
+    }
+  }
+
+  @Builder
+  private composerGlowOverlay() {
+    if (this.running && Motion.isVivid(this.motionMode)) {
+      AiFlowGlow({ radius: Tokens.rCard, glowOpacity: 0.58 })
+    }
   }
 
   /** HDS 标题栏内容：放回 HdsNavDestination.titleBar 以激活 HarmonyOS 6 真实沉浸光感材质，并保持四控件单行水平居中对齐 */
@@ -1900,7 +1925,7 @@ export struct ChatPage {
                     isStreaming: this.running && i === this.msgs.length - 1,
                     canFork: this.sessionCaps().fork,
                     api: this.api,
-                    onPreviewImage: (url: string): void => { this.bigImg = url; },
+                    onPreviewImage: (url: string, geoId: string): void => { this.openBigImg(url, geoId); },
                     onFork: (target: Message): void => { void this.forkAt(target); },
                     onLongPress: (target: Message): void => {
                       this.menuMsg = target;
@@ -2089,7 +2114,7 @@ export struct ChatPage {
                 if (this.pendImgs.length > 0) {
                   PendingImages({
                     images: this.pendImgs,
-                    onPreview: (d: string): void => { this.bigImg = d; },
+                    onPreview: (d: string, geoId: string): void => { this.openBigImg(d, geoId); },
                     onRemove: (i: number): void => { this.dropImg(i); }
                   })
                 }
@@ -2252,6 +2277,8 @@ export struct ChatPage {
               .borderRadius(Tokens.rCard)
               .border(Mat.glassRimBorder(this.hdsOn))
               .shadow(Mat.glassFloatShadow(this.hdsOn))
+              .overlay(this.composerGlowOverlay())
+              .clip(true)
               .onAreaChange((oldValue: Area, newValue: Area) => {
                 const h: number = Number(newValue.height);
                 if (h > 0 && Math.abs(h - this.inputH) > 1) this.inputH = h;
@@ -2321,7 +2348,11 @@ export struct ChatPage {
             msgs: this.msgs,
             kbH: this.kbH,
             onJump: (m: Message): void => { this.jumpToMessage(m); },
-            onClose: (): void => { this.searchOn = false; }
+            onClose: (): void => {
+              this.getUIContext().animateTo(Motion.moveOpts(this.motionMode), () => {
+                this.searchOn = false;
+              });
+            }
           })
         }
 

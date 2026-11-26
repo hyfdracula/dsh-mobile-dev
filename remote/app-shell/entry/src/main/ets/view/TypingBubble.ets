@@ -1,6 +1,7 @@
 import { AppIcon, ICON_DARK } from '../common/AppIcon';
 import { Motion, MOTION_VIVID } from '../common/Motion';
 import { Tokens } from '../common/Tokens';
+import { AiFlowGlow } from './chat/AiFlowGlow';
 
 /**
  * 「正在回复」的平滑相位呼吸圆点气泡（M1 / M4）。
@@ -52,6 +53,13 @@ export struct TypingBubble {
       .animation(Motion.moveOpts(this.motionMode))
   }
 
+  @Builder
+  private flowGlowOverlay() {
+    if (Motion.isVivid(this.motionMode)) {
+      AiFlowGlow({ radius: Tokens.rCard, glowOpacity: 0.72 })
+    }
+  }
+
   build() {
     Column() {
       Row() {
@@ -73,7 +81,12 @@ export struct TypingBubble {
       .padding({ left: 16, right: 16, top: 14, bottom: 14 })
       .backgroundColor(Tokens.surface)
       .borderRadius(Tokens.rCard)
-      .border({ width: 1, color: Tokens.lineSoft })
+      .border({
+        width: 1,
+        color: Motion.isVivid(this.motionMode) ? Tokens.accentGlow : Tokens.lineSoft
+      })
+      .overlay(this.flowGlowOverlay())
+      .clip(true)
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)

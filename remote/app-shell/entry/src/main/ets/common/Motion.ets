@@ -6,8 +6,9 @@ export const MOTION_CLASSIC: string = 'classic';
 /**
  * 全 App 统一动效引擎（双档实时切换，零重启）：
  * - 灵动（vivid，默认）：HarmonyOS 原生弹簧物理曲线（springMotion / responsiveSpringMotion）、
- *   非对称出入场、首屏卡片错峰瀑布流与 NumericTextTransition 数字翻滚；
- * - 经典（classic）：100% 保留简洁干脆的经典贝塞尔动画（160 / 220 / 320ms），零额外延迟与翻滚。
+ *   非对称出入场、首屏卡片错峰瀑布流、NumericTextTransition 数字翻滚、
+ *   HdsVisualComponent AI 思考双边流光、geometryTransition 一镜到底与 SymbolGlyph 图标形变；
+ * - 经典（classic）：100% 保留简洁干脆的经典贝塞尔动画（160 / 220 / 320ms），关闭上述高阶视效。
  */
 export class Motion {
   static readonly fade: number = 160;
@@ -25,6 +26,8 @@ export class Motion {
   static readonly springFollow = curves.responsiveSpringMotion();
 
   private static cachedNumTrans: NumericTextTransition | undefined = undefined;
+  private static cachedReplaceFx: ReplaceSymbolEffect | undefined = undefined;
+  private static cachedHdsVisual: boolean | undefined = undefined;
 
   static normalize(raw: string): string {
     return raw === MOTION_CLASSIC ? MOTION_CLASSIC : MOTION_VIVID;
@@ -131,5 +134,35 @@ export class Motion {
       Motion.cachedNumTrans = new NumericTextTransition(opts);
     }
     return Motion.cachedNumTrans;
+  }
+
+  /** geometryTransition 一镜到底绑定 ID（仅灵动档生效，经典档返回空串解绑） */
+  static geoId(id: string, mode: string): string {
+    return Motion.isVivid(mode) ? id : '';
+  }
+
+  /** SymbolGlyph 交叉淡入替换形变实例（复用单例避免高频重建） */
+  static replaceEffect(): ReplaceSymbolEffect {
+    if (Motion.cachedReplaceFx === undefined) {
+      Motion.cachedReplaceFx = new ReplaceSymbolEffect(EffectScope.WHOLE, ReplaceEffectType.CROSS_FADE);
+    }
+    return Motion.cachedReplaceFx;
+  }
+
+  /** SymbolGlyph 轻弹形变实例 */
+  static bounceEffect(dir: EffectDirection): BounceSymbolEffect {
+    return new BounceSymbolEffect(EffectScope.WHOLE, dir);
+  }
+
+  /** 检测当前系统是否具备 HDS 视觉流光能力（HarmonyOS 6 / API 20+） */
+  static hdsVisualReady(): boolean {
+    if (Motion.cachedHdsVisual === undefined) {
+      try {
+        Motion.cachedHdsVisual = canIUse('SystemCapability.UIDesign.HDSComponent.Core');
+      } catch (_e) {
+        Motion.cachedHdsVisual = false;
+      }
+    }
+    return Motion.cachedHdsVisual === true;
   }
 }

@@ -1,7 +1,7 @@
 import { Message } from '../../common/Api';
 import { clock } from '../../common/Format';
 import { Haptics } from '../../common/Haptics';
-import { Motion } from '../../common/Motion';
+import { Motion, MOTION_VIVID } from '../../common/Motion';
 import { Tokens } from '../../common/Tokens';
 
 /**
@@ -18,6 +18,7 @@ export struct ChatSearchOverlay {
   @StorageLink('bottomInset') bottomInset: number = 20;
   @StorageLink('themeBg') themeBg: string = Tokens.bg;
   @StorageLink('themeDark') themeDark: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
 
   @State private query: string = '';
 
@@ -135,9 +136,6 @@ export struct ChatSearchOverlay {
     .height('100%')
     .backgroundColor(this.themeBg)
     .padding({ top: this.topInset + 8 })
-    .transition(
-      TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std })
-        .combine(TransitionEffect.translate({ y: 14 }).animation({ duration: Motion.move, curve: Motion.std }))
-    )
+    .transition(Motion.panelTransition(this.motionMode))
   }
 }

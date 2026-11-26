@@ -1,6 +1,7 @@
 import { Tokens } from '../common/Tokens';
 import { Haptics } from '../common/Haptics';
 import { ImagePart } from '../common/Images';
+import { Motion, MOTION_VIVID } from '../common/Motion';
 
 /**
  * 输入框上方那条「待发送图片」：横向滚动、点图预览、右上角叉掉。
@@ -9,9 +10,16 @@ import { ImagePart } from '../common/Images';
 @Component
 export struct PendingImages {
   @Prop images: ImagePart[] = [];
-  onPreview: (dataUrl: string) => void = () => {};
+  onPreview: (dataUrl: string, geoId: string) => void = () => {};
   onRemove: (index: number) => void = () => {};
   @StorageLink('themeDark') themeDark: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
+  @StorageLink('bigImg') bigImg: string = '';
+  @StorageLink('bigImgGeoId') bigImgGeoId: string = '';
+
+  private geoKey(it: ImagePart, i: number): string {
+    return 'pend_img_' + String(i) + '_' + it.name;
+  }
 
   build() {
     Scroll() {
@@ -24,9 +32,11 @@ export struct PendingImages {
               .borderRadius(14)
               .objectFit(ImageFit.Cover)
               .backgroundColor(Tokens.surface2)
+              .geometryTransition(Motion.geoId(this.geoKey(it, i), this.motionMode), { follow: false })
+              .opacity(Motion.isVivid(this.motionMode) && this.bigImg !== '' && this.bigImgGeoId === this.geoKey(it, i) ? 0 : 1)
               .onClick(() => {
                 Haptics.tap();
-                this.onPreview('data:' + it.mediaType + ';base64,' + it.data);
+                this.onPreview('data:' + it.mediaType + ';base64,' + it.data, this.geoKey(it, i));
               })
             Row() {
               Image($r('app.media.ic_close'))
