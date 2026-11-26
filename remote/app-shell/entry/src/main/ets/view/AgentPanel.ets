@@ -74,7 +74,7 @@ export struct AgentPanel {
 
   private backendSubText(b: BackendInfo): string {
     if (b.id === 'dsh') {
-      return '默认内置引擎' + (b.version !== '' ? (' · ' + b.version) : '');
+      return '默认宿主引擎 · 需保持启动' + (b.version !== '' ? (' · ' + b.version) : '');
     }
     if (!b.installed) {
       return '电脑未检测到该引擎';
@@ -227,6 +227,13 @@ export struct AgentPanel {
         .shadow(Mat.cardShadow(this.hdsOn))
         .borderRadius(Tokens.rGroup)
       }
+
+      Text('提示：电脑端 DSH 需保持启动状态，Codex、Claude Code、OpenCode、Antigravity 等引擎均通过 DSH 内置网关中转连接。')
+        .fontSize(Tokens.fsFoot)
+        .fontColor(Tokens.dim2)
+        .lineHeight(18)
+        .width('100%')
+        .padding({ left: 6, right: 6, top: 8 })
 
       // 2. 协作与提问策略
       Text('交互决策')

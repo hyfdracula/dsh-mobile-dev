@@ -1,8 +1,8 @@
 import { FEEDBACK_KINDS, UploadSpec } from '../../common/Feedback';
 import { Tokens } from '../../common/Tokens';
 
-/** 可选用户交流群号；留空时自动隐藏群入口。 */
-export const QQ_GROUP: string = '';
+/** 用户交流群号（QQ 群，一键复制进群）。 */
+export const QQ_GROUP: string = '1131519744';
 
 /** 一条待上传的反馈附件。 */
 export interface PendingAttachment {

@@ -61,7 +61,7 @@ const panelBody = async (request: Request): Promise<{ ok: true; data: Record<str
   }
 }
 
-const FEEDBACK_BASE = (process.env.AGENT_MOBILE_FEEDBACK_URL ?? '').trim()
+const FEEDBACK_BASE = (process.env.AGENT_MOBILE_FEEDBACK_URL ?? 'https://feedback.juo.de5.net').trim()
 
 const feedbackKey = (): string => {
   if (FEEDBACK_BASE === '') return ''

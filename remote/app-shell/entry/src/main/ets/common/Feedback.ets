@@ -21,8 +21,8 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { AppCtx } from './AppCtx';
 import { bytes, stamp } from './Format';
 
-/** 可选反馈后端域名；留空时上架版本自动隐藏所有反馈入口，仅本地纯直连运行。 */
-export const FEEDBACK_BASE: string = '';
+/** 反馈后端域名（Cloudflare Worker + D1 + R2，仅在用户主动提交反馈工单时直连）。 */
+export const FEEDBACK_BASE: string = 'https://feedback.juo.de5.net';
 
 export function isFeedbackEnabled(): boolean {
   return FEEDBACK_BASE.trim() !== '';
