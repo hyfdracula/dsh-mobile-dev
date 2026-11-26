@@ -35,6 +35,7 @@ export struct NotifyPanel {
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
   @StorageLink('pushState') pushState: string = 'idle';
+  @StorageLink('pushBindState') pushBindState: string = 'idle';
   @StorageLink('pushTokenPreview') pushTokenPreview: string = '';
   @StorageLink('pushErrMsg') pushErrMsg: string = '';
   @StorageLink('pushSynced') pushSynced: boolean = false;
@@ -43,6 +44,7 @@ export struct NotifyPanel {
   @State private relayConfigured: boolean = false;
   @State private relayErr: string = '';
   @State private testPushBusy: boolean = false;
+  @State private rotateBusy: boolean = false;
   private pollTimer: number = -1;
 
   aboutToAppear(): void {
@@ -183,8 +185,17 @@ export struct NotifyPanel {
   private pushDetailText(): string {
     if (this.pushState === 'ready') {
       const tokPart: string = this.pushTokenPreview !== '' ? ('设备令牌 ' + this.pushTokenPreview) : '已获取设备令牌';
+      if (this.pushBindState === 'relay_pending_deploy') {
+        return tokPart + ' · 云端中继待部署 /v1/push/bind 后即可完成防刷绑定';
+      }
       if (this.relayConfigured) {
-        return tokPart + (this.pushSynced ? ' · 已同步至电脑网关与云端中继' : ' · 待同步至电脑网关');
+        if (this.pushBindState === 'bound' && this.pushSynced) {
+          return tokPart + ' · 已绑定防刷凭据并同步至电脑网关与云端中继';
+        }
+        if (this.pushBindState === 'bound') {
+          return tokPart + ' · 已领取防刷凭据，待同步至电脑网关';
+        }
+        return tokPart + (this.pushSynced ? ' · 已同步至电脑网关，点击刷新状态完成防刷绑定' : ' · 待绑定防刷凭据');
       }
       if (this.api.currentBase() === '') {
         return tokPart + ' · 请先连接电脑端网关';
@@ -198,6 +209,30 @@ export struct NotifyPanel {
       return this.pushErrMsg;
     }
     return '正在探测华为 Push Kit 通道状态…';
+  }
+
+  private async runRotateBinding(): Promise<void> {
+    if (this.rotateBusy) {
+      return;
+    }
+    if (this.api.currentBase() === '') {
+      Haptics.warn();
+      Toast.err('请先连接电脑端网关');
+      return;
+    }
+    this.rotateBusy = true;
+    try {
+      const ok: boolean = await PushBridge.rotateBinding(this.api);
+      if (ok) {
+        Haptics.success();
+        Toast.ok('已重置并同步防刷推送凭据');
+      } else {
+        Haptics.warn();
+        Toast.err('凭据重置未完成，请确认云端中继已部署并重试');
+      }
+    } finally {
+      this.rotateBusy = false;
+    }
   }
 
   private async runTestPush(): Promise<void> {
@@ -351,7 +386,7 @@ export struct NotifyPanel {
           .lineHeight(18)
           .width('100%')
 
-        Row({ space: 10 }) {
+        Flex({ wrap: FlexWrap.Wrap, alignItems: ItemAlign.Center }) {
           Text(this.relayLoading ? '刷新中…' : '刷新状态')
             .fontSize(Tokens.fsFoot)
             .fontWeight(FontWeight.Medium)
@@ -359,6 +394,7 @@ export struct NotifyPanel {
             .backgroundColor(Tokens.surface2)
             .borderRadius(Tokens.rPill)
             .padding({ left: 12, right: 12, top: 7, bottom: 7 })
+            .margin({ right: 8, top: 2 })
             .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.94 })
             .onClick(() => {
               Haptics.tap();
@@ -372,11 +408,28 @@ export struct NotifyPanel {
             .backgroundColor(Tokens.accentSoft)
             .borderRadius(Tokens.rPill)
             .padding({ left: 12, right: 12, top: 7, bottom: 7 })
+            .margin({ right: 8, top: 2 })
             .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.94 })
             .onClick(() => {
               Haptics.tap();
               void this.runTestPush();
             })
+
+          if (this.pushState === 'ready') {
+            Text(this.rotateBusy ? '重置中…' : '重置凭据')
+              .fontSize(Tokens.fsFoot)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(Tokens.dim)
+              .backgroundColor(Tokens.surface2)
+              .borderRadius(Tokens.rPill)
+              .padding({ left: 12, right: 12, top: 7, bottom: 7 })
+              .margin({ top: 2 })
+              .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.94 })
+              .onClick(() => {
+                Haptics.tap();
+                void this.runRotateBinding();
+              })
+          }
         }
         .width('100%')
       }

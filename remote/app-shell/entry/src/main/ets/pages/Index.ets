@@ -412,6 +412,7 @@ struct Index {
       }
       if (this.privacyAccepted) {
         Net.start();
+        PushBridge.activateAfterPrivacy();
         if (this.token !== '' && this.wanBase !== '') {
           this.startPresence();
         }
@@ -429,6 +430,7 @@ struct Index {
     Haptics.soft();
     this.privacyAccepted = true;
     Net.start();
+    PushBridge.activateAfterPrivacy();
     try {
       const p = await preferences.getPreferences(AppCtx.ability(), PREF_STORE);
       await p.put('privacyAccepted', '1');
@@ -521,6 +523,7 @@ struct Index {
 
   /** 清空当前活跃配对并停止网络活动。 */
   private async clearActivePairing(): Promise<void> {
+    void PushBridge.unregisterGateway(this.api);
     this.stopPresence(false);
     this.wanBase = '';
     this.token = '';

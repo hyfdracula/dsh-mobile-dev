@@ -207,6 +207,10 @@ export class Api extends ApiTransport {
     return await DeviceApi.registerPush(this, body);
   }
 
+  async unregisterPush(deviceId: string): Promise<PushRegisterResp> {
+    return await DeviceApi.unregisterPush(this, deviceId);
+  }
+
   async pushStatus(relayUrl: string = ''): Promise<PushStatusResp> {
     return await DeviceApi.pushStatus(this, relayUrl);
   }

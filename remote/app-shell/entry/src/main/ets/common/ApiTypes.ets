@@ -487,6 +487,7 @@ export interface PushRegisterBody {
   deviceId: string;
   pushToken: string;
   relayUrl: string;
+  relaySecret?: string;
   enabled: boolean;
   bgOnly: boolean;
   showTitle: boolean;
@@ -502,6 +503,7 @@ export interface PushStatusResp {
   ok?: boolean;
   registeredCount?: number;
   enabledCount?: number;
+  boundCount?: number;
   relayOk?: boolean;
   relayConfigured?: boolean;
   category?: string;

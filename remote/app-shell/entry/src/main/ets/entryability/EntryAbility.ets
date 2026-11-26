@@ -20,7 +20,7 @@ export default class EntryAbility extends UIAbility {
       AppStorage.setOrCreate('sysDark',
         this.context.config.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK);
     }
-    PushBridge.init(this);
+    PushBridge.attachAbility(this);
     this.takeSession(want);
   }
 

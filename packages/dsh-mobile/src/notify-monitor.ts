@@ -358,7 +358,7 @@ export class NotifyMonitor {
         ? (target.showTitle ? `「${safeTitle}」有一个问题需要你确认` : '智能体有一个问题需要你确认，点开查看')
         : (target.showTitle ? `「${safeTitle}」已经回复，点开看看` : '有一条智能体回复已完成，点开查看')
 
-      await this.postToRelay(target.relayUrl, {
+      await this.postToRelay(target.relayUrl, target.relaySecret, {
         pushToken: target.pushToken,
         event,
         sessionId,
@@ -371,12 +371,27 @@ export class NotifyMonitor {
     }
   }
 
-  private async postToRelay(relayUrl: string, payload: Record<string, unknown>): Promise<PushRelayResult> {
+  private async postToRelay(
+    relayUrl: string,
+    relaySecret: string,
+    payload: Record<string, unknown>,
+  ): Promise<PushRelayResult> {
+    const cleanSecret = relaySecret.trim()
+    if (cleanSecret.length < 32) {
+      return {
+        ok: false,
+        code: 'missing_relay_secret',
+        message: '尚未同步推送凭据，请在手机「通知」页点击刷新状态',
+      }
+    }
     const base = sanitizeRelayUrl(relayUrl)
     try {
       const res = await fetch(`${base}/v1/push/send`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${cleanSecret}`,
+        },
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(8000),
       })
@@ -444,7 +459,7 @@ export class NotifyMonitor {
     if (target === undefined) {
       return { ok: false, code: 'no_push_token', message: '尚未收到手机上传的 Push Token' }
     }
-    return await this.postToRelay(relayUrl || target.relayUrl, {
+    return await this.postToRelay(relayUrl || target.relayUrl, target.relaySecret, {
       pushToken: target.pushToken,
       event: 'test',
       notifyId: 990002,

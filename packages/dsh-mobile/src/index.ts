@@ -583,6 +583,7 @@ export function apply(ctx: any, rawConfig?: Config): void {
         }
         const deviceId = String(body.deviceId ?? '').trim() || pushToken.slice(0, 16)
         const relayUrl = sanitizeRelayUrl(typeof body.relayUrl === 'string' ? body.relayUrl : DEFAULT_PUSH_RELAY)
+        const relaySecret = typeof body.relaySecret === 'string' ? body.relaySecret.trim() : ''
         const enabled = body.enabled !== false
         const bgOnly = body.bgOnly !== false
         const showTitle = body.showTitle !== false
@@ -590,12 +591,16 @@ export function apply(ctx: any, rawConfig?: Config): void {
           deviceId,
           pushToken,
           relayUrl,
+          relaySecret,
           enabled,
           bgOnly,
           showTitle,
           updatedAt: Date.now(),
         })
-        await record(logFile, `200 PUSH register device=${deviceId} enabled=${String(enabled)} bgOnly=${String(bgOnly)}`)
+        await record(
+          logFile,
+          `200 PUSH register device=${deviceId} enabled=${String(enabled)} bgOnly=${String(bgOnly)} bound=${relaySecret.length >= 32 ? '1' : '0'}`,
+        )
         send(res, 200, { ok: true, count: list.length })
         return
       }
@@ -615,6 +620,7 @@ export function apply(ctx: any, rawConfig?: Config): void {
           ok: true,
           registeredCount: targets.length,
           enabledCount: targets.filter((t) => t.enabled).length,
+          boundCount: targets.filter((t) => t.relaySecret.length >= 32).length,
           relayOk: relay.ok,
           relayConfigured: relay.configured,
           category: relay.category ?? 'WORK',

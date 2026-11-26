@@ -60,6 +60,14 @@ export class DeviceApi {
     return await t.call<PushRegisterResp>('/api/push/register', 'POST', JSON.stringify(body));
   }
 
+  static async unregisterPush(t: ApiTransport, deviceId: string): Promise<PushRegisterResp> {
+    return await t.call<PushRegisterResp>(
+      '/api/push/unregister',
+      'POST',
+      JSON.stringify({ deviceId: deviceId })
+    );
+  }
+
   static async pushStatus(t: ApiTransport, relayUrl: string = ''): Promise<PushStatusResp> {
     const q: string = relayUrl !== '' ? ('?relayUrl=' + encodeURIComponent(relayUrl)) : '';
     return await t.call<PushStatusResp>('/api/push/status' + q, 'GET');

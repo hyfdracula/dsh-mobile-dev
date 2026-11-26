@@ -53,6 +53,7 @@ export interface PushRegistration {
   deviceId: string
   pushToken: string
   relayUrl: string
+  relaySecret: string
   enabled: boolean
   bgOnly: boolean
   showTitle: boolean
@@ -366,6 +367,7 @@ export function pushTargets(): PushRegistration[] {
       deviceId: typeof r.deviceId === 'string' && r.deviceId.trim() !== '' ? r.deviceId.trim() : pushToken.slice(0, 16),
       pushToken,
       relayUrl: typeof r.relayUrl === 'string' && r.relayUrl.trim() !== '' ? r.relayUrl.trim() : 'https://feedback.juo.de5.net',
+      relaySecret: typeof r.relaySecret === 'string' ? r.relaySecret.trim() : '',
       enabled: r.enabled !== false,
       bgOnly: r.bgOnly !== false,
       showTitle: r.showTitle !== false,
@@ -376,10 +378,13 @@ export function pushTargets(): PushRegistration[] {
   return out
 }
 
-/** 写入或更新手机 Push Token 与推送偏好（按 deviceId 或 pushToken 去重，上限 16 条）。 */
+/** 写入或更新手机 Push Token 与推送偏好（按 deviceId 或 pushToken 去重，保留已有 relaySecret，上限 16 条）。 */
 export function upsertPushTarget(reg: PushRegistration): PushRegistration[] {
-  const list = pushTargets().filter((t) => t.deviceId !== reg.deviceId && t.pushToken !== reg.pushToken)
-  list.unshift({ ...reg, updatedAt: Date.now() })
+  const current = pushTargets()
+  const matched = current.find((t) => t.deviceId === reg.deviceId || t.pushToken === reg.pushToken)
+  const keptSecret = reg.relaySecret.trim() !== '' ? reg.relaySecret.trim() : (matched?.relaySecret ?? '')
+  const list = current.filter((t) => t.deviceId !== reg.deviceId && t.pushToken !== reg.pushToken)
+  list.unshift({ ...reg, relaySecret: keptSecret, updatedAt: Date.now() })
   const bounded = list.slice(0, MAX_PUSH_TARGETS)
   writeState({ pushTargets: bounded })
   return bounded
