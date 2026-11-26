@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "com.dsh.mobile",
     "vendor": "agentmobile",
-    "versionCode": 3000000,
-    "versionName": "3.0.0",
+    "versionCode": 3000001,
+    "versionName": "3.0.1",
     "icon": "$media:layered_image_dark",
     "label": "$string:app_name",
     "alternateIcons": [
