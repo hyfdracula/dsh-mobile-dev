@@ -10,7 +10,6 @@ import {
 import { Tokens } from './Tokens';
 import { Haptics } from './Haptics';
 import { Mat } from './Mat';
-import { Motion, MOTION_VIVID } from './Motion';
 
 /**
  * 统一页面头部、透明 HDS 顶栏与顶部渐隐。
@@ -83,7 +82,6 @@ export struct PageHeader {
   @Prop immersive: boolean = false;
   @StorageLink('topInset') topInset: number = 44;
   @StorageLink('themeDark') themeDark: boolean = true;
-  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
   /** none | glyph | icon | label */
   rightKind: string = 'none';
   rightGlyph: string = '\u21bb';
@@ -107,7 +105,6 @@ export struct PageHeader {
             this.onBack();
           }
         })
-        .transition(Motion.headerBackTransition(this.motionMode))
       }
       Column() {
         Text(this.title)

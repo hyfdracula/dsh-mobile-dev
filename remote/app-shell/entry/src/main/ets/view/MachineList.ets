@@ -168,14 +168,14 @@ export struct MachineList {
     }
     .width('100%')
     .padding({ left: 14, right: 8, top: 11, bottom: 11 })
-    .borderRadius(Tokens.rCard)
+    .borderRadius(Tokens.rRow)
     .backgroundColor(m.id === Machines.activeId() ? Tokens.accentSoft : Mat.cardBg(this.hdsOn))
     .border({
       width: 1,
       color: m.id === Machines.activeId() ? Tokens.accent : Mat.cardBorderColor(this.hdsOn)
     })
-    .shadow(Mat.cardShadow(this.hdsOn))
-    .margin({ bottom: 8 })
+    .shadow(Mat.rowShadow(this.hdsOn))
+    .margin({ bottom: 9 })
     .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
     .onClick(() => {
       Haptics.tap();

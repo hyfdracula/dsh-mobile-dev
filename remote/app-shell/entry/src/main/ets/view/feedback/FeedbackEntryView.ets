@@ -49,13 +49,13 @@ export struct FeedbackEntryView {
     }
     .width('100%')
     .padding({ left: 16, right: 14, top: 14, bottom: 14 })
-    .margin({ bottom: 10 })
-    .borderRadius(Tokens.rCard)
+    .margin({ bottom: 9 })
+    .borderRadius(Tokens.rRow)
     .backgroundColor(Mat.cardBg(this.hdsOn))
     .border(Mat.cardBorder(this.hdsOn))
-    .shadow(Mat.cardShadow(this.hdsOn))
+    .shadow(Mat.rowShadow(this.hdsOn))
     .transition(Motion.bloomCard(idx, this.motionMode))
-    .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
+    .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
     .onClick(act)
   }
 

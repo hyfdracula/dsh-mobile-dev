@@ -80,7 +80,7 @@ export struct AgentPanel {
   }
 
   @Builder
-  entryRow(title: string, subtitle: string, onTap: () => void) {
+  entryCard(title: string, subtitle: string, idx: number, onTap: () => void) {
     Row() {
       Column() {
         Text(title)
@@ -113,7 +113,13 @@ export struct AgentPanel {
     .width('100%')
     .padding({ left: 16, right: 16, top: 13, bottom: 13 })
     .alignItems(VerticalAlign.Center)
-    .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
+    .backgroundColor(Mat.cardBg(this.hdsOn))
+    .border(Mat.cardBorder(this.hdsOn))
+    .shadow(Mat.rowShadow(this.hdsOn))
+    .borderRadius(Tokens.rRow)
+    .clip(true)
+    .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
+    .transition(Motion.bloomCard(idx, this.motionMode))
     .onClick(() => {
       Haptics.tap();
       onTap();
@@ -137,66 +143,56 @@ export struct AgentPanel {
       .width('100%')
       .padding({ left: 6, right: 6, top: 6, bottom: 8 })
       .alignItems(VerticalAlign.Center)
+      .transition(Motion.bloomHeader(0, this.motionMode))
 
-      Column() {
-        this.entryRow('电脑端智能体引擎', this.enginesSummary(), () => {
-          this.onOpenEngines();
-        })
-      }
-      .width('100%')
-      .backgroundColor(Mat.cardBg(this.hdsOn))
-      .border(Mat.cardBorder(this.hdsOn))
-      .shadow(Mat.cardShadow(this.hdsOn))
-      .borderRadius(Tokens.rGroup)
-      .clip(true)
-      .transition(Motion.bloomCard(0, this.motionMode))
+      this.entryCard('电脑端智能体引擎', this.enginesSummary(), 0, () => {
+        this.onOpenEngines();
+      })
 
       // 2. 协作与提问策略
       Text('交互决策')
         .fontSize(Tokens.fsCaption)
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
-        .margin({ left: 6, top: 18, bottom: 8 })
+        .margin({ left: 6, top: 16, bottom: 8 })
+        .transition(Motion.bloomHeader(1, this.motionMode))
 
-      Column() {
+      Row() {
         Row() {
-          Row() {
-            Text('谁来回答提问')
-              .fontSize(Tokens.fsBodyLg)
-              .fontColor(Tokens.fg)
-            HintLabel({
-              title: '',
-              tipText: '手机为主：打开 App 时模型的选择题直接弹到手机；电脑为主：始终由电脑端回答。'
-            })
-            .margin({ left: 6 })
-          }
-          .layoutWeight(1)
-          .alignItems(VerticalAlign.Center)
-
-          PopupPicker({
-            options: ANSWER_MODE_OPTIONS,
-            selected: this.answerMode,
-            title: '谁来回答提问',
-            disabled: this.answerBusy,
-            popupWidth: 236,
-            onSelect: (mode: string) => {
-              this.onAnswerMode(mode);
-            }
+          Text('谁来回答提问')
+            .fontSize(Tokens.fsBodyLg)
+            .fontColor(Tokens.fg)
+          HintLabel({
+            title: '',
+            tipText: '手机为主：打开 App 时模型的选择题直接弹到手机；电脑为主：始终由电脑端回答。'
           })
+          .margin({ left: 6 })
         }
-        .width('100%')
-        .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+        .layoutWeight(1)
         .alignItems(VerticalAlign.Center)
+
+        PopupPicker({
+          options: ANSWER_MODE_OPTIONS,
+          selected: this.answerMode,
+          title: '谁来回答提问',
+          disabled: this.answerBusy,
+          popupWidth: 236,
+          onSelect: (mode: string) => {
+            this.onAnswerMode(mode);
+          }
+        })
       }
       .width('100%')
+      .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+      .alignItems(VerticalAlign.Center)
       .backgroundColor(Mat.cardBg(this.hdsOn))
       .border(Mat.cardBorder(this.hdsOn))
-      .shadow(Mat.cardShadow(this.hdsOn))
-      .borderRadius(Tokens.rGroup)
+      .shadow(Mat.rowShadow(this.hdsOn))
+      .borderRadius(Tokens.rRow)
       .clip(true)
       .transition(Motion.bloomCard(1, this.motionMode))
 
-      // 3. 预设、插件与网页控制台
+      // 3. 预设、插件与网页控制台（逐条独立卡片）
       Row() {
         Text('预设与控制台')
           .fontSize(Tokens.fsCaption)
@@ -209,33 +205,25 @@ export struct AgentPanel {
         .margin({ left: 6 })
       }
       .width('100%')
-      .padding({ left: 6, right: 6, top: 18, bottom: 8 })
+      .padding({ left: 6, right: 6, top: 16, bottom: 8 })
       .alignItems(VerticalAlign.Center)
+      .transition(Motion.bloomHeader(2, this.motionMode))
 
-      Column() {
-        this.entryRow('智能体预设与权限', '查看和调整默认模型、系统预设与执行权限', () => {
+      Column({ space: 9 }) {
+        this.entryCard('智能体预设与权限', '查看和调整默认模型、系统预设与执行权限', 2, () => {
           this.onOpenPresets();
         })
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-        this.entryRow('插件管理', '查看、启停与配置电脑端已安装扩展插件', () => {
+        this.entryCard('插件管理', '查看、启停与配置电脑端已安装扩展插件', 3, () => {
           this.onOpenExtras('plugins');
         })
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-        this.entryRow('自动化任务', '管理电脑端定时任务与后台计划', () => {
+        this.entryCard('自动化任务', '管理电脑端定时任务与后台计划', 4, () => {
           this.onOpenExtras('schedules');
         })
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-        this.entryRow('电脑完整网页控制台', '免密打开电脑端完整面板，处理高级设置', () => {
+        this.entryCard('电脑完整网页控制台', '免密打开电脑端完整面板，处理高级设置', 5, () => {
           this.onOpenWebConsole();
         })
       }
       .width('100%')
-      .backgroundColor(Mat.cardBg(this.hdsOn))
-      .border(Mat.cardBorder(this.hdsOn))
-      .shadow(Mat.cardShadow(this.hdsOn))
-      .borderRadius(Tokens.rGroup)
-      .clip(true)
-      .transition(Motion.bloomCard(2, this.motionMode))
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)

@@ -30,7 +30,7 @@ const SCALE_OPTIONS: PickerOption[] = [
 
 /**
  * 「外观与交互」面板：
- * 拆分为「外观显示」与「对话与交互」两张语义分组卡片。
+ * 拆分为「外观显示」与「对话与交互」两大区域下的独立单条卡片，逐条错峰绽放。
  * 全部多选项统一使用 64-65 秒同款锚点弹出选择卡（PopupPicker），并移除三档动画速度调节。
  */
 @Component
@@ -54,7 +54,6 @@ export struct AppearancePanel {
   @StorageLink('appIconStyle') appIconStyle: string = ICON_DARK;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
   @State private iconBusy: boolean = false;
-  @State private iconPressId: string = '';
 
   private scaleIdOf(val: number): string {
     if (val < 0.96) {
@@ -131,34 +130,20 @@ export struct AppearancePanel {
       ? { width: 1.5, color: Tokens.accent }
       : Mat.subCardBorder(this.hdsOn))
     .opacity(this.iconBusy ? 0.65 : 1)
-    .scale({
-      x: this.iconPressId === styleId ? 0.95 : 1,
-      y: this.iconPressId === styleId ? 0.95 : 1
-    })
-    .animation(Motion.isFlagship(this.motionMode)
-      ? Motion.flagshipSnappy()
-      : Motion.fadeOpts(this.motionMode))
-    .onTouch((e: TouchEvent) => {
-      if (e.type === TouchType.Down) {
-        this.iconPressId = styleId;
-      } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
-        if (this.iconPressId === styleId) {
-          this.iconPressId = '';
-        }
-      }
-    })
+    .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.96 })
     .onClick(() => {
       void this.applyIcon(styleId);
     })
   }
 
   @Builder
-  sectionTitle(text: string, topMargin: number) {
+  sectionTitle(text: string, topMargin: number, bloomIdx: number) {
     Text(text)
       .fontSize(Tokens.fsCaption)
       .fontColor(Tokens.dim2)
       .letterSpacing(1.4)
       .margin({ left: 6, top: topMargin, bottom: 8 })
+      .transition(Motion.bloomHeader(bloomIdx, this.motionMode))
   }
 
   @Builder
@@ -178,9 +163,10 @@ export struct AppearancePanel {
 
   build() {
     Column() {
-      // 分组 1：外观显示
-      this.sectionTitle('外观显示', 6)
-      Column() {
+      // 分组 1：外观显示（逐条独立卡片）
+      this.sectionTitle('外观显示', 6, 0)
+      Column({ space: 9 }) {
+        // 0. 主题
         Row() {
           Text('主题')
             .fontSize(Tokens.fsBodyLg)
@@ -199,9 +185,14 @@ export struct AppearancePanel {
         .width('100%')
         .padding({ left: 16, right: 16, top: 12, bottom: 12 })
         .alignItems(VerticalAlign.Center)
+        .backgroundColor(Mat.cardBg(this.hdsOn))
+        .border(Mat.cardBorder(this.hdsOn))
+        .shadow(Mat.rowShadow(this.hdsOn))
+        .borderRadius(Tokens.rRow)
+        .clip(true)
+        .transition(Motion.bloomCard(0, this.motionMode))
 
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-
+        // 1. 沉浸光感
         Row() {
           Column() {
             this.labelWithHint(
@@ -229,9 +220,14 @@ export struct AppearancePanel {
         .width('100%')
         .padding({ left: 16, right: 16, top: 12, bottom: 12 })
         .alignItems(VerticalAlign.Center)
+        .backgroundColor(Mat.cardBg(this.hdsOn))
+        .border(Mat.cardBorder(this.hdsOn))
+        .shadow(Mat.rowShadow(this.hdsOn))
+        .borderRadius(Tokens.rRow)
+        .clip(true)
+        .transition(Motion.bloomCard(1, this.motionMode))
 
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-
+        // 2. 交互动效
         Row() {
           Column() {
             this.labelWithHint(
@@ -261,9 +257,14 @@ export struct AppearancePanel {
         .width('100%')
         .padding({ left: 16, right: 16, top: 12, bottom: 12 })
         .alignItems(VerticalAlign.Center)
+        .backgroundColor(Mat.cardBg(this.hdsOn))
+        .border(Mat.cardBorder(this.hdsOn))
+        .shadow(Mat.rowShadow(this.hdsOn))
+        .borderRadius(Tokens.rRow)
+        .clip(true)
+        .transition(Motion.bloomCard(2, this.motionMode))
 
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-
+        // 3. 应用图标（语义整体单卡）
         Column({ space: 10 }) {
           Row() {
             Column() {
@@ -290,9 +291,14 @@ export struct AppearancePanel {
         .width('100%')
         .padding({ left: 16, right: 16, top: 12, bottom: 13 })
         .alignItems(HorizontalAlign.Start)
+        .backgroundColor(Mat.cardBg(this.hdsOn))
+        .border(Mat.cardBorder(this.hdsOn))
+        .shadow(Mat.rowShadow(this.hdsOn))
+        .borderRadius(Tokens.rCard)
+        .clip(true)
+        .transition(Motion.bloomCard(3, this.motionMode))
 
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-
+        // 4. 正文字号
         Row() {
           Row() {
             this.labelWithHint('正文字号', '只缩放聊天消息正文，界面按钮与标题尺寸保持稳定。')
@@ -316,18 +322,19 @@ export struct AppearancePanel {
         .width('100%')
         .padding({ left: 16, right: 16, top: 12, bottom: 12 })
         .alignItems(VerticalAlign.Center)
+        .backgroundColor(Mat.cardBg(this.hdsOn))
+        .border(Mat.cardBorder(this.hdsOn))
+        .shadow(Mat.rowShadow(this.hdsOn))
+        .borderRadius(Tokens.rRow)
+        .clip(true)
+        .transition(Motion.bloomCard(4, this.motionMode))
       }
       .width('100%')
-      .backgroundColor(Mat.cardBg(this.hdsOn))
-      .border(Mat.cardBorder(this.hdsOn))
-      .shadow(Mat.cardShadow(this.hdsOn))
-      .borderRadius(Tokens.rGroup)
-      .clip(true)
-      .transition(Motion.bloomCard(0, this.motionMode))
 
-      // 分组 2：对话与交互
-      this.sectionTitle('对话与交互', 18)
-      Column() {
+      // 分组 2：对话与交互（逐条独立卡片）
+      this.sectionTitle('对话与交互', 16, 5)
+      Column({ space: 9 }) {
+        // 5. 触感反馈
         Row() {
           Row() {
             this.labelWithHint('触感反馈', '按场景区分轻触、开关、成功、警告与错误等细腻震动纹理。')
@@ -349,9 +356,14 @@ export struct AppearancePanel {
         .width('100%')
         .padding({ left: 16, right: 16, top: 12, bottom: 12 })
         .alignItems(VerticalAlign.Center)
+        .backgroundColor(Mat.cardBg(this.hdsOn))
+        .border(Mat.cardBorder(this.hdsOn))
+        .shadow(Mat.rowShadow(this.hdsOn))
+        .borderRadius(Tokens.rRow)
+        .clip(true)
+        .transition(Motion.bloomCard(5, this.motionMode))
 
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-
+        // 6. 回车发送
         Row() {
           Row() {
             this.labelWithHint('回车发送', '按键盘回车键直接发送消息；关闭后回车换行，需点发送按钮。')
@@ -371,27 +383,35 @@ export struct AppearancePanel {
         .width('100%')
         .padding({ left: 16, right: 16, top: 12, bottom: 12 })
         .alignItems(VerticalAlign.Center)
+        .backgroundColor(Mat.cardBg(this.hdsOn))
+        .border(Mat.cardBorder(this.hdsOn))
+        .shadow(Mat.rowShadow(this.hdsOn))
+        .borderRadius(Tokens.rRow)
+        .clip(true)
+        .transition(Motion.bloomCard(6, this.motionMode))
 
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-
-        RowSwitch({
-          title: '会话精简加载',
-          hint: '默认折叠长工具输出以加快大历史加载，重进会话生效',
-          value: this.compactHistory,
-          onChanged: (v: boolean) => {
-            if (v !== this.compactHistory) {
-              this.onCompactHistory(v);
+        // 7. 会话精简加载
+        Column() {
+          RowSwitch({
+            title: '会话精简加载',
+            hint: '默认折叠长工具输出以加快大历史加载，重进会话生效',
+            value: this.compactHistory,
+            onChanged: (v: boolean) => {
+              if (v !== this.compactHistory) {
+                this.onCompactHistory(v);
+              }
             }
-          }
-        })
+          })
+        }
+        .width('100%')
+        .backgroundColor(Mat.cardBg(this.hdsOn))
+        .border(Mat.cardBorder(this.hdsOn))
+        .shadow(Mat.rowShadow(this.hdsOn))
+        .borderRadius(Tokens.rRow)
+        .clip(true)
+        .transition(Motion.bloomCard(7, this.motionMode))
       }
       .width('100%')
-      .backgroundColor(Mat.cardBg(this.hdsOn))
-      .border(Mat.cardBorder(this.hdsOn))
-      .shadow(Mat.cardShadow(this.hdsOn))
-      .borderRadius(Tokens.rGroup)
-      .clip(true)
-      .transition(Motion.bloomCard(1, this.motionMode))
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)

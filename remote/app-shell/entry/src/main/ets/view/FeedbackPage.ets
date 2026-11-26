@@ -47,7 +47,7 @@ export struct FeedbackPage {
   @StorageLink('fbBack') @Watch('onFbBack') private fbBack: number = 0;
 
   @State @Watch('onStage') private stage: string = 'entry';
-  @State private stageForward: boolean = true;
+  @State private depth1Tab: string = 'submit';
   @State private busy: boolean = false;
   @State private err: string = '';
   @State private note: string = '';
@@ -66,7 +66,9 @@ export struct FeedbackPage {
   // 工单详情状态
   @State private cur: Ticket | null = null;
 
-  private scroller: Scroller = new Scroller();
+  private entryScroller: Scroller = new Scroller();
+  private midScroller: Scroller = new Scroller();
+  private detailScroller: Scroller = new Scroller();
 
   private onStage(): void {
     AppStorage.setOrCreate('fbStage', this.stage);
@@ -95,24 +97,35 @@ export struct FeedbackPage {
   }
 
   private switchStage(next: string): void {
-    this.stageForward = this.stageDepth(next) >= this.stageDepth(this.stage);
-    const anim: AnimateParam = Motion.isFlagship(this.motionMode)
-      ? Motion.flagshipParallax()
-      : { duration: Motion.move, curve: Motion.std };
-    this.getUIContext().animateTo(anim, () => {
-      this.stage = next;
-    });
+    if (this.stage === next) {
+      return;
+    }
     try {
-      this.scroller.scrollEdge(Edge.Top);
+      this.getUIContext().getFocusController().clearFocus();
+    } catch (_e) {
+    }
+    if (next === 'submit' || next === 'mine') {
+      this.depth1Tab = next;
+    } else if (next === 'detail') {
+      this.depth1Tab = 'mine';
+    }
+    try {
+      const targetScroller: Scroller = next === 'entry'
+        ? this.entryScroller
+        : (next === 'detail' ? this.detailScroller : this.midScroller);
+      targetScroller.scrollEdge(Edge.Top);
     } catch (e) {
       // 滚动容器未就绪时忽略
     }
+    this.getUIContext().animateTo(Motion.stepPaneAnim(this.motionMode), () => {
+      this.stage = next;
+    });
   }
 
   private scrollToBottomSoon(): void {
     setTimeout(() => {
       try {
-        this.scroller.scrollEdge(Edge.Bottom);
+        this.midScroller.scrollEdge(Edge.Bottom);
       } catch (e) {
         // 忽略
       }
@@ -330,120 +343,166 @@ export struct FeedbackPage {
 
   build() {
     Stack({ alignContent: Alignment.Top }) {
-      Scroll(this.scroller) {
-        Column() {
+      Stack({ alignContent: Alignment.TopStart }) {
+        // 深度 0：反馈入口
+        Scroll(this.entryScroller) {
           Column() {
-            Stack({ alignContent: Alignment.Top }) {
-              if (this.stage === 'submit') {
-                Column() {
-                  FeedbackSubmitView({
-                    kind: $kind,
-                    text: $text,
-                    contact: $contact,
-                    notifyOn: $notifyOn,
-                    pend: this.pend,
-                    busy: this.busy,
-                    err: this.err,
-                    onAddShot: (): void => {
-                      void this.addShot();
-                    },
-                    onAddLog: (): void => {
-                      void this.addLog();
-                    },
-                    onAddVideo: (): void => {
-                      void this.addVideo();
-                    },
-                    onDropPending: (idx: number): void => {
-                      this.dropPending(idx);
-                    },
-                    onBottomFieldFocus: (): void => {
-                      this.scrollToBottomSoon();
-                    },
-                    onSubmit: (): void => {
-                      void this.doSubmit();
-                    }
-                  })
+            Column() {
+              FeedbackEntryView({
+                onGoSubmit: (): void => {
+                  this.note = '';
+                  this.err = '';
+                  this.switchStage('submit');
+                },
+                onGoMine: (): void => {
+                  this.note = '';
+                  this.err = '';
+                  this.switchStage('mine');
+                  void this.loadMine();
                 }
-                .width('100%')
-                .transition(Motion.stepSlide(this.stageForward, this.motionMode))
-              } else if (this.stage === 'mine') {
-                Column() {
-                  FeedbackMineView({
-                    rows: this.rows,
-                    loaded: this.loaded,
-                    busy: this.busy,
-                    err: this.err,
-                    onGoSubmit: (): void => {
-                      this.err = '';
-                      this.note = '';
-                      this.switchStage('submit');
-                    },
-                    onOpenTicket: (id: string): void => {
-                      this.note = '';
-                      void this.openDetail(id);
-                    },
-                    onRetry: (): void => {
-                      void this.loadMine();
-                    }
-                  })
-                }
-                .width('100%')
-                .transition(Motion.stepSlide(this.stageForward, this.motionMode))
-              } else if (this.stage === 'detail') {
-                Column() {
-                  FeedbackDetailView({
-                    cur: this.cur,
-                    note: this.note,
-                    err: this.err,
-                    busy: this.busy,
-                    onRefresh: (id: string): void => {
-                      void this.openDetail(id);
-                    }
-                  })
-                }
-                .width('100%')
-                .transition(Motion.stepSlide(this.stageForward, this.motionMode))
+              })
+            }
+            .width('100%')
+            .constraintSize({ maxWidth: this.wideScreen ? 680 : 520 })
+            .alignItems(HorizontalAlign.Start)
+          }
+          .width('100%')
+          .padding({
+            left: 16,
+            right: 16,
+            top: this.topInset + 64,
+            bottom: this.bottomInset + 40
+          })
+          .alignItems(HorizontalAlign.Center)
+        }
+        .width('100%')
+        .height('100%')
+        .scrollBar(BarState.Off)
+        .edgeEffect(EdgeEffect.Spring)
+        .align(Alignment.Top)
+        .backgroundColor(this.themeBg)
+        .translate({ x: String((0 - this.stageDepth(this.stage)) * 100) + '%' })
+        .hitTestBehavior(this.stage === 'entry' ? HitTestMode.Default : HitTestMode.None)
+        .enabled(this.stage === 'entry')
+
+        // 深度 1：提交反馈 / 我的反馈
+        Scroll(this.midScroller) {
+          Column() {
+            Column() {
+              if (this.depth1Tab === 'submit') {
+                FeedbackSubmitView({
+                  kind: $kind,
+                  text: $text,
+                  contact: $contact,
+                  notifyOn: $notifyOn,
+                  pend: this.pend,
+                  busy: this.busy,
+                  err: this.err,
+                  onAddShot: (): void => {
+                    void this.addShot();
+                  },
+                  onAddLog: (): void => {
+                    void this.addLog();
+                  },
+                  onAddVideo: (): void => {
+                    void this.addVideo();
+                  },
+                  onDropPending: (idx: number): void => {
+                    this.dropPending(idx);
+                  },
+                  onBottomFieldFocus: (): void => {
+                    this.scrollToBottomSoon();
+                  },
+                  onSubmit: (): void => {
+                    void this.doSubmit();
+                  }
+                })
               } else {
-                Column() {
-                  FeedbackEntryView({
-                    onGoSubmit: (): void => {
-                      this.note = '';
-                      this.err = '';
-                      this.switchStage('submit');
-                    },
-                    onGoMine: (): void => {
-                      this.note = '';
-                      this.err = '';
-                      this.switchStage('mine');
-                      void this.loadMine();
-                    }
-                  })
-                }
-                .width('100%')
-                .transition(Motion.stepSlide(this.stageForward, this.motionMode))
+                FeedbackMineView({
+                  rows: this.rows,
+                  loaded: this.loaded,
+                  busy: this.busy,
+                  err: this.err,
+                  onGoSubmit: (): void => {
+                    this.err = '';
+                    this.note = '';
+                    this.switchStage('submit');
+                  },
+                  onOpenTicket: (id: string): void => {
+                    this.note = '';
+                    void this.openDetail(id);
+                  },
+                  onRetry: (): void => {
+                    void this.loadMine();
+                  }
+                })
               }
             }
             .width('100%')
-            .clip(true)
+            .constraintSize({ maxWidth: this.wideScreen ? 680 : 520 })
+            .alignItems(HorizontalAlign.Start)
           }
           .width('100%')
-          .constraintSize({ maxWidth: this.wideScreen ? 680 : 520 })
-          .alignItems(HorizontalAlign.Start)
+          .padding({
+            left: 16,
+            right: 16,
+            top: this.topInset + 64,
+            bottom: this.bottomInset + (this.depth1Tab === 'submit' ? 72 : 40)
+          })
+          .alignItems(HorizontalAlign.Center)
         }
         .width('100%')
-        .padding({
-          left: 16,
-          right: 16,
-          top: this.topInset + 64,
-          bottom: this.bottomInset + (this.stage === 'submit' ? 72 : 40)
-        })
-        .alignItems(HorizontalAlign.Center)
+        .height('100%')
+        .scrollBar(BarState.Off)
+        .edgeEffect(EdgeEffect.Spring)
+        .align(Alignment.Top)
+        .backgroundColor(this.themeBg)
+        .translate({ x: String((1 - this.stageDepth(this.stage)) * 100) + '%' })
+        .hitTestBehavior(this.stage === 'submit' || this.stage === 'mine' ? HitTestMode.Default : HitTestMode.None)
+        .enabled(this.stage === 'submit' || this.stage === 'mine')
+
+        // 深度 2：工单详情
+        Scroll(this.detailScroller) {
+          Column() {
+            Column() {
+              if (this.cur !== null || this.stage === 'detail') {
+                FeedbackDetailView({
+                  cur: this.cur,
+                  note: this.note,
+                  err: this.err,
+                  busy: this.busy,
+                  onRefresh: (id: string): void => {
+                    void this.openDetail(id);
+                  }
+                })
+              }
+            }
+            .width('100%')
+            .constraintSize({ maxWidth: this.wideScreen ? 680 : 520 })
+            .alignItems(HorizontalAlign.Start)
+          }
+          .width('100%')
+          .padding({
+            left: 16,
+            right: 16,
+            top: this.topInset + 64,
+            bottom: this.bottomInset + 40
+          })
+          .alignItems(HorizontalAlign.Center)
+        }
+        .width('100%')
+        .height('100%')
+        .scrollBar(BarState.Off)
+        .edgeEffect(EdgeEffect.Spring)
+        .align(Alignment.Top)
+        .backgroundColor(this.themeBg)
+        .translate({ x: String((2 - this.stageDepth(this.stage)) * 100) + '%' })
+        .hitTestBehavior(this.stage === 'detail' ? HitTestMode.Default : HitTestMode.None)
+        .enabled(this.stage === 'detail')
       }
       .width('100%')
       .height('100%')
-      .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
-      .align(Alignment.Top)
+      .clip(true)
 
       TopFade({ fadeHeight: this.topInset + 68 })
       Column() {

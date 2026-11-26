@@ -246,6 +246,7 @@ export class Tokens {
   static readonly rXs: number = 6;
   static readonly rSm: number = 10;
   static readonly rMd: number = 14;
+  static readonly rRow: number = 16;
   static readonly rLg: number = 20;
   static readonly rXl: number = 24;
   static readonly rGroup: number = 20;

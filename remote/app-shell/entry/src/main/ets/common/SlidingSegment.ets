@@ -81,6 +81,7 @@ export struct SlidingSegment {
             .backgroundColor(Tokens.accent)
             .shadow({ radius: 10, color: Tokens.accentGlow, offsetY: 2 })
             .translate({ x: this.thumbX })
+            .animation(null)
             .scale({
               x: this.pressingId === this.selected ? 0.95 : 1,
               y: this.pressingId === this.selected ? 0.95 : 1

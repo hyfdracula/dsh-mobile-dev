@@ -55,7 +55,6 @@ export struct PairPage {
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
 
   @State private screen: string = 'connect';
-  @State private stepForward: boolean = true;
   @State private tab: string = 'code';
   @State private code: string = '';
   @State private addr: string = '';
@@ -84,7 +83,8 @@ export struct PairPage {
   private claimSeq: number = 0;
   private probeTimer: number = -1;
   private elapsedTimer: number = -1;
-  private scroller: Scroller = new Scroller();
+  private prepareScroller: Scroller = new Scroller();
+  private connectScroller: Scroller = new Scroller();
 
   aboutToAppear(): void {
     this.screen = this.entry === 'guide' ? 'prepare' : 'connect';
@@ -127,18 +127,24 @@ export struct PairPage {
   }
 
   private switchScreen(next: string): void {
+    if (this.screen === next) {
+      return;
+    }
     this.err = '';
     this.okMsg = '';
     this.stageErr = '';
     this.stageActive = false;
-    this.stepForward = next === 'connect';
-    const anim: AnimateParam = Motion.isFlagship(this.motionMode)
-      ? Motion.flagshipParallax()
-      : { duration: Motion.move, curve: Motion.std };
-    this.getUIContext().animateTo(anim, () => {
+    try {
+      this.getUIContext().getFocusController().clearFocus();
+    } catch (_e) {
+    }
+    try {
+      (next === 'prepare' ? this.prepareScroller : this.connectScroller).scrollEdge(Edge.Top);
+    } catch (_e) {
+    }
+    this.getUIContext().animateTo(Motion.stepPaneAnim(this.motionMode), () => {
       this.screen = next;
     });
-    this.scroller.scrollTo({ xOffset: 0, yOffset: 0, animation: true });
   }
 
   private scheduleProbe(rawAddr: string): void {
@@ -1116,41 +1122,68 @@ export struct PairPage {
 
   build() {
     Stack({ alignContent: Alignment.Top }) {
-      Scroll(this.scroller) {
-        Column() {
-          Stack({ alignContent: Alignment.TopStart }) {
-            if (this.screen === 'prepare') {
-              Column() {
-                this.prepareScreen()
-              }
-              .width('100%')
-              .transition(Motion.stepSlide(this.stepForward, this.motionMode))
-            } else {
-              Column() {
-                this.connectScreen()
-              }
-              .width('100%')
-              .transition(Motion.stepSlide(this.stepForward, this.motionMode))
+      Stack({ alignContent: Alignment.TopStart }) {
+        // 左屏：电脑端准备（同步推拉，永不销毁重建，零重叠）
+        Scroll(this.prepareScroller) {
+          Column() {
+            Column() {
+              this.prepareScreen()
             }
+            .width('100%')
+            .constraintSize({ maxWidth: this.wideScreen ? 560 : 520 })
+            .alignItems(HorizontalAlign.Start)
           }
           .width('100%')
-          .constraintSize({ maxWidth: this.wideScreen ? 560 : 520 })
-          .clip(true)
+          .padding({
+            left: 16,
+            right: 16,
+            top: this.topInset + 68,
+            bottom: this.bottomInset + 36
+          })
+          .alignItems(HorizontalAlign.Center)
         }
         .width('100%')
-        .padding({
-          left: 16,
-          right: 16,
-          top: this.topInset + 68,
-          bottom: this.bottomInset + 36
-        })
-        .alignItems(HorizontalAlign.Center)
+        .height('100%')
+        .scrollBar(BarState.Off)
+        .edgeEffect(EdgeEffect.Spring)
+        .align(Alignment.Top)
+        .backgroundColor(this.themeBg)
+        .translate({ x: this.screen === 'prepare' ? '0%' : '-100%' })
+        .hitTestBehavior(this.screen === 'prepare' ? HitTestMode.Default : HitTestMode.None)
+        .enabled(this.screen === 'prepare')
+
+        // 右屏：连接电脑（同步推拉，与左屏严格 100% 间距并列滑动）
+        Scroll(this.connectScroller) {
+          Column() {
+            Column() {
+              this.connectScreen()
+            }
+            .width('100%')
+            .constraintSize({ maxWidth: this.wideScreen ? 560 : 520 })
+            .alignItems(HorizontalAlign.Start)
+          }
+          .width('100%')
+          .padding({
+            left: 16,
+            right: 16,
+            top: this.topInset + 68,
+            bottom: this.bottomInset + 36
+          })
+          .alignItems(HorizontalAlign.Center)
+        }
+        .width('100%')
+        .height('100%')
+        .scrollBar(BarState.Off)
+        .edgeEffect(EdgeEffect.Spring)
+        .align(Alignment.Top)
+        .backgroundColor(this.themeBg)
+        .translate({ x: this.screen === 'connect' ? '0%' : '100%' })
+        .hitTestBehavior(this.screen === 'connect' ? HitTestMode.Default : HitTestMode.None)
+        .enabled(this.screen === 'connect')
       }
       .width('100%')
       .height('100%')
-      .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
-      .align(Alignment.Top)
+      .clip(true)
 
       TopFade({ fadeHeight: this.topInset + 68 })
       Column() {

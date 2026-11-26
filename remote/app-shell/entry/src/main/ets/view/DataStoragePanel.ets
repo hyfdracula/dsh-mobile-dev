@@ -59,7 +59,7 @@ export struct DataStoragePanel {
   }
 
   @Builder
-  dataRow(label: string, n: number, what: string) {
+  dataRowCard(label: string, n: number, what: string, idx: number) {
     Row() {
       Text(label)
         .fontSize(Tokens.fsBodyLg)
@@ -83,10 +83,16 @@ export struct DataStoragePanel {
     .width('100%')
     .padding({ left: 16, right: 16, top: 13, bottom: 13 })
     .alignItems(VerticalAlign.Center)
+    .backgroundColor(Mat.cardBg(this.hdsOn))
+    .border(Mat.cardBorder(this.hdsOn))
+    .shadow(Mat.rowShadow(this.hdsOn))
+    .borderRadius(Tokens.rRow)
+    .clip(true)
+    .transition(Motion.bloomCard(idx, this.motionMode))
   }
 
   @Builder
-  note(k: string, v: string, mono: boolean) {
+  noteCard(k: string, v: string, mono: boolean, idx: number) {
     Row() {
       Text(k)
         .fontSize(Tokens.fsBody)
@@ -104,6 +110,12 @@ export struct DataStoragePanel {
     .width('100%')
     .padding({ left: 16, right: 16, top: 13, bottom: 13 })
     .alignItems(VerticalAlign.Center)
+    .backgroundColor(Mat.cardBg(this.hdsOn))
+    .border(Mat.cardBorder(this.hdsOn))
+    .shadow(Mat.rowShadow(this.hdsOn))
+    .borderRadius(Tokens.rRow)
+    .clip(true)
+    .transition(Motion.bloomCard(idx, this.motionMode))
   }
 
   build() {
@@ -113,87 +125,76 @@ export struct DataStoragePanel {
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
         .margin({ left: 6, top: 6, bottom: 8 })
+        .transition(Motion.bloomHeader(0, this.motionMode))
 
-      Column() {
-        Row() {
-          Column() {
-            Text('存储空间')
-              .fontSize(Tokens.fsBodyLg)
-              .fontColor(Tokens.fg)
-            Text('本机缓存占用、分类明细与一键清理')
-              .fontSize(Tokens.fsFoot)
-              .fontColor(Tokens.dim2)
-              .margin({ top: 2 })
-          }
-          .alignItems(HorizontalAlign.Start)
-          .layoutWeight(1)
+      // 0. 存储空间
+      Row() {
+        Column() {
+          Text('存储空间')
+            .fontSize(Tokens.fsBodyLg)
+            .fontColor(Tokens.fg)
+          Text('本机缓存占用、分类明细与一键清理')
+            .fontSize(Tokens.fsFoot)
+            .fontColor(Tokens.dim2)
+            .margin({ top: 2 })
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
 
+        if (Motion.isFlagship(this.motionMode)) {
+          SymbolGlyph($r('sys.symbol.chevron_right'))
+            .fontSize(14)
+            .fontColor([Tokens.dim2])
+        } else {
           Text('›')
             .fontSize(17)
             .fontColor(Tokens.dim2)
         }
-        .width('100%')
-        .padding({ left: 16, right: 16, top: 13, bottom: 13 })
-        .alignItems(VerticalAlign.Center)
-        .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
-        .onClick(() => {
-          Haptics.tap();
-          this.onStorage();
-        })
       }
       .width('100%')
+      .padding({ left: 16, right: 16, top: 13, bottom: 13 })
+      .alignItems(VerticalAlign.Center)
       .backgroundColor(Mat.cardBg(this.hdsOn))
       .border(Mat.cardBorder(this.hdsOn))
-      .shadow(Mat.cardShadow(this.hdsOn))
-      .borderRadius(Tokens.rGroup)
+      .shadow(Mat.rowShadow(this.hdsOn))
+      .borderRadius(Tokens.rRow)
       .clip(true)
+      .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
       .transition(Motion.bloomCard(0, this.motionMode))
+      .onClick(() => {
+        Haptics.tap();
+        this.onStorage();
+      })
 
       Text('应用数据')
         .fontSize(Tokens.fsCaption)
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
-        .margin({ left: 6, top: 18, bottom: 8 })
+        .margin({ left: 6, top: 16, bottom: 8 })
+        .transition(Motion.bloomHeader(1, this.motionMode))
 
-      Column() {
-        this.dataRow('草稿', this.draftN, 'draft')
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-        this.dataRow('待发送（重启兜底）', this.outN, 'outbox')
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-        this.dataRow('阅读标记', this.markN, 'marks')
+      Column({ space: 9 }) {
+        this.dataRowCard('草稿', this.draftN, 'draft', 1)
+        this.dataRowCard('待发送（重启兜底）', this.outN, 'outbox', 2)
+        this.dataRowCard('阅读标记', this.markN, 'marks', 3)
       }
       .width('100%')
-      .backgroundColor(Mat.cardBg(this.hdsOn))
-      .border(Mat.cardBorder(this.hdsOn))
-      .shadow(Mat.cardShadow(this.hdsOn))
-      .borderRadius(Tokens.rGroup)
-      .clip(true)
-      .transition(Motion.bloomCard(1, this.motionMode))
 
       Text('数据说明')
         .fontSize(Tokens.fsCaption)
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
-        .margin({ left: 6, top: 18, bottom: 8 })
+        .margin({ left: 6, top: 16, bottom: 8 })
+        .transition(Motion.bloomHeader(4, this.motionMode))
 
-      Column() {
-        this.note('本地设置', '服务器地址 · 令牌 · 主题', false)
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-        this.note('会话快照缓存', '可随时在存储空间清理，不影响电脑端记录', false)
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-        this.note('本地缓存', '可按分类清理，不影响电脑与配对信息', false)
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-        this.note('上传文件', '保存在电脑 .dsh/mobile-uploads', true)
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-        this.note('归档状态', '与桌面控制台共享同一份数据', false)
+      Column({ space: 9 }) {
+        this.noteCard('本地设置', '服务器地址 · 令牌 · 主题', false, 4)
+        this.noteCard('会话快照缓存', '可随时在存储空间清理，不影响电脑端记录', false, 5)
+        this.noteCard('本地缓存', '可按分类清理，不影响电脑与配对信息', false, 6)
+        this.noteCard('上传文件', '保存在电脑 .dsh/mobile-uploads', true, 7)
+        this.noteCard('归档状态', '与桌面控制台共享同一份数据', false, 8)
       }
       .width('100%')
-      .backgroundColor(Mat.cardBg(this.hdsOn))
-      .border(Mat.cardBorder(this.hdsOn))
-      .shadow(Mat.cardShadow(this.hdsOn))
-      .borderRadius(Tokens.rGroup)
-      .clip(true)
-      .transition(Motion.bloomCard(2, this.motionMode))
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)

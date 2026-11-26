@@ -37,15 +37,11 @@ export struct GlassToastHost {
       this.hideTimer = -1;
     }
     this.iconTick += 1;
-    this.getUIContext().animateTo(Motion.flagshipSnappy(), () => {
-      this.shown = true;
-    });
+    this.shown = true;
     const dur: number = this.toastDur > 400 ? this.toastDur : 1800;
     this.hideTimer = setTimeout(() => {
       this.hideTimer = -1;
-      this.getUIContext().animateTo(Motion.flagshipSpring(), () => {
-        this.shown = false;
-      });
+      this.shown = false;
     }, dur);
   }
 

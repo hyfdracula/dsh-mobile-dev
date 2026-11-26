@@ -19,17 +19,30 @@ export struct AgentEnginesPanel {
   @State private backendsLoading: boolean = false;
   @State private backendsHint: string = '';
   @State private togglingBackend: string = '';
+  @State private bloomDone: boolean = false;
 
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
+  private bloomTimer: number = -1;
 
   aboutToAppear(): void {
     const cached: BackendInfo[] = Api.cachedBackends();
     if (cached.length > 0) {
       this.backends = cached;
     }
+    this.bloomTimer = setTimeout(() => {
+      this.bloomTimer = -1;
+      this.bloomDone = true;
+    }, 480);
     void this.loadBackends(false);
+  }
+
+  aboutToDisappear(): void {
+    if (this.bloomTimer >= 0) {
+      clearTimeout(this.bloomTimer);
+      this.bloomTimer = -1;
+    }
   }
 
   private async loadBackends(refresh: boolean): Promise<void> {
@@ -128,61 +141,57 @@ export struct AgentEnginesPanel {
       .width('100%')
       .padding({ left: 6, right: 4, top: 6, bottom: 8 })
       .alignItems(VerticalAlign.Center)
+      .transition(Motion.bloomHeader(0, this.motionMode))
 
       if (this.backends.length > 0) {
-        Column() {
+        Column({ space: 9 }) {
           ForEach(this.backends, (b: BackendInfo, idx: number) => {
-            Column() {
-              if (idx > 0) {
-                Divider().color(Tokens.lineSoft).margin({ left: 16 })
+            Row() {
+              Column() {
+                Text(b.label)
+                  .fontSize(Tokens.fsBodyLg)
+                  .fontColor(Tokens.fg)
+                Text(this.backendSubText(b))
+                  .fontSize(Tokens.fsFoot)
+                  .fontColor(b.installed ? Tokens.dim2 : Tokens.err)
+                  .margin({ top: 2 })
+                  .maxLines(1)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
               }
-              Row() {
-                Column() {
-                  Text(b.label)
-                    .fontSize(Tokens.fsBodyLg)
-                    .fontColor(Tokens.fg)
-                  Text(this.backendSubText(b))
-                    .fontSize(Tokens.fsFoot)
-                    .fontColor(b.installed ? Tokens.dim2 : Tokens.err)
-                    .margin({ top: 2 })
-                    .maxLines(1)
-                    .textOverflow({ overflow: TextOverflow.Ellipsis })
-                }
-                .alignItems(HorizontalAlign.Start)
-                .layoutWeight(1)
+              .alignItems(HorizontalAlign.Start)
+              .layoutWeight(1)
 
-                if (b.id === 'dsh') {
-                  Text('默认')
-                    .fontSize(Tokens.fsCaption)
-                    .fontColor(Tokens.accent)
-                    .backgroundColor(Tokens.accentSoft)
-                    .borderRadius(Tokens.rPill)
-                    .padding({ left: 9, right: 9, top: 4, bottom: 4 })
-                } else {
-                  Toggle({ type: ToggleType.Switch, isOn: b.enabled })
-                    .selectedColor(Tokens.accent)
-                    .enabled(b.installed && this.togglingBackend !== b.id)
-                    .opacity(b.installed ? 1 : 0.4)
-                    .onChange((v: boolean) => {
-                      if (v !== b.enabled) {
-                        void this.onToggleBackend(b, v);
-                      }
-                    })
-                }
+              if (b.id === 'dsh') {
+                Text('默认')
+                  .fontSize(Tokens.fsCaption)
+                  .fontColor(Tokens.accent)
+                  .backgroundColor(Tokens.accentSoft)
+                  .borderRadius(Tokens.rPill)
+                  .padding({ left: 9, right: 9, top: 4, bottom: 4 })
+              } else {
+                Toggle({ type: ToggleType.Switch, isOn: b.enabled })
+                  .selectedColor(Tokens.accent)
+                  .enabled(b.installed && this.togglingBackend !== b.id)
+                  .opacity(b.installed ? 1 : 0.4)
+                  .onChange((v: boolean) => {
+                    if (v !== b.enabled) {
+                      void this.onToggleBackend(b, v);
+                    }
+                  })
               }
-              .width('100%')
-              .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-              .alignItems(VerticalAlign.Center)
             }
+            .width('100%')
+            .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+            .alignItems(VerticalAlign.Center)
+            .backgroundColor(Mat.cardBg(this.hdsOn))
+            .border(Mat.cardBorder(this.hdsOn))
+            .shadow(Mat.rowShadow(this.hdsOn))
+            .borderRadius(Tokens.rRow)
+            .clip(true)
+            .transition(this.bloomDone ? TransitionEffect.IDENTITY : Motion.bloomCard(idx, this.motionMode))
           }, (b: BackendInfo) => b.id + ':' + String(b.enabled) + ':' + String(b.installed))
         }
         .width('100%')
-        .backgroundColor(Mat.cardBg(this.hdsOn))
-        .border(Mat.cardBorder(this.hdsOn))
-        .shadow(Mat.cardShadow(this.hdsOn))
-        .borderRadius(Tokens.rGroup)
-        .clip(true)
-        .transition(Motion.bloomCard(0, this.motionMode))
       } else {
         Column() {
           Text(this.backendsLoading
@@ -197,8 +206,8 @@ export struct AgentEnginesPanel {
         .padding({ left: 16, right: 16, top: 14, bottom: 14 })
         .backgroundColor(Mat.cardBg(this.hdsOn))
         .border(Mat.cardBorder(this.hdsOn))
-        .shadow(Mat.cardShadow(this.hdsOn))
-        .borderRadius(Tokens.rGroup)
+        .shadow(Mat.rowShadow(this.hdsOn))
+        .borderRadius(Tokens.rRow)
         .transition(Motion.bloomCard(0, this.motionMode))
       }
 
@@ -211,7 +220,7 @@ export struct AgentEnginesPanel {
       }
       .width('100%')
       .padding({ left: 6, right: 6, top: 10 })
-      .transition(Motion.bloomCard(1, this.motionMode))
+      .transition(Motion.bloomHeader(this.backends.length > 0 ? this.backends.length : 1, this.motionMode))
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)

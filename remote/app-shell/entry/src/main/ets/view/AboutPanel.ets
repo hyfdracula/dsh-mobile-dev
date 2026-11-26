@@ -58,8 +58,16 @@ export struct AboutPanel {
     }
   }
 
+  private diagBaseIdx(): number {
+    return this.rows.length;
+  }
+
+  private legalStartIdx(): number {
+    return this.rows.length + (isFeedbackEnabled() ? 2 : 1);
+  }
+
   @Builder
-  actionRow(title: string, hint: string, onTap: () => void) {
+  actionCard(title: string, hint: string, idx: number, onTap: () => void) {
     Row() {
       Column() {
         Text(title)
@@ -88,7 +96,13 @@ export struct AboutPanel {
     .width('100%')
     .padding({ left: 16, right: 16, top: 13, bottom: 13 })
     .alignItems(VerticalAlign.Center)
-    .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
+    .backgroundColor(Mat.cardBg(this.hdsOn))
+    .border(Mat.cardBorder(this.hdsOn))
+    .shadow(Mat.rowShadow(this.hdsOn))
+    .borderRadius(Tokens.rRow)
+    .clip(true)
+    .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
+    .transition(Motion.bloomCard(idx, this.motionMode))
     .onClick(() => {
       Haptics.tap();
       onTap();
@@ -102,8 +116,9 @@ export struct AboutPanel {
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
         .margin({ left: 6, top: 6, bottom: 8 })
+        .transition(Motion.bloomHeader(0, this.motionMode))
 
-      Column() {
+      Column({ space: 9 }) {
         ForEach(this.rows, (r: AboutRow, i: number) => {
           Row() {
             Text(r.k)
@@ -122,63 +137,52 @@ export struct AboutPanel {
           .width('100%')
           .padding({ left: 16, right: 16, top: 13, bottom: 13 })
           .alignItems(VerticalAlign.Center)
-          if (i < this.rows.length - 1) {
-            Divider().color(Tokens.lineSoft).margin({ left: 16 })
-          }
+          .backgroundColor(Mat.cardBg(this.hdsOn))
+          .border(Mat.cardBorder(this.hdsOn))
+          .shadow(Mat.rowShadow(this.hdsOn))
+          .borderRadius(Tokens.rRow)
+          .clip(true)
+          .transition(Motion.bloomCard(i, this.motionMode))
         }, (r: AboutRow) => r.k + ':' + r.v)
       }
       .width('100%')
-      .backgroundColor(Mat.cardBg(this.hdsOn))
-      .border(Mat.cardBorder(this.hdsOn))
-      .shadow(Mat.cardShadow(this.hdsOn))
-      .borderRadius(Tokens.rGroup)
-      .clip(true)
-      .transition(Motion.bloomCard(0, this.motionMode))
 
       Text('诊断与协议')
         .fontSize(Tokens.fsCaption)
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
-        .margin({ left: 6, top: 18, bottom: 8 })
+        .margin({ left: 6, top: 16, bottom: 8 })
+        .transition(Motion.bloomHeader(this.diagBaseIdx(), this.motionMode))
 
-      Column() {
-        this.actionRow(
+      Column({ space: 9 }) {
+        this.actionCard(
           this.exporting ? '正在导出运行诊断日志…' : '导出运行诊断日志',
           String(this.logCount) + ' 条脱敏记录 · 网络/引擎/运行状态，不含令牌与正文',
+          this.diagBaseIdx(),
           () => {
             void this.exportDiagLog();
           }
         )
 
         if (isFeedbackEnabled()) {
-          Divider().color(Tokens.lineSoft).margin({ left: 16 })
-          this.actionRow('反馈与支持', '提交问题、功能建议与查看进度', () => {
+          this.actionCard('反馈与支持', '提交问题、功能建议与查看进度', this.diagBaseIdx() + 1, () => {
             this.onFeedback();
           })
         }
 
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-        this.actionRow('隐私政策', '说明本地存储、权限范围与加密机制', () => {
+        this.actionCard('隐私政策', '说明本地存储、权限范围与加密机制', this.legalStartIdx(), () => {
           this.onLegal('privacy');
         })
 
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-        this.actionRow('用户协议', '使用约定与免责说明', () => {
+        this.actionCard('用户协议', '使用约定与免责说明', this.legalStartIdx() + 1, () => {
           this.onLegal('terms');
         })
 
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-        this.actionRow('开源许可', '查看第三方组件与标准协议声明', () => {
+        this.actionCard('开源许可', '查看第三方组件与标准协议声明', this.legalStartIdx() + 2, () => {
           this.onLegal('licenses');
         })
       }
       .width('100%')
-      .backgroundColor(Mat.cardBg(this.hdsOn))
-      .border(Mat.cardBorder(this.hdsOn))
-      .shadow(Mat.cardShadow(this.hdsOn))
-      .borderRadius(Tokens.rGroup)
-      .clip(true)
-      .transition(Motion.bloomCard(1, this.motionMode))
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)

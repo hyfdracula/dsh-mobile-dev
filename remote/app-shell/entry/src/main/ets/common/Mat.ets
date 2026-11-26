@@ -339,6 +339,23 @@ export class Mat {
     return empty;
   }
 
+  static rowShadow(glass: boolean): ShadowOptions {
+    if (glass) {
+      const s: ShadowOptions = {
+        radius: 12,
+        color: Tokens.isDark ? '#2B000000' : '#121C2C4D',
+        offsetX: 0,
+        offsetY: 3
+      };
+      return s;
+    }
+    const empty: ShadowOptions = {
+      radius: 0,
+      color: Color.Transparent
+    };
+    return empty;
+  }
+
   static subCardBg(glass: boolean): string {
     if (glass) {
       return Tokens.isDark ? '#1CFFFFFF' : '#42FFFFFF';

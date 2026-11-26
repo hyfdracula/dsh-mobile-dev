@@ -152,6 +152,7 @@ export struct ExtrasPanel {
         }
         .width('100%')
         .height('100%')
+        .backgroundColor(this.themeBg)
         .transition(TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std }))
       } else if (this.curMode === 'git' && this.sessionId !== '') {
         Column() {
@@ -164,6 +165,7 @@ export struct ExtrasPanel {
         }
         .width('100%')
         .height('100%')
+        .backgroundColor(this.themeBg)
         .transition(TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std }))
       } else if (this.curMode === 'terminal' && this.sessionId !== '') {
         Column() {
@@ -176,6 +178,7 @@ export struct ExtrasPanel {
         }
         .width('100%')
         .height('100%')
+        .backgroundColor(this.themeBg)
         .transition(TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std }))
       } else if (this.curMode === 'preview' && this.sessionId !== '') {
         Column() {
@@ -187,6 +190,7 @@ export struct ExtrasPanel {
         }
         .width('100%')
         .height('100%')
+        .backgroundColor(this.themeBg)
         .transition(TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std }))
       } else if (this.curMode === 'team' && this.sessionId !== '') {
         Column() {
@@ -199,6 +203,7 @@ export struct ExtrasPanel {
         }
         .width('100%')
         .height('100%')
+        .backgroundColor(this.themeBg)
         .transition(TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std }))
       } else if (this.curMode === 'schedules') {
         Column() {
@@ -210,6 +215,7 @@ export struct ExtrasPanel {
         }
         .width('100%')
         .height('100%')
+        .backgroundColor(this.themeBg)
         .transition(TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std }))
       } else {
         Column() {
@@ -221,6 +227,7 @@ export struct ExtrasPanel {
         }
         .width('100%')
         .height('100%')
+        .backgroundColor(this.themeBg)
         .transition(TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std }))
       }
 
@@ -234,21 +241,19 @@ export struct ExtrasPanel {
       // 统一顶栏 + 模式横向切换胶囊栏（左右内边距 16）
       Column() {
         Column() {
-          ForEach([this.curMode], (m: string) => {
-            PageHeader({
-              title: this.title(),
-              subtitle: this.subtitle(),
-              padTop: true,
-              rightKind: 'glyph',
-              rightGlyph: '\u21bb',
-              onBack: () => {
-                this.onExit();
-              },
-              onRight: () => {
-                this.reloadCurrent();
-              }
-            })
-          }, (m: string) => 'hdr-' + m)
+          PageHeader({
+            title: this.title(),
+            subtitle: this.subtitle(),
+            padTop: true,
+            rightKind: 'glyph',
+            rightGlyph: '\u21bb',
+            onBack: () => {
+              this.onExit();
+            },
+            onRight: () => {
+              this.reloadCurrent();
+            }
+          })
 
           this.modeSwitcherBar()
         }

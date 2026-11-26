@@ -980,9 +980,6 @@ struct Index {
         .onClick(() => {
           this.closeBigImg();
         })
-        .transition(Motion.isVivid(this.motionMode)
-          ? TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std })
-          : TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }))
       }
     }
     .width('100%')

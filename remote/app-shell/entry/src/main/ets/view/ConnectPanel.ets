@@ -130,12 +130,13 @@ export struct ConnectPanel {
   }
 
   @Builder
-  sectionTitle(text: string, topMargin: number = 18) {
+  sectionTitle(text: string, topMargin: number, bloomIdx: number) {
     Text(text)
       .fontSize(Tokens.fsCaption)
       .fontColor(Tokens.dim2)
       .letterSpacing(1.4)
       .margin({ left: 6, top: topMargin, bottom: 8 })
+      .transition(Motion.bloomHeader(bloomIdx, this.motionMode))
   }
 
   @Builder
@@ -407,15 +408,16 @@ export struct ConnectPanel {
     .padding({ left: 14, right: 14, top: 12, bottom: 12 })
     .backgroundColor(Mat.cardBg(this.hdsOn))
     .border(Mat.cardBorder(this.hdsOn))
-    .shadow(Mat.cardShadow(this.hdsOn))
-    .borderRadius(Tokens.rGroup)
+    .shadow(Mat.rowShadow(this.hdsOn))
+    .borderRadius(Tokens.rRow)
+    .clip(true)
     .alignItems(HorizontalAlign.Start)
     .margin({ top: 6, bottom: 6 })
     .transition(Motion.bloomCard(0, this.motionMode))
   }
 
   @Builder
-  guideEntryRow(title: string, sub: string, tag: string, kind: string) {
+  guideEntryCard(title: string, sub: string, tag: string, kind: string, idx: number) {
     Row() {
       Column() {
         Text(title)
@@ -453,7 +455,13 @@ export struct ConnectPanel {
     .width('100%')
     .padding({ left: 16, right: 16, top: 13, bottom: 13 })
     .alignItems(VerticalAlign.Center)
-    .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
+    .backgroundColor(Mat.cardBg(this.hdsOn))
+    .border(Mat.cardBorder(this.hdsOn))
+    .shadow(Mat.rowShadow(this.hdsOn))
+    .borderRadius(Tokens.rRow)
+    .clip(true)
+    .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
+    .transition(Motion.bloomCard(idx, this.motionMode))
     .onClick(() => {
       Haptics.tap();
       this.onOpenGuide(kind);
@@ -466,7 +474,7 @@ export struct ConnectPanel {
       this.linkStatusCard()
 
       // 1. 多电脑管理
-      this.sectionTitle('电脑', 10)
+      this.sectionTitle('电脑', 10, 1)
       Column() {
         MachineList({
           onPick: (id: string) => {
@@ -498,53 +506,50 @@ export struct ConnectPanel {
       }
       .width('100%')
       .margin({ top: 2, bottom: 4 })
+      .transition(Motion.bloomCard(2, this.motionMode))
       .bindSheet($$this.addOn, this.addMachineSheet(),
         Mat.sheetOpts(this.hdsOn, SheetSize.FIT_CONTENT, () => {
           this.addOn = false;
         }, true, true))
 
-      // 2. 网络策略
-      this.sectionTitle('网络策略', 16)
-      Column() {
+      // 3. 网络策略（独立单条卡片）
+      this.sectionTitle('网络策略', 16, 3)
+      Row() {
         Row() {
-          Row() {
-            Text('连接优先策略')
-              .fontSize(Tokens.fsBodyLg)
-              .fontColor(Tokens.fg)
-            HintLabel({
-              title: '',
-              tipText: '自动：同一 Wi-Fi 下优先走局域网直连，出门自动走公网隧道；仅局域网：不回退隧道；仅公网：强制走隧道入口。'
-            })
-            .margin({ left: 6 })
-          }
-          .layoutWeight(1)
-          .alignItems(VerticalAlign.Center)
-
-          PopupPicker({
-            options: NET_MODE_OPTIONS,
-            selected: this.netMode,
-            title: '连接优先策略',
-            popupWidth: 236,
-            onSelect: (mode: string) => {
-              this.onNetMode(mode);
-            }
+          Text('连接优先策略')
+            .fontSize(Tokens.fsBodyLg)
+            .fontColor(Tokens.fg)
+          HintLabel({
+            title: '',
+            tipText: '自动：同一 Wi-Fi 下优先走局域网直连，出门自动走公网隧道；仅局域网：不回退隧道；仅公网：强制走隧道入口。'
           })
+          .margin({ left: 6 })
         }
-        .width('100%')
+        .layoutWeight(1)
         .alignItems(VerticalAlign.Center)
+
+        PopupPicker({
+          options: NET_MODE_OPTIONS,
+          selected: this.netMode,
+          title: '连接优先策略',
+          popupWidth: 236,
+          onSelect: (mode: string) => {
+            this.onNetMode(mode);
+          }
+        })
       }
       .width('100%')
       .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-      .alignItems(HorizontalAlign.Start)
+      .alignItems(VerticalAlign.Center)
       .backgroundColor(Mat.cardBg(this.hdsOn))
       .border(Mat.cardBorder(this.hdsOn))
-      .shadow(Mat.cardShadow(this.hdsOn))
-      .borderRadius(Tokens.rGroup)
+      .shadow(Mat.rowShadow(this.hdsOn))
+      .borderRadius(Tokens.rRow)
       .clip(true)
-      .transition(Motion.bloomCard(2, this.motionMode))
+      .transition(Motion.bloomCard(3, this.motionMode))
 
-      // 3. 连接地址与外网配置（统一入口样式：AI 帮你配 & 手动配置向导）
-      this.sectionTitle('连接地址与外网', 18)
+      // 4. 连接地址与外网（表单复合卡）
+      this.sectionTitle('连接地址与外网', 16, 4)
       Column() {
         ConnectForm({
           base: $editBase,
@@ -564,39 +569,30 @@ export struct ConnectPanel {
         })
       }
       .width('100%')
-      .transition(Motion.bloomCard(3, this.motionMode))
-
-      this.sectionTitle('外网访问配置', 18)
-      Column() {
-        this.guideEntryRow('让 AI 帮你配', '复制完整指令给 Codex / Claude 等 AI 自动完成', '自动方案', 'ai')
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-        this.guideEntryRow('外网访问配置向导', '按 7 步手动命令配置 Cloudflare 安全隧道', '手动向导', 'tunnel')
-      }
-      .width('100%')
-      .backgroundColor(Mat.cardBg(this.hdsOn))
-      .border(Mat.cardBorder(this.hdsOn))
-      .shadow(Mat.cardShadow(this.hdsOn))
-      .borderRadius(Tokens.rGroup)
-      .clip(true)
       .transition(Motion.bloomCard(4, this.motionMode))
 
-      // 4. 当前设备概况与断开/移除
-      Column() {
-        DeviceCard({
-          name: this.machineName,
-          base: this.currentBase,
-          pluginVersion: this.pluginVersion,
-          sessions: this.sessionsCount,
-          onReconnect: (): void => {
-            this.onReconnect();
-          },
-          onRemove: (): void => {
-            this.onRemoveCurrent();
-          }
-        })
+      // 5-6. 外网访问配置（逐条独立卡片）
+      this.sectionTitle('外网访问配置', 16, 5)
+      Column({ space: 9 }) {
+        this.guideEntryCard('让 AI 帮你配', '复制完整指令给 Codex / Claude 等 AI 自动完成', '自动方案', 'ai', 5)
+        this.guideEntryCard('外网访问配置向导', '按 7 步手动命令配置 Cloudflare 安全隧道', '手动向导', 'tunnel', 6)
       }
       .width('100%')
-      .transition(Motion.bloomCard(5, this.motionMode))
+
+      // 7-12. 当前设备概况与断开/移除（内部逐条独立卡片）
+      DeviceCard({
+        name: this.machineName,
+        base: this.currentBase,
+        pluginVersion: this.pluginVersion,
+        sessions: this.sessionsCount,
+        startIdx: 7,
+        onReconnect: (): void => {
+          this.onReconnect();
+        },
+        onRemove: (): void => {
+          this.onRemoveCurrent();
+        }
+      })
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)

@@ -109,7 +109,6 @@ export struct SettingsPage {
   @State private enterSendUi: boolean = true;
   @State private compactHistoryUi: boolean = false;
   @State private textScaleUi: number = 1;
-  @State private pressedRowId: string = '';
 
   // 仅用于「隐私政策 / 用户协议 / 开源许可 / 外网向导（AI 与隧道）」的景深悬浮阅读浮卡
   @State private readingRoute: string = '';
@@ -584,16 +583,17 @@ export struct SettingsPage {
   }
 
   @Builder
-  groupTitle(text: string, topGap: number) {
+  groupTitle(text: string, topGap: number, bloomIdx: number) {
     Text(text)
       .fontSize(Tokens.fsCaption)
       .fontColor(Tokens.dim2)
       .letterSpacing(1.4)
       .margin({ left: 6, top: topGap, bottom: 8 })
+      .transition(Motion.bloomHeader(bloomIdx, this.motionMode, 16))
   }
 
   @Builder
-  navRow(r: NavRow) {
+  navRowCard(r: NavRow, idx: number) {
     Row() {
       Stack({ alignContent: Alignment.Center }) {
         Image(this.navIconRes(r.id)).width(18).height(18).fillColor(Tokens.navIconInk).objectFit(ImageFit.Contain)
@@ -629,48 +629,17 @@ export struct SettingsPage {
         Text('›').fontSize(17).fontColor(Tokens.dim2)
       }
     }
-    .width('100%').padding({ left: 14, right: 14, top: 13, bottom: 13 })
-    .alignItems(VerticalAlign.Center)
-    .scale({
-      x: this.pressedRowId === r.id ? 0.97 : 1,
-      y: this.pressedRowId === r.id ? 0.97 : 1
-    })
-    .animation(Motion.isFlagship(this.motionMode)
-      ? Motion.flagshipSnappy()
-      : undefined)
-    .clickEffect(Motion.isFlagship(this.motionMode) ? null : { level: ClickEffectLevel.LIGHT, scale: 0.98 })
-    .onTouch((e: TouchEvent) => {
-      if (!Motion.isFlagship(this.motionMode)) {
-        return;
-      }
-      if (e.type === TouchType.Down) {
-        this.pressedRowId = r.id;
-      } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
-        if (this.pressedRowId === r.id) {
-          this.pressedRowId = '';
-        }
-      }
-    })
-    .onClick(() => { this.openSettingEntry(r.id); })
-  }
-
-  @Builder
-  navGroup(rows: NavRow[], cardIdx: number) {
-    Column() {
-      ForEach(rows, (r: NavRow, i: number) => {
-        this.navRow(r)
-        if (i < rows.length - 1) {
-          Divider().color(Tokens.lineSoft).margin({ left: 60 })
-        }
-      }, (r: NavRow) => r.id)
-    }
     .width('100%')
+    .padding({ left: 14, right: 14, top: 13, bottom: 13 })
+    .alignItems(VerticalAlign.Center)
     .backgroundColor(Mat.cardBg(this.hdsOn))
     .border(Mat.cardBorder(this.hdsOn))
-    .shadow(Mat.cardShadow(this.hdsOn))
-    .borderRadius(Tokens.rGroup)
+    .shadow(Mat.rowShadow(this.hdsOn))
+    .borderRadius(Tokens.rRow)
     .clip(true)
-    .transition(Motion.bloomCard(cardIdx, this.motionMode, 16))
+    .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
+    .transition(Motion.bloomCard(idx, this.motionMode, 16))
+    .onClick(() => { this.openSettingEntry(r.id); })
   }
 
   /**
@@ -731,7 +700,7 @@ export struct SettingsPage {
       }
     }
     .width('100%').padding(16).backgroundColor(Mat.cardBg(this.hdsOn))
-    .border(Mat.cardBorder(this.hdsOn)).shadow(Mat.cardShadow(this.hdsOn)).borderRadius(Tokens.rGroup)
+    .border(Mat.cardBorder(this.hdsOn)).shadow(Mat.cardShadow(this.hdsOn)).borderRadius(Tokens.rCard)
     .transition(Motion.bloomCard(0, this.motionMode, 16))
   }
 
@@ -740,14 +709,26 @@ export struct SettingsPage {
     Column() {
       this.deviceBanner()
 
-      this.groupTitle('电脑与智能体', 18)
-      this.navGroup(AGENT_GROUP_ROWS, 1)
+      this.groupTitle('电脑与智能体', 16, 1)
+      Column({ space: 9 }) {
+        this.navRowCard(AGENT_GROUP_ROWS[0], 1)
+        this.navRowCard(AGENT_GROUP_ROWS[1], 2)
+      }
+      .width('100%')
 
-      this.groupTitle('偏好设置', 18)
-      this.navGroup(PREF_GROUP_ROWS, 2)
+      this.groupTitle('偏好设置', 16, 3)
+      Column({ space: 9 }) {
+        this.navRowCard(PREF_GROUP_ROWS[0], 3)
+        this.navRowCard(PREF_GROUP_ROWS[1], 4)
+      }
+      .width('100%')
 
-      this.groupTitle('数据与支持', 18)
-      this.navGroup(DATA_GROUP_ROWS, 3)
+      this.groupTitle('数据与支持', 16, 5)
+      Column({ space: 9 }) {
+        this.navRowCard(DATA_GROUP_ROWS[0], 5)
+        this.navRowCard(DATA_GROUP_ROWS[1], 6)
+      }
+      .width('100%')
 
       Text(this.verText)
         .fontSize(Tokens.fsFoot)
@@ -755,6 +736,7 @@ export struct SettingsPage {
         .width('100%')
         .textAlign(TextAlign.Center)
         .padding({ top: 22, bottom: 8 })
+        .transition(Motion.bloomHeader(7, this.motionMode, 16))
     }
     .width('100%').alignItems(HorizontalAlign.Start)
   }

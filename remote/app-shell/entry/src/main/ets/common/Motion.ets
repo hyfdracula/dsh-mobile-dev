@@ -139,19 +139,37 @@ export class Motion {
   }
 
   /**
-   * 19 秒同款「由上到下逐卡景深绽放」（仅灵动档生效，经典档零延迟）：
-   * 卡片从 0.86 倍缩放入场 + 微幅上抬 + 淡入，每张卡错峰 38ms。
+   * 由上到下逐卡景深绽放（仅灵动档生效，经典档零延迟）：
+   * 卡片从 0.94 倍缩放入场 + 微幅上抬 + 淡入，每张卡错峰 26ms，适配单条卡片长列表。
    */
-  static bloomCard(idx: number, mode: string, baseDelay: number = 28): TransitionEffect {
-    if (!Motion.isFlagship(mode) || idx < 0 || idx >= 8) {
+  static bloomCard(idx: number, mode: string, baseDelay: number = 30): TransitionEffect {
+    if (!Motion.isFlagship(mode) || idx < 0 || idx >= 16) {
       return TransitionEffect.IDENTITY;
     }
-    const wait: number = baseDelay + idx * 38;
-    const springCurve = curves.springMotion(0.40, 0.84);
+    const clamped: number = idx > 11 ? 11 : idx;
+    const wait: number = baseDelay + clamped * 26;
+    const springCurve = curves.springMotion(0.36, 0.86);
     return TransitionEffect.asymmetric(
-      TransitionEffect.OPACITY.animation({ duration: 210, curve: Motion.std, delay: wait })
-        .combine(TransitionEffect.translate({ y: 14 }).animation({ curve: springCurve, delay: wait }))
-        .combine(TransitionEffect.scale({ x: 0.86, y: 0.86 }).animation({ curve: springCurve, delay: wait })),
+      TransitionEffect.OPACITY.animation({ duration: 200, curve: Motion.std, delay: wait })
+        .combine(TransitionEffect.translate({ y: 12 }).animation({ curve: springCurve, delay: wait }))
+        .combine(TransitionEffect.scale({ x: 0.94, y: 0.94 }).animation({ curve: springCurve, delay: wait })),
+      TransitionEffect.IDENTITY
+    );
+  }
+
+  /**
+   * 分组小标题轻柔跟随同组首卡错峰淡入（仅灵动档生效）。
+   */
+  static bloomHeader(idx: number, mode: string, baseDelay: number = 30): TransitionEffect {
+    if (!Motion.isFlagship(mode) || idx < 0 || idx >= 16) {
+      return TransitionEffect.IDENTITY;
+    }
+    const clamped: number = idx > 11 ? 11 : idx;
+    const wait: number = baseDelay + clamped * 26;
+    const springCurve = curves.springMotion(0.36, 0.86);
+    return TransitionEffect.asymmetric(
+      TransitionEffect.OPACITY.animation({ duration: 180, curve: Motion.std, delay: wait })
+        .combine(TransitionEffect.translate({ y: 8 }).animation({ curve: springCurve, delay: wait })),
       TransitionEffect.IDENTITY
     );
   }
@@ -162,20 +180,10 @@ export class Motion {
   }
 
   /**
-   * 19 秒同款顶部 `<` 返回按钮轻延时缩放弹出（仅灵动档生效）：
-   * 子页滑入后约 75ms 从中心轻弹浮现，形成标题与返回键的节奏错落。
+   * 顶部 `<` 返回按钮与 Navigation 转场同步保持零冲突，不再额外延迟弹出。
    */
-  static headerBackTransition(mode: string): TransitionEffect {
-    if (!Motion.isFlagship(mode)) {
-      return TransitionEffect.IDENTITY;
-    }
-    const wait: number = 75;
-    const snappy = curves.springMotion(0.28, 0.78);
-    return TransitionEffect.asymmetric(
-      TransitionEffect.OPACITY.animation({ duration: 170, curve: Motion.std, delay: wait })
-        .combine(TransitionEffect.scale({ x: 0.72, y: 0.72 }).animation({ curve: snappy, delay: wait })),
-      TransitionEffect.OPACITY.animation({ duration: 120, curve: Motion.std })
-    );
+  static headerBackTransition(_mode: string): TransitionEffect {
+    return TransitionEffect.IDENTITY;
   }
 
   /**
@@ -203,8 +211,18 @@ export class Motion {
     );
   }
 
+  /** 同构双屏/多步骤容器整体横滑动画参数（无回弹错位重叠） */
+  static stepPaneAnim(mode: string): AnimateParam {
+    if (Motion.isFlagship(mode)) {
+      const opts: AnimateParam = { curve: curves.springMotion(0.34, 0.92) };
+      return opts;
+    }
+    const base: AnimateParam = { duration: Motion.move, curve: Motion.std };
+    return base;
+  }
+
   /**
-   * 步骤页 / 同构选项卡左右横推转场（零渐变淡入淡出）：
+   * 步骤页 / 同构选项卡左右横推转场（零渐变淡入淡出，整页等速退场防止重合）：
    * 用于配对流程「电脑端准备 <-> 连接电脑」以及反馈中心内部页面切换。
    */
   static stepSlide(forward: boolean, mode: string): TransitionEffect {
@@ -212,7 +230,7 @@ export class Motion {
       ? Motion.flagshipParallax()
       : { duration: Motion.move, curve: Motion.std };
     const enterX: string = forward ? '100%' : '-100%';
-    const exitX: string = forward ? '-30%' : '30%';
+    const exitX: string = forward ? '-100%' : '100%';
     return TransitionEffect.asymmetric(
       TransitionEffect.translate({ x: enterX }).animation(anim),
       TransitionEffect.translate({ x: exitX }).animation(anim)

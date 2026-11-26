@@ -261,7 +261,7 @@ export struct NotifyPanel {
 
   build() {
     Column() {
-      // 1. 顶部系统权限状态卡
+      // 0. 顶部系统权限状态卡
       Column() {
         Row({ space: 10 }) {
           Column({ space: 3 }) {
@@ -305,8 +305,9 @@ export struct NotifyPanel {
       .padding({ left: 16, right: 16, top: 14, bottom: 14 })
       .backgroundColor(Mat.cardBg(this.hdsOn))
       .border(Mat.cardBorder(this.hdsOn))
-      .shadow(Mat.cardShadow(this.hdsOn))
-      .borderRadius(Tokens.rGroup)
+      .shadow(Mat.rowShadow(this.hdsOn))
+      .borderRadius(Tokens.rRow)
+      .clip(true)
       .margin({ top: 6 })
       .transition(Motion.bloomCard(0, this.motionMode))
 
@@ -314,56 +315,79 @@ export struct NotifyPanel {
         .fontSize(Tokens.fsCaption)
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
-        .margin({ left: 6, top: 18, bottom: 8 })
+        .margin({ left: 6, top: 16, bottom: 8 })
+        .transition(Motion.bloomHeader(1, this.motionMode))
 
-      Column() {
-        RowSwitch({
-          title: '回合结束提醒',
-          hint: '一轮回答完成或有提问待确认时发送本地通知',
-          value: this.done,
-          onChanged: (v: boolean) => {
-            this.onDone(v);
-          }
-        })
+      Column({ space: 9 }) {
+        // 1. 回合结束提醒
+        Column() {
+          RowSwitch({
+            title: '回合结束提醒',
+            hint: '一轮回答完成或有提问待确认时发送本地通知',
+            value: this.done,
+            onChanged: (v: boolean) => {
+              this.onDone(v);
+            }
+          })
+        }
+        .width('100%')
+        .backgroundColor(Mat.cardBg(this.hdsOn))
+        .border(Mat.cardBorder(this.hdsOn))
+        .shadow(Mat.rowShadow(this.hdsOn))
+        .borderRadius(Tokens.rRow)
+        .clip(true)
+        .transition(Motion.bloomCard(1, this.motionMode))
 
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
+        // 2. 仅在后台提醒
+        Column() {
+          RowSwitch({
+            title: '仅在后台提醒',
+            hint: this.done ? '开启时前台查看其他页面或会话不弹本地横幅，退后台后由系统推送接管' : '需先开启上方的「回合结束提醒」',
+            value: this.bgOnly,
+            switchEnabled: this.done,
+            onChanged: (v: boolean) => {
+              this.onBgOnly(v);
+            }
+          })
+        }
+        .width('100%')
+        .backgroundColor(Mat.cardBg(this.hdsOn))
+        .border(Mat.cardBorder(this.hdsOn))
+        .shadow(Mat.rowShadow(this.hdsOn))
+        .borderRadius(Tokens.rRow)
+        .clip(true)
+        .transition(Motion.bloomCard(2, this.motionMode))
 
-        RowSwitch({
-          title: '仅在后台提醒',
-          hint: this.done ? '开启时前台查看其他页面或会话不弹本地横幅，退后台后由系统推送接管' : '需先开启上方的「回合结束提醒」',
-          value: this.bgOnly,
-          switchEnabled: this.done,
-          onChanged: (v: boolean) => {
-            this.onBgOnly(v);
-          }
-        })
-
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-
-        RowSwitch({
-          title: '推送显示会话标题',
-          hint: this.done ? '关闭后后台系统推送仅提示通用消息，不经云端中继发送会话标题' : '需先开启上方的「回合结束提醒」',
-          value: this.showTitle,
-          switchEnabled: this.done,
-          onChanged: (v: boolean) => {
-            this.onShowTitle(v);
-          }
-        })
+        // 3. 推送显示会话标题
+        Column() {
+          RowSwitch({
+            title: '推送显示会话标题',
+            hint: this.done ? '关闭后后台系统推送仅提示通用消息，不经云端中继发送会话标题' : '需先开启上方的「回合结束提醒」',
+            value: this.showTitle,
+            switchEnabled: this.done,
+            onChanged: (v: boolean) => {
+              this.onShowTitle(v);
+            }
+          })
+        }
+        .width('100%')
+        .backgroundColor(Mat.cardBg(this.hdsOn))
+        .border(Mat.cardBorder(this.hdsOn))
+        .shadow(Mat.rowShadow(this.hdsOn))
+        .borderRadius(Tokens.rRow)
+        .clip(true)
+        .transition(Motion.bloomCard(3, this.motionMode))
       }
       .width('100%')
-      .backgroundColor(Mat.cardBg(this.hdsOn))
-      .border(Mat.cardBorder(this.hdsOn))
-      .shadow(Mat.cardShadow(this.hdsOn))
-      .borderRadius(Tokens.rGroup)
-      .clip(true)
-      .transition(Motion.bloomCard(1, this.motionMode))
 
       Text('后台系统推送（Push Kit）')
         .fontSize(Tokens.fsCaption)
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
-        .margin({ left: 6, top: 18, bottom: 8 })
+        .margin({ left: 6, top: 16, bottom: 8 })
+        .transition(Motion.bloomHeader(4, this.motionMode))
 
+      // 4. 华为系统推送通道（多行状态与操作复合卡）
       Column({ space: 10 }) {
         Row({ space: 8 }) {
           Text('华为系统推送通道')
@@ -437,18 +461,20 @@ export struct NotifyPanel {
       .padding({ left: 16, right: 16, top: 14, bottom: 14 })
       .backgroundColor(Mat.cardBg(this.hdsOn))
       .border(Mat.cardBorder(this.hdsOn))
-      .shadow(Mat.cardShadow(this.hdsOn))
-      .borderRadius(Tokens.rGroup)
+      .shadow(Mat.rowShadow(this.hdsOn))
+      .borderRadius(Tokens.rCard)
       .alignItems(HorizontalAlign.Start)
-      .transition(Motion.bloomCard(2, this.motionMode))
+      .transition(Motion.bloomCard(4, this.motionMode))
 
       Text('调试与未读')
         .fontSize(Tokens.fsCaption)
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
-        .margin({ left: 6, top: 18, bottom: 8 })
+        .margin({ left: 6, top: 16, bottom: 8 })
+        .transition(Motion.bloomHeader(5, this.motionMode))
 
-      Column() {
+      Column({ space: 9 }) {
+        // 5. 测试本地通知
         Row() {
           Column({ space: 2 }) {
             Text('测试本地通知')
@@ -478,9 +504,14 @@ export struct NotifyPanel {
         .width('100%')
         .padding({ left: 16, right: 16, top: 13, bottom: 13 })
         .alignItems(VerticalAlign.Center)
+        .backgroundColor(Mat.cardBg(this.hdsOn))
+        .border(Mat.cardBorder(this.hdsOn))
+        .shadow(Mat.rowShadow(this.hdsOn))
+        .borderRadius(Tokens.rRow)
+        .clip(true)
+        .transition(Motion.bloomCard(5, this.motionMode))
 
-        Divider().color(Tokens.lineSoft).margin({ left: 16 })
-
+        // 6. 清除未读与桌面角标
         Row() {
           Column() {
             Row() {
@@ -518,14 +549,14 @@ export struct NotifyPanel {
         .width('100%')
         .padding({ left: 16, right: 16, top: 13, bottom: 13 })
         .alignItems(VerticalAlign.Center)
+        .backgroundColor(Mat.cardBg(this.hdsOn))
+        .border(Mat.cardBorder(this.hdsOn))
+        .shadow(Mat.rowShadow(this.hdsOn))
+        .borderRadius(Tokens.rRow)
+        .clip(true)
+        .transition(Motion.bloomCard(6, this.motionMode))
       }
       .width('100%')
-      .backgroundColor(Mat.cardBg(this.hdsOn))
-      .border(Mat.cardBorder(this.hdsOn))
-      .shadow(Mat.cardShadow(this.hdsOn))
-      .borderRadius(Tokens.rGroup)
-      .clip(true)
-      .transition(Motion.bloomCard(3, this.motionMode))
 
       Text('前台由应用轮询同步状态并在非当前会话时按偏好提醒；退后台或锁屏后，电脑网关通过 Push Kit 云端中继推送系统通知。')
         .fontSize(Tokens.fsFoot)
@@ -533,6 +564,7 @@ export struct NotifyPanel {
         .lineHeight(18)
         .width('100%')
         .margin({ top: 12, left: 4, right: 4 })
+        .transition(Motion.bloomHeader(7, this.motionMode))
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)

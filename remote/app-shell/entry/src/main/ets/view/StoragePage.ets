@@ -15,6 +15,7 @@ import {
 } from '../common/Storage';
 import { Toast } from '../common/Toast';
 import { Mat } from '../common/Mat';
+import { Motion, MOTION_VIVID } from '../common/Motion';
 import { Tokens } from '../common/Tokens';
 import { EmptyState } from '../common/Widgets';
 
@@ -45,6 +46,7 @@ export struct StoragePage {
   @State private clearing: boolean = false;
   @State private detailOn: boolean = false;
   @State private detailKey: string = '';
+  @State private bloomDone: boolean = false;
 
   @StorageLink('topInset') topInset: number = 40;
   @StorageLink('bottomInset') bottomInset: number = 20;
@@ -52,12 +54,14 @@ export struct StoragePage {
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') @Watch('onThemeChange') themeDark: boolean = true;
   @StorageLink('wideScreen') wideScreen: boolean = false;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
 
   private ringSettings: RenderingContextSettings = new RenderingContextSettings(true);
   private ring: CanvasRenderingContext2D = new CanvasRenderingContext2D(this.ringSettings);
   private canvasReady: boolean = false;
   private scanTimer: number = -1;
   private clearTimer: number = -1;
+  private bloomTimer: number = -1;
   private disposed: boolean = false;
 
   aboutToAppear(): void {
@@ -74,6 +78,10 @@ export struct StoragePage {
     if (this.clearTimer >= 0) {
       clearTimeout(this.clearTimer);
       this.clearTimer = -1;
+    }
+    if (this.bloomTimer >= 0) {
+      clearTimeout(this.bloomTimer);
+      this.bloomTimer = -1;
     }
   }
 
@@ -122,6 +130,12 @@ export struct StoragePage {
       this.device = { free: 0, total: 0 };
     }
     this.loading = false;
+    if (!this.bloomDone && this.bloomTimer < 0) {
+      this.bloomTimer = setTimeout(() => {
+        this.bloomTimer = -1;
+        this.bloomDone = true;
+      }, 480);
+    }
     setTimeout(() => {
       if (!this.disposed && this.canvasReady) {
         this.drawRing();
@@ -358,12 +372,13 @@ export struct StoragePage {
   }
 
   @Builder
-  sectionLabel(text: string, topMargin: number = 18) {
+  sectionLabel(text: string, topMargin: number = 18, bloomIdx: number = 0) {
     Text(text)
       .fontSize(Tokens.fsCaption)
       .fontColor(Tokens.dim2)
       .letterSpacing(1.4)
       .margin({ left: 6, top: topMargin, bottom: 8 })
+      .transition(this.bloomDone ? TransitionEffect.IDENTITY : Motion.bloomHeader(bloomIdx, this.motionMode))
   }
 
   @Builder
@@ -534,88 +549,99 @@ export struct StoragePage {
     .border(Mat.cardBorder(this.hdsOn))
     .shadow(Mat.cardShadow(this.hdsOn))
     .clip(true)
+    .transition(this.bloomDone ? TransitionEffect.IDENTITY : Motion.bloomCard(0, this.motionMode))
   }
 
   @Builder
   bucketDetailCard() {
-    Column() {
+    Column({ space: 9 }) {
       ForEach(this.buckets, (b: Bucket, i: number) => {
-        Column() {
-          Row() {
-            Column() {
-              Row() {
-                Circle()
-                  .width(9)
-                  .height(9)
-                  .fill(this.bucketColor(b.key))
-                Text(b.name)
-                  .fontSize(Tokens.fsBodyLg)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor(Tokens.fg)
-                  .margin({ left: 8 })
-                  .layoutWeight(1)
-                  .maxLines(1)
-                  .textOverflow({ overflow: TextOverflow.Ellipsis })
-                Text(sizeText(b.bytes))
-                  .fontSize(Tokens.fsBody)
-                  .fontFamily('monospace')
-                  .fontColor(Tokens.dim)
-                  .margin({ left: 8 })
-              }
-              .width('100%')
-              .alignItems(VerticalAlign.Center)
-
-              Text(b.hint)
-                .fontSize(Tokens.fsFoot)
-                .fontColor(Tokens.dim2)
+        Row() {
+          Column() {
+            Row() {
+              Circle()
+                .width(9)
+                .height(9)
+                .fill(this.bucketColor(b.key))
+              Text(b.name)
+                .fontSize(Tokens.fsBodyLg)
+                .fontWeight(FontWeight.Medium)
+                .fontColor(Tokens.fg)
+                .margin({ left: 8 })
+                .layoutWeight(1)
                 .maxLines(1)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
-                .width('100%')
-                .margin({ top: 3 })
+              Text(sizeText(b.bytes))
+                .fontSize(Tokens.fsBody)
+                .fontFamily('monospace')
+                .fontColor(Tokens.dim)
+                .margin({ left: 8 })
+            }
+            .width('100%')
+            .alignItems(VerticalAlign.Center)
 
-              // 迷你横向占比进度条
-              Stack({ alignContent: Alignment.Start }) {
+            Text(b.hint)
+              .fontSize(Tokens.fsFoot)
+              .fontColor(Tokens.dim2)
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .width('100%')
+              .margin({ top: 3 })
+
+            // 迷你横向占比进度条
+            Stack({ alignContent: Alignment.Start }) {
+              Row()
+                .width('100%')
+                .height(5)
+                .borderRadius(Tokens.rPill)
+                .backgroundColor(Tokens.surface3)
+              if (b.bytes > 0) {
                 Row()
-                  .width('100%')
+                  .width(this.barWidthPct(b.bytes))
                   .height(5)
                   .borderRadius(Tokens.rPill)
-                  .backgroundColor(Tokens.surface3)
-                if (b.bytes > 0) {
-                  Row()
-                    .width(this.barWidthPct(b.bytes))
-                    .height(5)
-                    .borderRadius(Tokens.rPill)
-                    .backgroundColor(this.bucketColor(b.key))
-                }
+                  .backgroundColor(this.bucketColor(b.key))
               }
-              .width('100%')
-              .height(5)
-              .margin({ top: 8 })
             }
-            .alignItems(HorizontalAlign.Start)
-            .layoutWeight(1)
-            .padding({ top: 13, bottom: 13, left: 14, right: 8 })
-            .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.99 })
-            .onClick(() => {
-              Haptics.soft();
-              this.detailKey = b.key;
-              this.detailOn = true;
-            })
+            .width('100%')
+            .height(5)
+            .margin({ top: 8 })
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+          .padding({ top: 13, bottom: 13, left: 14, right: 8 })
+          .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.99 })
+          .onClick(() => {
+            Haptics.soft();
+            this.detailKey = b.key;
+            this.detailOn = true;
+          })
 
-            Row({ space: 6 }) {
-              Text(b.bytes > 0 ? '清理' : '已空')
-                .fontSize(Tokens.fsCaption)
-                .fontWeight(FontWeight.Medium)
-                .fontColor(b.bytes > 0 && !this.clearing ? Tokens.err : Tokens.dim2)
-                .backgroundColor(b.bytes > 0 && !this.clearing ? Tokens.intrBg : Tokens.surface2)
-                .borderRadius(Tokens.rPill)
-                .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-                .opacity(b.bytes > 0 && !this.clearing ? 1 : 0.65)
-                .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.94 })
+          Row({ space: 6 }) {
+            Text(b.bytes > 0 ? '清理' : '已空')
+              .fontSize(Tokens.fsCaption)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(b.bytes > 0 && !this.clearing ? Tokens.err : Tokens.dim2)
+              .backgroundColor(b.bytes > 0 && !this.clearing ? Tokens.intrBg : Tokens.surface2)
+              .borderRadius(Tokens.rPill)
+              .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+              .opacity(b.bytes > 0 && !this.clearing ? 1 : 0.65)
+              .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.94 })
+              .onClick(() => {
+                this.confirmClearBucket(b);
+              })
+
+            if (Motion.isFlagship(this.motionMode)) {
+              SymbolGlyph($r('sys.symbol.chevron_right'))
+                .fontSize(13)
+                .fontColor([Tokens.dim2])
+                .margin({ left: 2, right: 2 })
                 .onClick(() => {
-                  this.confirmClearBucket(b);
+                  Haptics.soft();
+                  this.detailKey = b.key;
+                  this.detailOn = true;
                 })
-
+            } else {
               Text('›')
                 .fontSize(16)
                 .fontColor(Tokens.dim2)
@@ -626,24 +652,21 @@ export struct StoragePage {
                   this.detailOn = true;
                 })
             }
-            .padding({ right: 12 })
-            .alignItems(VerticalAlign.Center)
           }
-          .width('100%')
+          .padding({ right: 12 })
           .alignItems(VerticalAlign.Center)
-
-          if (i < this.buckets.length - 1) {
-            Divider().color(Tokens.lineSoft).margin({ left: 14 })
-          }
         }
+        .width('100%')
+        .alignItems(VerticalAlign.Center)
+        .backgroundColor(Mat.cardBg(this.hdsOn))
+        .borderRadius(Tokens.rRow)
+        .border(Mat.cardBorder(this.hdsOn))
+        .shadow(Mat.rowShadow(this.hdsOn))
+        .clip(true)
+        .transition(this.bloomDone ? TransitionEffect.IDENTITY : Motion.bloomCard(1 + i, this.motionMode))
       }, (b: Bucket) => b.key + ':' + String(b.bytes) + ':' + String(this.cacheBytes) + ':' + String(this.themeDark))
     }
     .width('100%')
-    .backgroundColor(Mat.cardBg(this.hdsOn))
-    .borderRadius(Tokens.rGroup)
-    .border(Mat.cardBorder(this.hdsOn))
-    .shadow(Mat.cardShadow(this.hdsOn))
-    .clip(true)
   }
 
   @Builder
@@ -696,6 +719,7 @@ export struct StoragePage {
     .border(Mat.cardBorder(this.hdsOn))
     .shadow(Mat.cardShadow(this.hdsOn))
     .alignItems(HorizontalAlign.Start)
+    .transition(this.bloomDone ? TransitionEffect.IDENTITY : Motion.bloomCard(1 + this.buckets.length, this.motionMode))
   }
 
   @Builder
@@ -748,6 +772,7 @@ export struct StoragePage {
     .border(Mat.cardBorder(this.hdsOn))
     .shadow(Mat.cardShadow(this.hdsOn))
     .alignItems(HorizontalAlign.Start)
+    .transition(this.bloomDone ? TransitionEffect.IDENTITY : Motion.bloomCard(2 + this.buckets.length, this.motionMode))
   }
 
   build() {
@@ -770,16 +795,16 @@ export struct StoragePage {
         Scroll() {
           Column() {
             Column() {
-              this.sectionLabel('可清理缓存', 6)
+              this.sectionLabel('可清理缓存', 6, 0)
               this.cacheOverviewCard()
 
-              this.sectionLabel('可清理分类明细', 18)
+              this.sectionLabel('可清理分类明细', 16, 1)
               this.bucketDetailCard()
 
-              this.sectionLabel('应用配置与凭据', 18)
+              this.sectionLabel('应用配置与凭据', 16, 1 + this.buckets.length)
               this.prefsProtectedCard()
 
-              this.sectionLabel('设备存储', 18)
+              this.sectionLabel('设备存储', 16, 2 + this.buckets.length)
               this.deviceCapacityCard()
 
               Text('缓存仅用于本地加速首屏与预览，清理后不影响电脑端任何会话与文件；配对凭据、电脑列表与偏好设置会安全保留。')
@@ -787,6 +812,7 @@ export struct StoragePage {
                 .fontColor(Tokens.dim2)
                 .lineHeight(18)
                 .margin({ top: 12, left: 4, right: 4 })
+                .transition(this.bloomDone ? TransitionEffect.IDENTITY : Motion.bloomHeader(3 + this.buckets.length, this.motionMode))
             }
             .width('100%')
             .constraintSize({ maxWidth: this.wideScreen ? 680 : 520 })
