@@ -606,6 +606,10 @@ export struct WorkspaceSheet {
           .scrollable(ScrollDirection.Horizontal)
           .scrollBar(BarState.Off)
           .width('100%')
+          Text('提示：切换任意引擎均通过电脑端 DSH 内置网关中转，使用期间电脑端 DSH 需保持启动。')
+            .fontSize(Tokens.fsCaption)
+            .fontColor(Tokens.dim2)
+            .width('100%')
         }
         .width('100%')
         .padding({ left: 18, right: 18, bottom: 10 })

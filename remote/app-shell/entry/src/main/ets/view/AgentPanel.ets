@@ -140,11 +140,20 @@ export struct AgentPanel {
     Column() {
       // 1. 多引擎开关
       Row() {
-        Text('电脑端智能体引擎')
-          .fontSize(Tokens.fsCaption)
-          .fontColor(Tokens.dim2)
-          .letterSpacing(1.4)
-          .layoutWeight(1)
+        Row() {
+          Text('电脑端智能体引擎')
+            .fontSize(Tokens.fsCaption)
+            .fontColor(Tokens.dim2)
+            .letterSpacing(1.4)
+          HintLabel({
+            title: '',
+            tipText: '电脑端 DSH 是所有引擎的宿主网关，使用 Codex、Claude Code、OpenCode、Antigravity 时也必须保持电脑端 DSH 启动并在线。'
+          })
+          .margin({ left: 6 })
+        }
+        .layoutWeight(1)
+        .alignItems(VerticalAlign.Center)
+
         Text(this.backendsLoading ? '检测中…' : '刷新检测')
           .fontSize(Tokens.fsCaption)
           .fontColor(Tokens.accent)
@@ -274,11 +283,20 @@ export struct AgentPanel {
       .clip(true)
 
       // 3. 预设、插件与网页控制台
-      Text('预设与控制台')
-        .fontSize(Tokens.fsCaption)
-        .fontColor(Tokens.dim2)
-        .letterSpacing(1.4)
-        .margin({ left: 6, top: 18, bottom: 8 })
+      Row() {
+        Text('预设与控制台')
+          .fontSize(Tokens.fsCaption)
+          .fontColor(Tokens.dim2)
+          .letterSpacing(1.4)
+        HintLabel({
+          title: '',
+          tipText: '智能体预设、插件管理、自动化任务与完整网页控制台均依赖电脑端 DSH 提供服务，使用前请保持电脑端 DSH 启动。'
+        })
+        .margin({ left: 6 })
+      }
+      .width('100%')
+      .padding({ left: 6, right: 6, top: 18, bottom: 8 })
+      .alignItems(VerticalAlign.Center)
 
       Column() {
         this.entryRow('智能体预设与权限', '查看和调整默认模型、系统预设与执行权限', () => {
