@@ -11,7 +11,7 @@ import {
 } from '../common/Api';
 import { Mat } from '../common/Mat';
 import { Tokens } from '../common/Tokens';
-import { Motion } from '../common/Motion';
+import { Motion, MOTION_VIVID } from '../common/Motion';
 import { TopFade, buildTransparentHdsTitle } from '../common/Chrome';
 import { EmptyState } from '../common/Widgets';
 import { copyText } from '../common/Clipboard';
@@ -52,6 +52,7 @@ export struct SessionList {
   @StorageLink('themeBg') themeBg: string = Tokens.bg;
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
   @StorageLink('online') online: boolean = true;
   @StorageLink('wideScreen') wideScreen: boolean = false;
   @StorageLink('unreadCount') unreadCount: number = 0;
@@ -882,13 +883,21 @@ export struct SessionList {
                       .height(8)
                       .borderRadius(Tokens.rPill)
                       .backgroundColor(Tokens.accent)
-                    Text(String(this.unreadCount) + ' 条新回复未读')
-                      .fontSize(Tokens.fsFoot)
-                      .fontWeight(FontWeight.Medium)
-                      .fontColor(Tokens.fg)
-                      .layoutWeight(1)
-                      .maxLines(1)
-                      .textOverflow({ overflow: TextOverflow.Ellipsis })
+                    Row() {
+                      Text(String(this.unreadCount))
+                        .fontSize(Tokens.fsFoot)
+                        .fontWeight(FontWeight.Medium)
+                        .fontColor(Tokens.fg)
+                        .contentTransition(Motion.numTransition(this.motionMode))
+                      Text(' 条新回复未读')
+                        .fontSize(Tokens.fsFoot)
+                        .fontWeight(FontWeight.Medium)
+                        .fontColor(Tokens.fg)
+                        .maxLines(1)
+                        .textOverflow({ overflow: TextOverflow.Ellipsis })
+                    }
+                    .layoutWeight(1)
+                    .alignItems(VerticalAlign.Center)
                     Text('定位查看')
                       .fontSize(Tokens.fsCaption)
                       .fontWeight(FontWeight.Medium)
@@ -920,6 +929,7 @@ export struct SessionList {
                   .shadow(Mat.cardShadow(this.hdsOn))
                   .alignItems(VerticalAlign.Center)
                 }
+                .transition(Motion.panelTransition(this.motionMode))
               }
 
               if (this.rowCount === 0) {
@@ -935,7 +945,7 @@ export struct SessionList {
                 }
                 .width('100%')
               } else {
-                LazyForEach(this.dataSource, (m: RowModel) => {
+                LazyForEach(this.dataSource, (m: RowModel, idx: number) => {
                   if (m.kind === 'head') {
                     ListItem() {
                       Row() {
@@ -947,7 +957,7 @@ export struct SessionList {
                             .stroke(Tokens.dim2).strokeWidth(1.6).strokeLineCap(LineCapStyle.Round)
                             .fill(Color.Transparent).width(11).height(6)
                             .rotate({ angle: this.isFolded(m.label) ? -90 : 0 })
-                            .animation({ duration: Motion.fade, curve: Motion.std })
+                            .animation(Motion.fadeOpts(this.motionMode))
                         }
                       }
                       .width('100%').padding({ left: 6, right: 6, top: 10, bottom: 2 })
@@ -986,6 +996,7 @@ export struct SessionList {
                         onFork: () => { void this.doFork(m.row); }
                       })
                     }
+                    .transition(Motion.staggerCard(idx, this.motionMode))
                     .swipeAction(this.capsForRow(m.row).archivePin
                       ? {
                           end: {

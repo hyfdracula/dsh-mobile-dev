@@ -5,7 +5,7 @@ import { Haptics } from '../../common/Haptics';
 import { heartbeatBodyOf, isHeartbeatText } from '../../common/Heartbeat';
 import { Mat } from '../../common/Mat';
 import { MdBlock, parseMd } from '../../common/Md';
-import { Motion } from '../../common/Motion';
+import { Motion, MOTION_VIVID } from '../../common/Motion';
 import { Tokens } from '../../common/Tokens';
 import { MdBody } from '../MdBody';
 import { MessageImages } from '../MessageImages';
@@ -72,6 +72,7 @@ export struct ChatBubbleItem {
   onLongPress: (m: Message) => void = () => {};
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
 
   @StorageLink('appIconStyle') appIconStyle: string = ICON_DARK;
   @State private showRawHeartbeat: boolean = false;
@@ -265,7 +266,7 @@ export struct ChatBubbleItem {
             .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
             .onClick(() => {
               Haptics.tap();
-              this.getUIContext().animateTo({ duration: Motion.move, curve: Motion.std }, () => {
+              this.getUIContext().animateTo(Motion.moveOpts(this.motionMode), () => {
                 this.expandedLong = true;
               });
             })
@@ -280,7 +281,7 @@ export struct ChatBubbleItem {
                 .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.94 })
                 .onClick(() => {
                   Haptics.tap();
-                  this.getUIContext().animateTo({ duration: Motion.move, curve: Motion.std }, () => {
+                  this.getUIContext().animateTo(Motion.moveOpts(this.motionMode), () => {
                     this.expandedLong = false;
                   });
                 })
@@ -301,7 +302,7 @@ export struct ChatBubbleItem {
                 .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.94 })
                 .onClick(() => {
                   Haptics.tap();
-                  this.getUIContext().animateTo({ duration: Motion.fade, curve: Motion.std }, () => {
+                  this.getUIContext().animateTo(Motion.fadeOpts(this.motionMode), () => {
                     this.showRawHeartbeat = !this.showRawHeartbeat;
                   });
                 })

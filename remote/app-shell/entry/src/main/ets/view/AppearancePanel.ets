@@ -1,9 +1,24 @@
+import preferences from '@ohos.data.preferences';
+import { AppCtx } from '../common/AppCtx';
 import { AppIcon, ICON_DARK, ICON_LIGHT, IconSwitchResult } from '../common/AppIcon';
 import { Haptics } from '../common/Haptics';
 import { Mat } from '../common/Mat';
+import { Motion, MOTION_CLASSIC, MOTION_VIVID } from '../common/Motion';
 import { Toast } from '../common/Toast';
 import { Tokens } from '../common/Tokens';
 import { HintLabel, RowSwitch } from '../common/Widgets';
+
+const PREF_STORE: string = 'dsh_mobile_cfg';
+
+interface MotionOpt {
+  id: string;
+  name: string;
+}
+
+const MOTIONS: MotionOpt[] = [
+  { id: MOTION_VIVID, name: '灵动' },
+  { id: MOTION_CLASSIC, name: '经典' }
+];
 
 interface ThemeOpt {
   id: string;
@@ -50,7 +65,24 @@ export struct AppearancePanel {
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('appIconStyle') appIconStyle: string = ICON_DARK;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
   @State private iconBusy: boolean = false;
+
+  private async applyMotion(target: string): Promise<void> {
+    const norm: string = Motion.normalize(target);
+    if (this.motionMode === norm) {
+      return;
+    }
+    Haptics.tap();
+    AppStorage.setOrCreate('motionMode', norm);
+    try {
+      const p = await preferences.getPreferences(AppCtx.ability(), PREF_STORE);
+      await p.put('motionMode', norm);
+      await p.flush();
+    } catch (_e) {
+    }
+    Toast.ok(norm === MOTION_VIVID ? '已切换为灵动动效' : '已切换为经典动效');
+  }
 
   private async applyIcon(target: string): Promise<void> {
     if (this.iconBusy || this.appIconStyle === target) {
@@ -187,6 +219,42 @@ export struct AppearancePanel {
                 this.onHds(v);
               }
             })
+        }
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+        .alignItems(VerticalAlign.Center)
+
+        Divider().color(Tokens.lineSoft).margin({ left: 16 })
+
+        Row() {
+          Column() {
+            this.labelWithHint(
+              '交互动效',
+              '灵动：启用鸿蒙原生弹簧物理曲线、首屏错峰入场与数字翻滚；经典：保留简洁干脆的经典贝塞尔动画。'
+            )
+            Text(Motion.isVivid(this.motionMode) ? '当前：灵动（弹簧 · 错峰 · 翻滚）' : '当前：经典（简洁贝塞尔动效）')
+              .fontSize(Tokens.fsCaption)
+              .fontColor(Tokens.dim2)
+              .margin({ top: 3 })
+          }
+          .layoutWeight(1)
+          .alignItems(HorizontalAlign.Start)
+
+          Row() {
+            ForEach(MOTIONS, (mo: MotionOpt) => {
+              Text(mo.name)
+                .fontSize(Tokens.fsFoot)
+                .fontColor(this.motionMode === mo.id ? Tokens.accentInk : Tokens.dim)
+                .backgroundColor(this.motionMode === mo.id ? Tokens.accent : Tokens.surface2)
+                .borderRadius(Tokens.rPill)
+                .padding({ left: 13, right: 13, top: 6, bottom: 6 })
+                .margin({ left: 6 })
+                .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.92 })
+                .onClick(() => {
+                  void this.applyMotion(mo.id);
+                })
+            }, (mo: MotionOpt) => mo.id)
+          }
         }
         .width('100%')
         .padding({ left: 16, right: 16, top: 12, bottom: 12 })

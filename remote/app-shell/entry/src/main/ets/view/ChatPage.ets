@@ -41,7 +41,7 @@ import { ImagePart, pickImages } from '../common/Images';
 import { Marks } from '../common/Marks';
 import { Mat } from '../common/Mat';
 import { MdBlock, parseMd } from '../common/Md';
-import { Motion } from '../common/Motion';
+import { Motion, MOTION_VIVID } from '../common/Motion';
 import { Net } from '../common/Net';
 import { Outbox, StashItem } from '../common/Outbox';
 import { Toast } from '../common/Toast';
@@ -115,6 +115,7 @@ export struct ChatPage {
   @StorageLink('topInset') topInset: number = 40;
   @StorageLink('bottomInset') bottomInset: number = 20;
   @StorageLink('hdsOn') hdsOn: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
   @StorageLink('enterSend') enterSend: boolean = true;
   @StorageLink('compactHistory') @Watch('onCompactHistoryChange') compactHistory: boolean = false;
   @StorageLink('textScale') textScale: number = 1;
@@ -351,7 +352,7 @@ export struct ChatPage {
       const wasBottom: boolean = this.atBottom;
       const rising: boolean = next > this.kbH;
       try {
-        this.getUIContext().animateTo({ duration: Motion.move, curve: Motion.std }, () => {
+        this.getUIContext().animateTo(Motion.moveOpts(this.motionMode), () => {
           this.kbH = next;
         });
       } catch (e) {
@@ -1915,11 +1916,7 @@ export struct ChatPage {
               .alignItems(HorizontalAlign.Center)
             }
             .transition(this.shouldAnimateBubble(m)
-              ? TransitionEffect.asymmetric(
-                  TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std })
-                    .combine(TransitionEffect.translate({ y: 8 }).animation({ duration: Motion.move, curve: Motion.std })),
-                  TransitionEffect.IDENTITY
-                )
+              ? Motion.bubbleTransition(this.motionMode)
               : TransitionEffect.IDENTITY)
           }, (m: Message) => buildMsgForEachKey(m))
 
@@ -1936,7 +1933,7 @@ export struct ChatPage {
               .width('100%')
               .alignItems(HorizontalAlign.Center)
             }
-            .transition(TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std }))
+            .transition(Motion.panelTransition(this.motionMode))
           }
 
           if (this.errCard !== '') {
@@ -2148,7 +2145,7 @@ export struct ChatPage {
                       if (prev === '' && v === '/') {
                         this.slashOpened = true;
                         void this.loadHostCommands();
-                        this.getUIContext().animateTo({ duration: Motion.move, curve: Motion.std }, () => {
+                        this.getUIContext().animateTo(Motion.moveOpts(this.motionMode), () => {
                           this.attachOn = true;
                         });
                       } else if (this.slashOpened && (!v.startsWith('/') || v.indexOf(' ') >= 0 || v.indexOf('\n') >= 0)) {
@@ -2234,7 +2231,7 @@ export struct ChatPage {
                         void this.loadHostCommands();
                       }
                       this.slashOpened = false;
-                      this.getUIContext().animateTo({ duration: Motion.move, curve: Motion.std }, () => {
+                      this.getUIContext().animateTo(Motion.moveOpts(this.motionMode), () => {
                         this.attachOn = !this.attachOn;
                       });
                     },

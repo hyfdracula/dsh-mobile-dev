@@ -17,6 +17,7 @@ import { ShellPage } from '../view/ShellPage';
 import { Haptics } from '../common/Haptics';
 import { Machines } from '../common/Machines';
 import { Mat } from '../common/Mat';
+import { Motion, MOTION_VIVID } from '../common/Motion';
 import { Net } from '../common/Net';
 import { Secret } from '../common/Secret';
 import { Toast } from '../common/Toast';
@@ -268,8 +269,10 @@ struct Index {
       this.privacyAccepted = pa === '1';
       const wmc = await p.get('wcMobileCompat', '1') as string;
       const wmp = await p.get('wcAutoDismissPromo', '0') as string;
+      const mm = await p.get('motionMode', MOTION_VIVID) as string;
       AppStorage.setOrCreate('wcMobileCompat', wmc !== '0');
       AppStorage.setOrCreate('wcAutoDismissPromo', wmp === '1');
+      AppStorage.setOrCreate('motionMode', Motion.normalize(mm));
 
       let b = await p.get('base', DEFAULT_BASE) as string;
       const tOldBase: string = b;

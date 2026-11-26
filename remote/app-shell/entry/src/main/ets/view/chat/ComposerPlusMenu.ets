@@ -1,7 +1,7 @@
 import { BackendCapabilities, SlashCommandRow, defaultBackendCapabilities } from '../../common/Api';
 import { Haptics } from '../../common/Haptics';
 import { Mat } from '../../common/Mat';
-import { Motion } from '../../common/Motion';
+import { Motion, MOTION_VIVID } from '../../common/Motion';
 import { Tokens } from '../../common/Tokens';
 
 interface MergedCmdItem {
@@ -50,6 +50,7 @@ export struct ComposerPlusMenu {
   onSelectCommand: (cmd: SlashCommandRow) => void = () => {};
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
 
   private mergedCommands(): MergedCmdItem[] {
     const out: MergedCmdItem[] = [];
@@ -307,9 +308,6 @@ export struct ComposerPlusMenu {
     .width('100%')
     .padding({ left: 10, right: 10, top: 8, bottom: 10 })
     .alignItems(HorizontalAlign.Start)
-    .transition(
-      TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std })
-        .combine(TransitionEffect.translate({ y: 8 }).animation({ duration: Motion.move, curve: Motion.std }))
-    )
+    .transition(Motion.panelTransition(this.motionMode))
   }
 }

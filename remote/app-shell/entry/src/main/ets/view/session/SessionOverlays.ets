@@ -1,4 +1,5 @@
 import { Mat } from '../../common/Mat';
+import { Motion, MOTION_VIVID } from '../../common/Motion';
 import { Tokens } from '../../common/Tokens';
 import { EmptyState } from '../../common/Widgets';
 import { Haptics } from '../../common/Haptics';
@@ -99,14 +100,27 @@ export struct SessionBatchBar {
   @StorageLink('bottomInset') bottomInset: number = 20;
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
 
   build() {
     Column() {
       Row() {
-        Text('已选 ' + String(this.selectedCount) + ' 项')
-          .fontSize(Tokens.fsBody)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(Tokens.fg)
+        Row() {
+          Text('已选 ')
+            .fontSize(Tokens.fsBody)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(Tokens.fg)
+          Text(String(this.selectedCount))
+            .fontSize(Tokens.fsBody)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(Tokens.fg)
+            .contentTransition(Motion.numTransition(this.motionMode))
+          Text(' 项')
+            .fontSize(Tokens.fsBody)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(Tokens.fg)
+        }
+        .alignItems(VerticalAlign.Center)
         Blank()
         Text('全选')
           .fontSize(Tokens.fsBody)
@@ -151,6 +165,7 @@ export struct SessionBatchBar {
     .width('100%')
     .padding({ left: 16, right: 16, bottom: this.bottomInset + 14 })
     .alignItems(HorizontalAlign.Center)
+    .transition(Motion.panelTransition(this.motionMode))
   }
 }
 

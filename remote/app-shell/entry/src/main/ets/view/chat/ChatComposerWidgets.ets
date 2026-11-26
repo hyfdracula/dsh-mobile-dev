@@ -2,7 +2,7 @@ import { AgentRef } from '../../common/Api';
 import { TopFade } from '../../common/Chrome';
 import { Haptics } from '../../common/Haptics';
 import { Mat } from '../../common/Mat';
-import { Motion } from '../../common/Motion';
+import { Motion, MOTION_VIVID } from '../../common/Motion';
 import { Tokens } from '../../common/Tokens';
 
 /**
@@ -205,6 +205,7 @@ export struct PlanModeBanner {
   onClose: () => void = () => {};
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
 
   build() {
     Row({ space: 8 }) {
@@ -245,7 +246,7 @@ export struct PlanModeBanner {
     .backgroundColor(this.hdsOn ? Tokens.accentSoft : Tokens.surface)
     .border({ width: this.hdsOn ? 0.5 : 1, color: this.hdsOn ? Tokens.accentGlass : Tokens.accent })
     .alignItems(VerticalAlign.Center)
-    .transition(TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std }))
+    .transition(Motion.panelTransition(this.motionMode))
   }
 }
 
@@ -255,6 +256,7 @@ export struct ScrollBottomFab {
   onTap: () => void = () => {};
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
 
   build() {
     Stack() {
@@ -269,7 +271,7 @@ export struct ScrollBottomFab {
     .shadow(Mat.glassFloatShadow(this.hdsOn))
     .position({ right: 18, bottom: this.bottomOffset })
     .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.92 })
-    .transition(TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std }))
+    .transition(Motion.fabTransition(this.motionMode))
     .onClick(() => {
       Haptics.tap();
       this.onTap();
@@ -316,6 +318,7 @@ export struct ContextPill {
   onTap: () => void = () => {};
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
 
   private clampedPct(): number {
     if (!this.hasCtx) {
@@ -367,10 +370,25 @@ export struct ContextPill {
         .width(15)
         .height(15)
 
-      Text(this.hasCtx ? String(this.clampedPct()) + '%' : '--')
-        .fontSize(11)
-        .fontFamily('monospace')
-        .fontColor(this.labelColor())
+      if (this.hasCtx) {
+        Row() {
+          Text(String(this.clampedPct()))
+            .fontSize(11)
+            .fontFamily('monospace')
+            .fontColor(this.labelColor())
+            .contentTransition(Motion.numTransition(this.motionMode))
+          Text('%')
+            .fontSize(11)
+            .fontFamily('monospace')
+            .fontColor(this.labelColor())
+        }
+        .alignItems(VerticalAlign.Center)
+      } else {
+        Text('--')
+          .fontSize(11)
+          .fontFamily('monospace')
+          .fontColor(this.labelColor())
+      }
     }
     .height(28)
     .padding({ left: 8, right: 10 })
@@ -399,6 +417,7 @@ export struct ComposerSendCluster {
   onSendSteer: () => void = () => {};
   onStop: () => void = () => {};
   @StorageLink('themeDark') themeDark: boolean = true;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
 
   private sendShadow(): ShadowOptions {
     if (this.hasContent) {
@@ -482,7 +501,7 @@ export struct ComposerSendCluster {
           .backgroundColor(this.hasContent ? Tokens.accent : Color.Transparent)
           .borderRadius(Tokens.rPill)
           .shadow(this.sendShadow())
-          .animation({ duration: Motion.fade, curve: Motion.std })
+          .animation(Motion.fadeOpts(this.motionMode))
           .margin({ left: 6 })
           .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.9 })
           .accessibilityText('发送')

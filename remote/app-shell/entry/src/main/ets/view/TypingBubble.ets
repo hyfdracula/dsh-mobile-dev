@@ -1,5 +1,5 @@
 import { AppIcon, ICON_DARK } from '../common/AppIcon';
-import { Motion } from '../common/Motion';
+import { Motion, MOTION_VIVID } from '../common/Motion';
 import { Tokens } from '../common/Tokens';
 
 /**
@@ -14,6 +14,7 @@ export struct TypingBubble {
   @Prop active: number = 0;
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('appIconStyle') appIconStyle: string = ICON_DARK;
+  @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
 
   private dotOpacity(i: number): number {
     if (this.active === i) {
@@ -48,7 +49,7 @@ export struct TypingBubble {
       .opacity(this.dotOpacity(i))
       .scale({ x: this.dotScale(i), y: this.dotScale(i) })
       .translate({ y: this.dotOffsetY(i) })
-      .animation({ duration: Motion.move, curve: Motion.std })
+      .animation(Motion.moveOpts(this.motionMode))
   }
 
   build() {
