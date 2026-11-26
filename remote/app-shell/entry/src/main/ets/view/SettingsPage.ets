@@ -96,7 +96,8 @@ export struct SettingsPage {
 
   @State private pairEntry: string = '';
   @State private dataRefreshTick: number = 0;
-  @State private legalKind: string = '';
+  @State private legalKind: LegalDocKind = 'privacy';
+  @State private legalOpen: boolean = false;
   @State private hapticsUi: boolean = true;
   @State private hdsUi: boolean = true;
   @State private enterSendUi: boolean = true;
@@ -165,8 +166,8 @@ export struct SettingsPage {
   }
 
   private onSettingsBack(): void {
-    if (this.legalKind !== '') {
-      this.legalKind = '';
+    if (this.legalOpen) {
+      this.legalOpen = false;
       return;
     }
     if (this.sub === 'feedback') {
@@ -697,7 +698,10 @@ export struct SettingsPage {
       AboutPanel({
         rows: this.aboutRows(), verText: this.verText,
         onFeedback: (): void => { this.subStack.pushPathByName('feedback', null); },
-        onLegal: (kind: LegalDocKind): void => { this.legalKind = kind; }
+        onLegal: (kind: LegalDocKind): void => {
+          this.legalKind = kind;
+          this.legalOpen = true;
+        }
       })
     }
   }
@@ -753,8 +757,8 @@ export struct SettingsPage {
     .hideBackButton(true)
     .backgroundColor(this.themeBg)
     .onBackPressed(() => {
-      if (this.legalKind !== '') {
-        this.legalKind = '';
+      if (this.legalOpen) {
+        this.legalOpen = false;
         return true;
       }
       if (name === 'feedback') {
@@ -784,6 +788,16 @@ export struct SettingsPage {
     })
   }
 
+  @Builder
+  legalSheetView() {
+    LegalSheet({
+      kind: this.legalKind,
+      onClose: () => {
+        this.legalOpen = false;
+      }
+    })
+  }
+
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
       Navigation(this.subStack) {
@@ -810,17 +824,12 @@ export struct SettingsPage {
       .navDestination(this.subDest)
       .width('100%')
       .height('100%')
-
-      if (this.legalKind !== '') {
-        LegalSheet({
-          kind: this.legalKind as LegalDocKind,
-          onClose: () => {
-            this.legalKind = '';
-          }
-        })
-      }
     }
     .width('100%')
     .height('100%')
+    .bindSheet($$this.legalOpen, this.legalSheetView(),
+      Mat.sheetOpts(this.hdsOn, '74%', () => {
+        this.legalOpen = false;
+      }))
   }
 }

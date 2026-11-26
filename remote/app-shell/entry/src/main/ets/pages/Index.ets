@@ -16,6 +16,7 @@ import { PairPage } from '../view/PairPage';
 import { ShellPage } from '../view/ShellPage';
 import { Haptics } from '../common/Haptics';
 import { Machines } from '../common/Machines';
+import { Mat } from '../common/Mat';
 import { Net } from '../common/Net';
 import { Secret } from '../common/Secret';
 import { Toast } from '../common/Toast';
@@ -54,7 +55,8 @@ struct Index {
   @StorageLink('appIconStyle') appIconStyle: string = ICON_DARK;
   @State private cfgLoaded: boolean = false;
   @State private privacyAccepted: boolean = false;
-  @State private legalKind: string = '';
+  @State private legalKind: LegalDocKind = 'privacy';
+  @State private legalOpen: boolean = false;
   /** 每次重建导航栈自增，40ms 延迟里若已变化就放弃回填 */
   private navRev: number = 0;
   /** 在线心跳定时器，-1 表示没在跑 */
@@ -229,8 +231,8 @@ struct Index {
       this.bigImg = '';
       return true;
     }
-    if (this.legalKind !== '') {
-      this.legalKind = '';
+    if (this.legalOpen) {
+      this.legalOpen = false;
       return true;
     }
     const sub = AppStorage.get<string>('settingsSub');
@@ -733,6 +735,7 @@ struct Index {
               .onClick(() => {
                 Haptics.tap();
                 this.legalKind = 'privacy';
+                this.legalOpen = true;
               })
             Text('《用户协议》')
               .fontSize(Tokens.fsCaption)
@@ -741,6 +744,7 @@ struct Index {
               .onClick(() => {
                 Haptics.tap();
                 this.legalKind = 'terms';
+                this.legalOpen = true;
               })
           }
           .width('100%')
@@ -788,19 +792,24 @@ struct Index {
       .width('100%')
       .padding({ left: 20, right: 20 })
       .alignItems(HorizontalAlign.Center)
-
-      if (this.legalKind !== '') {
-        LegalSheet({
-          kind: this.legalKind as LegalDocKind,
-          onClose: () => {
-            this.legalKind = '';
-          }
-        })
-      }
     }
     .width('100%')
     .height('100%')
     .backgroundColor(this.themeBg)
+    .bindSheet($$this.legalOpen, this.legalSheetView(),
+      Mat.sheetOpts(this.hdsOn, '74%', () => {
+        this.legalOpen = false;
+      }))
+  }
+
+  @Builder
+  legalSheetView() {
+    LegalSheet({
+      kind: this.legalKind,
+      onClose: () => {
+        this.legalOpen = false;
+      }
+    })
   }
 
   @Builder
