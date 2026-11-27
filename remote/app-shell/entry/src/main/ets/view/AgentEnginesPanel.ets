@@ -155,7 +155,6 @@ export struct AgentEnginesPanel {
         centerX: '0%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomHeaderScaleAnim(0, this.motionMode))
 
       if (this.backends.length > 0) {
@@ -212,7 +211,6 @@ export struct AgentEnginesPanel {
               centerX: '50%',
               centerY: '50%'
             })
-            .translate({ y: this.entered ? 0 : 6 })
             .animation(Motion.bloomScaleAnim(idx, this.motionMode))
           }, (b: BackendInfo) => b.id + ':' + String(b.enabled) + ':' + String(b.installed))
         }
@@ -242,7 +240,6 @@ export struct AgentEnginesPanel {
           centerX: '50%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomScaleAnim(0, this.motionMode))
       }
 
@@ -264,7 +261,6 @@ export struct AgentEnginesPanel {
         centerX: '0%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomHeaderScaleAnim(this.backends.length > 0 ? this.backends.length : 1, this.motionMode))
     }
     .width('100%')

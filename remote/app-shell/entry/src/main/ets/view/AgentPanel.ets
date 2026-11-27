@@ -146,7 +146,6 @@ export struct AgentPanel {
       centerX: '50%',
       centerY: '50%'
     })
-    .translate({ y: this.entered ? 0 : 6 })
     .animation(Motion.bloomScaleAnim(idx, this.motionMode))
     .onClick(() => {
       Haptics.tap();
@@ -180,7 +179,6 @@ export struct AgentPanel {
         centerX: '0%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomHeaderScaleAnim(0, this.motionMode))
 
       this.entryCard('电脑端智能体引擎', this.enginesSummary(), 0, () => {
@@ -202,7 +200,6 @@ export struct AgentPanel {
           centerX: '0%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomHeaderScaleAnim(1, this.motionMode))
 
       Row() {
@@ -247,7 +244,6 @@ export struct AgentPanel {
         centerX: '50%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomScaleAnim(1, this.motionMode))
 
       // 3. 预设、插件与网页控制台（逐条独立卡片）
@@ -274,7 +270,6 @@ export struct AgentPanel {
         centerX: '0%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomHeaderScaleAnim(2, this.motionMode))
 
       Column({ space: 9 }) {

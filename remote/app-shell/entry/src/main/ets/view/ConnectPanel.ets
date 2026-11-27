@@ -166,7 +166,6 @@ export struct ConnectPanel {
         centerX: '0%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomHeaderScaleAnim(bloomIdx, this.motionMode))
   }
 
@@ -453,7 +452,6 @@ export struct ConnectPanel {
       centerX: '50%',
       centerY: '50%'
     })
-    .translate({ y: this.entered ? 0 : 6 })
     .animation(Motion.bloomScaleAnim(0, this.motionMode))
   }
 
@@ -511,7 +509,6 @@ export struct ConnectPanel {
       centerX: '50%',
       centerY: '50%'
     })
-    .translate({ y: this.entered ? 0 : 6 })
     .animation(Motion.bloomScaleAnim(idx, this.motionMode))
     .onClick(() => {
       Haptics.tap();
@@ -553,7 +550,6 @@ export struct ConnectPanel {
         centerX: '50%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomScaleAnim(1, this.motionMode))
       .bindSheet($$this.renameOn, this.renameMachineSheet(),
         Mat.sheetOpts(this.hdsOn, SheetSize.FIT_CONTENT, () => {
@@ -576,7 +572,6 @@ export struct ConnectPanel {
         centerX: '50%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomScaleAnim(2, this.motionMode))
       .bindSheet($$this.addOn, this.addMachineSheet(),
         Mat.sheetOpts(this.hdsOn, SheetSize.FIT_CONTENT, () => {
@@ -626,7 +621,6 @@ export struct ConnectPanel {
         centerX: '50%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomScaleAnim(3, this.motionMode))
 
       // 4. 连接地址与外网（表单复合卡）
@@ -659,7 +653,6 @@ export struct ConnectPanel {
         centerX: '50%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomScaleAnim(4, this.motionMode))
 
       // 5-6. 外网访问配置（逐条独立卡片）

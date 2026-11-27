@@ -631,15 +631,14 @@ export struct SettingsPage {
       .margin({ left: 6, top: topGap, bottom: 8 })
       .animation(null)
       .opacity(this.rootEntered ? 1 : 0)
-      .animation(Motion.bloomHeaderOpacityAnim(bloomIdx, this.motionMode, 20))
+      .animation(Motion.bloomHeaderOpacityAnim(bloomIdx, this.motionMode, 12))
       .scale({
         x: this.rootEntered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         y: this.rootEntered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         centerX: '0%',
         centerY: '50%'
       })
-      .translate({ y: this.rootEntered ? 0 : 6 })
-      .animation(Motion.bloomHeaderScaleAnim(bloomIdx, this.motionMode, 20))
+      .animation(Motion.bloomHeaderScaleAnim(bloomIdx, this.motionMode, 12))
   }
 
   @Builder
@@ -690,15 +689,14 @@ export struct SettingsPage {
     .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
     .animation(null)
     .opacity(this.rootEntered ? 1 : 0)
-    .animation(Motion.bloomOpacityAnim(idx, this.motionMode, 20))
+    .animation(Motion.bloomOpacityAnim(idx, this.motionMode, 12))
     .scale({
       x: this.rootEntered ? 1 : Motion.BLOOM_SCALE_START,
       y: this.rootEntered ? 1 : Motion.BLOOM_SCALE_START,
       centerX: '50%',
       centerY: '50%'
     })
-    .translate({ y: this.rootEntered ? 0 : 6 })
-    .animation(Motion.bloomScaleAnim(idx, this.motionMode, 20))
+    .animation(Motion.bloomScaleAnim(idx, this.motionMode, 12))
     .onClick(() => { this.openSettingEntry(r.id); })
   }
 
@@ -763,15 +761,14 @@ export struct SettingsPage {
     .border(Mat.cardBorder(this.hdsOn)).shadow(Mat.cardShadow(this.hdsOn)).borderRadius(Tokens.rCard)
     .animation(null)
     .opacity(this.rootEntered ? 1 : 0)
-    .animation(Motion.bloomOpacityAnim(0, this.motionMode, 20))
+    .animation(Motion.bloomOpacityAnim(0, this.motionMode, 12))
     .scale({
       x: this.rootEntered ? 1 : Motion.BLOOM_SCALE_START,
       y: this.rootEntered ? 1 : Motion.BLOOM_SCALE_START,
       centerX: '50%',
       centerY: '50%'
     })
-    .translate({ y: this.rootEntered ? 0 : 6 })
-    .animation(Motion.bloomScaleAnim(0, this.motionMode, 20))
+    .animation(Motion.bloomScaleAnim(0, this.motionMode, 12))
   }
 
   @Builder
@@ -808,15 +805,14 @@ export struct SettingsPage {
         .padding({ top: 22, bottom: 8 })
         .animation(null)
         .opacity(this.rootEntered ? 1 : 0)
-        .animation(Motion.bloomHeaderOpacityAnim(7, this.motionMode, 20))
+        .animation(Motion.bloomHeaderOpacityAnim(7, this.motionMode, 12))
         .scale({
           x: this.rootEntered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           y: this.rootEntered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           centerX: '0%',
           centerY: '50%'
         })
-        .translate({ y: this.rootEntered ? 0 : 6 })
-        .animation(Motion.bloomHeaderScaleAnim(7, this.motionMode, 20))
+        .animation(Motion.bloomHeaderScaleAnim(7, this.motionMode, 12))
     }
     .width('100%').alignItems(HorizontalAlign.Start)
   }
@@ -1005,6 +1001,7 @@ export struct SettingsPage {
         title: this.subTitleOf(name),
         padTop: true,
         immersive: true,
+        subPageDepth: name === 'engines' ? 2 : 1,
         rightKind: name === 'connect' ? 'icon' : 'none',
         rightIcon: $r('app.media.ic_scan'),
         onBack: () => { this.closeSub(); },

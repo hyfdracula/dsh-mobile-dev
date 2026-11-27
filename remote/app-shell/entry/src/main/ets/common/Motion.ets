@@ -16,19 +16,23 @@ export class Motion {
   static readonly move: number = 220;
   static readonly emph: number = 320;
 
-  static readonly BLOOM_SCALE_START: number = 0.45;
-  static readonly BLOOM_HEADER_SCALE_START: number = 0.90;
-  static readonly HEADER_BTN_SCALE_START: number = 0.72;
-  static readonly HEADER_TITLE_SCALE_START: number = 0.84;
-  static readonly HEADER_SLIDE_BACK_X: number = -82;
-  static readonly HEADER_SLIDE_TITLE_X: number = -104;
-  static readonly HEADER_SLIDE_RIGHT_X: number = -96;
-  static readonly HEADER_SLIDE_RIGHT_OUTER_X: number = -112;
+  static readonly BLOOM_SCALE_START: number = 0.04;
+  static readonly BLOOM_HEADER_SCALE_START: number = 0.76;
+  static readonly HEADER_SLIDE_RIGHT_OUTER_X: number = -280;
+  static readonly HEADER_SLIDE_RIGHT_INNER_X: number = -240;
+  static readonly HEADER_SLIDE_TITLE_X: number = -210;
+  static readonly HEADER_SLIDE_SUB_TITLE_X: number = -110;
+  static readonly HEADER_SLIDE_BACK_X: number = -64;
+  static readonly HEADER_DELAY_RIGHT_OUTER: number = 10;
+  static readonly HEADER_DELAY_RIGHT_INNER: number = 65;
+  static readonly HEADER_DELAY_TITLE: number = 145;
+  static readonly HEADER_DELAY_SUB_TITLE: number = 95;
+  static readonly HEADER_DELAY_BACK: number = 195;
 
   static readonly std = curves.cubicBezierCurve(0.2, 0.72, 0.32, 1);
   static readonly growCurve = curves.cubicBezierCurve(0.16, 0.90, 0.28, 1.0);
-  /** 统一弹性生长与顶栏左->右推出物理曲线（约 400ms 弹性顿停、约 580ms 稳态落定） */
-  static readonly unifiedElastic = curves.springMotion(0.56, 0.72);
+  /** 专属欠阻尼弹簧物理曲线（response 0.54s / dampingFraction 0.80：约 1.5% 柔和超调、~450ms 弹性顿停、~780ms 稳态落定） */
+  static readonly unifiedElastic = curves.springMotion(0.54, 0.80);
   static readonly spring = curves.springCurve(0.42, 0.62, 200, 12);
 
   /** 基础物理弹簧曲线：自然阻尼与速度继承 */
@@ -141,43 +145,42 @@ export class Motion {
     if (idx < 0 || idx >= 18) {
       return TransitionEffect.IDENTITY;
     }
-    const wait: number = Motion.bloomDelay(idx, 50);
+    const wait: number = Motion.bloomDelay(idx, 16);
     return TransitionEffect.asymmetric(
-      TransitionEffect.OPACITY.animation({ duration: 240, curve: Motion.std, delay: wait })
-        .combine(TransitionEffect.translate({ y: 12 }).animation({ curve: Motion.unifiedElastic, delay: wait }))
+      TransitionEffect.OPACITY.animation({ duration: 210, curve: Motion.std, delay: wait })
         .combine(TransitionEffect.scale({ x: Motion.BLOOM_SCALE_START, y: Motion.BLOOM_SCALE_START })
           .animation({ curve: Motion.unifiedElastic, delay: wait })),
       TransitionEffect.IDENTITY
     );
   }
 
-  /** 卡片瀑布绽放统一错峰延时计算 */
-  static bloomDelay(idx: number, baseDelay: number = 55): number {
+  /** 卡片瀑布绽放统一错峰延时计算（12ms 紧凑逐卡错峰） */
+  static bloomDelay(idx: number, baseDelay: number = 16): number {
     const clamped: number = idx < 0 ? 0 : (idx > 16 ? 16 : idx);
-    return baseDelay + clamped * 38;
+    return baseDelay + clamped * 12;
   }
 
   /** 计算瀑布绽放动画完全落定所需的总时长，供延迟合流刷新避免半途重构闪烁 */
-  static bloomTotalMs(count: number, baseDelay: number = 55): number {
+  static bloomTotalMs(count: number, baseDelay: number = 16): number {
     const lastIdx: number = count <= 1 ? 0 : (count - 1 > 16 ? 16 : count - 1);
-    return Motion.bloomDelay(lastIdx, baseDelay) + 580;
+    return Motion.bloomDelay(lastIdx, baseDelay) + 820;
   }
 
-  /** 卡片从小到大长大显隐动画参数（透明度更快到达，与统一弹性曲线叠加出倒金字塔感） */
-  static bloomOpacityAnim(idx: number, mode: string, baseDelay: number = 55): AnimateParam | undefined {
+  /** 卡片从小到大长大显隐动画参数（纯中心缩放 + 淡入） */
+  static bloomOpacityAnim(idx: number, mode: string, baseDelay: number = 16): AnimateParam | undefined {
     if (!Motion.isFlagship(mode) || idx < 0 || idx >= 18) {
       return undefined;
     }
     const opts: AnimateParam = {
-      duration: 240,
+      duration: 210,
       delay: Motion.bloomDelay(idx, baseDelay),
       curve: Motion.std
     };
     return opts;
   }
 
-  /** 卡片从小到大长大缩放/微升动画参数（0.45 -> 1.0，与顶栏共享 unifiedElastic 物理弹簧曲线） */
-  static bloomScaleAnim(idx: number, mode: string, baseDelay: number = 55): AnimateParam | undefined {
+  /** 卡片从小到大纯中心等比绽放动画参数（0.04 -> 1.0，与顶栏共享 unifiedElastic 物理弹簧曲线） */
+  static bloomScaleAnim(idx: number, mode: string, baseDelay: number = 16): AnimateParam | undefined {
     if (!Motion.isFlagship(mode) || idx < 0 || idx >= 18) {
       return undefined;
     }
@@ -189,20 +192,20 @@ export class Motion {
   }
 
   /** 分组小标题显隐动画参数 */
-  static bloomHeaderOpacityAnim(idx: number, mode: string, baseDelay: number = 55): AnimateParam | undefined {
+  static bloomHeaderOpacityAnim(idx: number, mode: string, baseDelay: number = 16): AnimateParam | undefined {
     if (!Motion.isFlagship(mode) || idx < 0 || idx >= 18) {
       return undefined;
     }
     const opts: AnimateParam = {
-      duration: 220,
+      duration: 190,
       delay: Motion.bloomDelay(idx, baseDelay),
       curve: Motion.std
     };
     return opts;
   }
 
-  /** 分组小标题缩放/轻推入场动画参数 */
-  static bloomHeaderScaleAnim(idx: number, mode: string, baseDelay: number = 55): AnimateParam | undefined {
+  /** 分组小标题缩放动画参数 */
+  static bloomHeaderScaleAnim(idx: number, mode: string, baseDelay: number = 16): AnimateParam | undefined {
     if (!Motion.isFlagship(mode) || idx < 0 || idx >= 18) {
       return undefined;
     }
@@ -214,11 +217,11 @@ export class Motion {
   }
 
   /** 顶栏控件左->右弹性推出透明度动画参数 */
-  static headerPopOpacityAnim(delayMs: number, mode: string): AnimateParam | undefined {
+  static headerPopOpacityAnim(delayMs: number, mode: string, durationMs: number = 220): AnimateParam | undefined {
     if (!Motion.isFlagship(mode)) {
       return undefined;
     }
-    const opts: AnimateParam = { duration: 200, delay: delayMs, curve: Motion.std };
+    const opts: AnimateParam = { duration: durationMs, delay: delayMs, curve: Motion.std };
     return opts;
   }
 
@@ -242,16 +245,15 @@ export class Motion {
 
   /**
    * 由上到下逐卡景深绽放（供仍依赖 TransitionEffect 的辅助场景复用）：
-   * 卡片从 0.45 倍居中缩放入场 + 微幅上抬 + 淡入，每张卡错峰 38ms，共用 unifiedElastic。
+   * 卡片从 0.04 倍居中缩放入场 + 淡入，每张卡错峰 12ms，共用 unifiedElastic。
    */
-  static bloomCard(idx: number, mode: string, baseDelay: number = 55): TransitionEffect {
+  static bloomCard(idx: number, mode: string, baseDelay: number = 16): TransitionEffect {
     if (!Motion.isFlagship(mode) || idx < 0 || idx >= 18) {
       return TransitionEffect.IDENTITY;
     }
     const wait: number = Motion.bloomDelay(idx, baseDelay);
     return TransitionEffect.asymmetric(
-      TransitionEffect.OPACITY.animation({ duration: 240, curve: Motion.std, delay: wait })
-        .combine(TransitionEffect.translate({ y: 6 }).animation({ curve: Motion.unifiedElastic, delay: wait }))
+      TransitionEffect.OPACITY.animation({ duration: 210, curve: Motion.std, delay: wait })
         .combine(TransitionEffect.scale({ x: Motion.BLOOM_SCALE_START, y: Motion.BLOOM_SCALE_START })
           .animation({ curve: Motion.unifiedElastic, delay: wait })),
       TransitionEffect.IDENTITY

@@ -400,6 +400,7 @@ export struct WebConsolePage {
           title: '电脑完整控制台',
           subtitle: this.subtitleText(),
           padTop: true,
+          subPageDepth: 2,
           rightKind: 'glyph',
           rightGlyph: '\u21bb',
           onBack: () => {

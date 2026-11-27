@@ -333,7 +333,6 @@ export struct NotifyPanel {
         centerX: '50%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomScaleAnim(0, this.motionMode))
 
       Text('提醒偏好')
@@ -350,7 +349,6 @@ export struct NotifyPanel {
           centerX: '0%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomHeaderScaleAnim(1, this.motionMode))
 
       Column({ space: 9 }) {
@@ -380,7 +378,6 @@ export struct NotifyPanel {
           centerX: '50%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomScaleAnim(1, this.motionMode))
 
         // 2. 仅在后台提醒
@@ -410,7 +407,6 @@ export struct NotifyPanel {
           centerX: '50%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomScaleAnim(2, this.motionMode))
 
         // 3. 推送显示会话标题
@@ -440,7 +436,6 @@ export struct NotifyPanel {
           centerX: '50%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomScaleAnim(3, this.motionMode))
       }
       .width('100%')
@@ -459,7 +454,6 @@ export struct NotifyPanel {
           centerX: '0%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomHeaderScaleAnim(4, this.motionMode))
 
       // 4. 华为系统推送通道（多行状态与操作复合卡）
@@ -548,7 +542,6 @@ export struct NotifyPanel {
         centerX: '50%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomScaleAnim(4, this.motionMode))
 
       Text('调试与未读')
@@ -565,7 +558,6 @@ export struct NotifyPanel {
           centerX: '0%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomHeaderScaleAnim(5, this.motionMode))
 
       Column({ space: 9 }) {
@@ -613,7 +605,6 @@ export struct NotifyPanel {
           centerX: '50%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomScaleAnim(5, this.motionMode))
 
         // 6. 清除未读与桌面角标
@@ -668,7 +659,6 @@ export struct NotifyPanel {
           centerX: '50%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomScaleAnim(6, this.motionMode))
       }
       .width('100%')
@@ -688,7 +678,6 @@ export struct NotifyPanel {
           centerX: '0%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomHeaderScaleAnim(7, this.motionMode))
     }
     .width('100%')

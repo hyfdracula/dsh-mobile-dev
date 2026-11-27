@@ -173,7 +173,6 @@ export struct AppearancePanel {
         centerX: '0%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomHeaderScaleAnim(bloomIdx, this.motionMode))
   }
 
@@ -230,7 +229,6 @@ export struct AppearancePanel {
           centerX: '50%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomScaleAnim(0, this.motionMode))
 
         // 1. 沉浸光感
@@ -275,7 +273,6 @@ export struct AppearancePanel {
           centerX: '50%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomScaleAnim(1, this.motionMode))
 
         // 2. 交互动效
@@ -322,7 +319,6 @@ export struct AppearancePanel {
           centerX: '50%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomScaleAnim(2, this.motionMode))
 
         // 3. 应用图标（语义整体单卡）
@@ -366,7 +362,6 @@ export struct AppearancePanel {
           centerX: '50%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomScaleAnim(3, this.motionMode))
 
         // 4. 正文字号
@@ -407,7 +402,6 @@ export struct AppearancePanel {
           centerX: '50%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomScaleAnim(4, this.motionMode))
       }
       .width('100%')
@@ -451,7 +445,6 @@ export struct AppearancePanel {
           centerX: '50%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomScaleAnim(5, this.motionMode))
 
         // 6. 回车发送
@@ -488,7 +481,6 @@ export struct AppearancePanel {
           centerX: '50%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomScaleAnim(6, this.motionMode))
 
         // 7. 会话精简加载
@@ -519,7 +511,6 @@ export struct AppearancePanel {
           centerX: '50%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomScaleAnim(7, this.motionMode))
       }
       .width('100%')

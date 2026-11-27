@@ -259,7 +259,7 @@ export struct SessionList {
       return;
     }
     const visN: number = this.rowCount > 14 ? 14 : this.rowCount;
-    this.revealFinishAt = Date.now() + Motion.bloomTotalMs(visN, 50);
+    this.revealFinishAt = Date.now() + Motion.bloomTotalMs(visN, 20);
     if (this.revealTimer !== -1) {
       clearTimeout(this.revealTimer);
     }
@@ -1153,15 +1153,14 @@ export struct SessionList {
                     }
                     .animation(null)
                     .opacity(this.listEntered || idx >= 18 ? 1 : 0)
-                    .animation(Motion.bloomHeaderOpacityAnim(idx, this.motionMode, 50))
+                    .animation(Motion.bloomHeaderOpacityAnim(idx, this.motionMode, 20))
                     .scale({
                       x: this.listEntered || idx >= 18 ? 1 : Motion.BLOOM_HEADER_SCALE_START,
                       y: this.listEntered || idx >= 18 ? 1 : Motion.BLOOM_HEADER_SCALE_START,
                       centerX: '0%',
                       centerY: '50%'
                     })
-                    .translate({ y: this.listEntered || idx >= 18 ? 0 : 8 })
-                    .animation(Motion.bloomHeaderScaleAnim(idx, this.motionMode, 50))
+                    .animation(Motion.bloomHeaderScaleAnim(idx, this.motionMode, 20))
                   } else {
                     ListItem() {
                       SessionTile({
@@ -1193,15 +1192,14 @@ export struct SessionList {
                     }
                     .animation(null)
                     .opacity(this.listEntered || idx >= 18 ? 1 : 0)
-                    .animation(Motion.bloomOpacityAnim(idx, this.motionMode, 50))
+                    .animation(Motion.bloomOpacityAnim(idx, this.motionMode, 20))
                     .scale({
                       x: this.listEntered || idx >= 18 ? 1 : Motion.BLOOM_SCALE_START,
                       y: this.listEntered || idx >= 18 ? 1 : Motion.BLOOM_SCALE_START,
                       centerX: '50%',
                       centerY: '50%'
                     })
-                    .translate({ y: this.listEntered || idx >= 18 ? 0 : 12 })
-                    .animation(Motion.bloomScaleAnim(idx, this.motionMode, 50))
+                    .animation(Motion.bloomScaleAnim(idx, this.motionMode, 20))
                     .swipeAction(this.capsForRow(m.row).archivePin
                       ? {
                           end: {

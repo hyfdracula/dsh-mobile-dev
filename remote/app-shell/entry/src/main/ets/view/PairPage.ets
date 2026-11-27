@@ -44,6 +44,7 @@ export struct PairPage {
   @Prop mode: string = '';
   @Prop hasBack: boolean = false;
   @Prop popHeader: boolean = true;
+  @Prop subPageDepth: number = 2;
   onExit: () => void = () => {};
   onGoOtherStep: () => void = () => {};
   onPaired: (b: string, t: string, host: string, lan: string[], hostId?: string, e2eePub?: string) => void = () => {};
@@ -1003,7 +1004,6 @@ export struct PairPage {
         centerX: '0%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomHeaderScaleAnim(0, this.motionMode))
 
       Column() {
@@ -1019,7 +1019,6 @@ export struct PairPage {
         centerX: '50%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomScaleAnim(1, this.motionMode))
 
       Column() {
@@ -1035,7 +1034,6 @@ export struct PairPage {
         centerX: '50%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomScaleAnim(2, this.motionMode))
 
       Column() {
@@ -1051,7 +1049,6 @@ export struct PairPage {
         centerX: '50%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomScaleAnim(3, this.motionMode))
 
       this.feedbackBlock()
@@ -1094,7 +1091,6 @@ export struct PairPage {
         centerX: '50%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomScaleAnim(4, this.motionMode))
       .bindSheet($$this.helpSheet, this.helpSheetContent(),
         Mat.sheetOpts(this.hdsOn, SheetSize.FIT_CONTENT, () => {
@@ -1144,7 +1140,6 @@ export struct PairPage {
         centerX: '0%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomHeaderScaleAnim(0, this.motionMode))
 
       Column() {
@@ -1161,7 +1156,6 @@ export struct PairPage {
         centerX: '50%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomScaleAnim(1, this.motionMode))
 
       Row({ space: 8 }) {
@@ -1195,7 +1189,6 @@ export struct PairPage {
         centerX: '50%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomScaleAnim(2, this.motionMode))
 
       Column() {
@@ -1212,7 +1205,6 @@ export struct PairPage {
         centerX: '50%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomScaleAnim(3, this.motionMode))
 
       Column() {
@@ -1229,7 +1221,6 @@ export struct PairPage {
         centerX: '50%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomScaleAnim(4, this.motionMode))
 
       Text('我已准备好，前往连接')
@@ -1252,7 +1243,6 @@ export struct PairPage {
           centerX: '50%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomScaleAnim(5, this.motionMode))
         .onClick(() => {
           Haptics.confirm();
@@ -1300,6 +1290,7 @@ export struct PairPage {
           hasBack: this.hasBack,
           padTop: true,
           popIn: this.popHeader,
+          subPageDepth: this.subPageDepth,
           onBack: () => {
             this.onExit();
           }

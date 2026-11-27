@@ -245,6 +245,7 @@ export struct ExtrasPanel {
             title: this.title(),
             subtitle: this.subtitle(),
             padTop: true,
+            subPageDepth: 2,
             rightKind: 'glyph',
             rightGlyph: '\u21bb',
             onBack: () => {

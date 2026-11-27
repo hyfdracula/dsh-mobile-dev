@@ -63,7 +63,6 @@ export struct DeviceCard {
       centerX: '50%',
       centerY: '50%'
     })
-    .translate({ y: this.entered ? 0 : 6 })
     .animation(Motion.bloomScaleAnim(idx, this.motionMode))
     .onClick(() => {
       if (copyable && this.base !== '') {
@@ -89,7 +88,6 @@ export struct DeviceCard {
           centerX: '0%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomHeaderScaleAnim(this.startIdx, this.motionMode))
 
       Column({ space: 9 }) {
@@ -131,7 +129,6 @@ export struct DeviceCard {
           centerX: '50%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomScaleAnim(this.startIdx + 4, this.motionMode))
         .onClick(() => {
           Haptics.tap();
@@ -171,7 +168,6 @@ export struct DeviceCard {
           centerX: '50%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomScaleAnim(this.startIdx + 5, this.motionMode))
         .onClick(() => {
           Haptics.tap();

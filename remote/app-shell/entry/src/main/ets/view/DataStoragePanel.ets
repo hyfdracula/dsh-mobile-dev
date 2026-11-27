@@ -115,7 +115,6 @@ export struct DataStoragePanel {
       centerX: '50%',
       centerY: '50%'
     })
-    .translate({ y: this.entered ? 0 : 6 })
     .animation(Motion.bloomScaleAnim(idx, this.motionMode))
   }
 
@@ -152,7 +151,6 @@ export struct DataStoragePanel {
       centerX: '50%',
       centerY: '50%'
     })
-    .translate({ y: this.entered ? 0 : 6 })
     .animation(Motion.bloomScaleAnim(idx, this.motionMode))
   }
 
@@ -172,7 +170,6 @@ export struct DataStoragePanel {
           centerX: '0%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomHeaderScaleAnim(0, this.motionMode))
 
       // 0. 存储空间
@@ -217,7 +214,6 @@ export struct DataStoragePanel {
         centerX: '50%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomScaleAnim(0, this.motionMode))
       .onClick(() => {
         Haptics.tap();
@@ -238,7 +234,6 @@ export struct DataStoragePanel {
           centerX: '0%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomHeaderScaleAnim(1, this.motionMode))
 
       Column({ space: 9 }) {
@@ -262,7 +257,6 @@ export struct DataStoragePanel {
           centerX: '0%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomHeaderScaleAnim(4, this.motionMode))
 
       Column({ space: 9 }) {

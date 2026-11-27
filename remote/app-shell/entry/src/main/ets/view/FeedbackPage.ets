@@ -464,6 +464,7 @@ export struct FeedbackPage {
             title: this.titleOf(name),
             padTop: true,
             popIn: true,
+            subPageDepth: 2,
             rightKind: name === 'mine' ? 'glyph' : 'none',
             onBack: () => {
               this.back();
@@ -540,6 +541,7 @@ export struct FeedbackPage {
             title: '反馈与支持',
             padTop: true,
             popIn: true,
+            subPageDepth: 2,
             onBack: () => {
               this.back();
             }

@@ -300,6 +300,7 @@ export struct PresetsPage {
         subtitle: this.param.title !== '' ? this.param.title : '当前会话',
         padTop: true,
         immersive: true,
+        subPageDepth: 2,
         rightKind: 'label',
         rightLabel: '刷新',
         onBack: () => {

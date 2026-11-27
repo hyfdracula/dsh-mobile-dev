@@ -394,7 +394,6 @@ export struct StoragePage {
         centerX: '0%',
         centerY: '50%'
       })
-      .translate({ y: this.entered ? 0 : 6 })
       .animation(Motion.bloomHeaderScaleAnim(bloomIdx, this.motionMode))
   }
 
@@ -575,7 +574,6 @@ export struct StoragePage {
       centerX: '50%',
       centerY: '50%'
     })
-    .translate({ y: this.entered ? 0 : 6 })
     .animation(Motion.bloomScaleAnim(0, this.motionMode))
   }
 
@@ -699,7 +697,6 @@ export struct StoragePage {
           centerX: '50%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomScaleAnim(1 + i, this.motionMode))
       }, (b: Bucket) => b.key + ':' + String(b.bytes) + ':' + String(this.cacheBytes) + ':' + String(this.themeDark))
     }
@@ -765,7 +762,6 @@ export struct StoragePage {
       centerX: '50%',
       centerY: '50%'
     })
-    .translate({ y: this.entered ? 0 : 6 })
     .animation(Motion.bloomScaleAnim(1 + this.buckets.length, this.motionMode))
   }
 
@@ -828,7 +824,6 @@ export struct StoragePage {
       centerX: '50%',
       centerY: '50%'
     })
-    .translate({ y: this.entered ? 0 : 6 })
     .animation(Motion.bloomScaleAnim(2 + this.buckets.length, this.motionMode))
   }
 
@@ -878,7 +873,6 @@ export struct StoragePage {
                   centerX: '0%',
                   centerY: '50%'
                 })
-                .translate({ y: this.entered ? 0 : 6 })
                 .animation(Motion.bloomHeaderScaleAnim(3 + this.buckets.length, this.motionMode))
             }
             .width('100%')
@@ -906,6 +900,7 @@ export struct StoragePage {
         PageHeader({
           title: '存储空间',
           padTop: true,
+          subPageDepth: 2,
           rightKind: 'glyph',
           rightGlyph: '\u21bb',
           onBack: () => {

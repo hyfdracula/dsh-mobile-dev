@@ -86,7 +86,6 @@ export struct FeedbackEntryView {
       centerX: '50%',
       centerY: '50%'
     })
-    .translate({ y: this.entered ? 0 : 6 })
     .animation(Motion.bloomScaleAnim(idx, this.motionMode))
     .onClick(act)
   }
@@ -108,7 +107,6 @@ export struct FeedbackEntryView {
           centerX: '0%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomHeaderScaleAnim(0, this.motionMode))
 
       this.entryRow('提交反馈', '填写描述并附带截图、录屏或脱敏日志', 0, () => {
@@ -140,7 +138,6 @@ export struct FeedbackEntryView {
           centerX: '0%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomHeaderScaleAnim(3, this.motionMode))
     }
     .width('100%')

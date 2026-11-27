@@ -129,7 +129,6 @@ export struct AboutPanel {
       centerX: '50%',
       centerY: '50%'
     })
-    .translate({ y: this.entered ? 0 : 6 })
     .animation(Motion.bloomScaleAnim(idx, this.motionMode))
     .onClick(() => {
       Haptics.tap();
@@ -153,7 +152,6 @@ export struct AboutPanel {
           centerX: '0%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomHeaderScaleAnim(0, this.motionMode))
 
       Column({ space: 9 }) {
@@ -189,7 +187,6 @@ export struct AboutPanel {
             centerX: '50%',
             centerY: '50%'
           })
-          .translate({ y: this.entered ? 0 : 6 })
           .animation(Motion.bloomScaleAnim(i, this.motionMode))
         }, (r: AboutRow) => r.k + ':' + r.v)
       }
@@ -209,7 +206,6 @@ export struct AboutPanel {
           centerX: '0%',
           centerY: '50%'
         })
-        .translate({ y: this.entered ? 0 : 6 })
         .animation(Motion.bloomHeaderScaleAnim(this.diagBaseIdx(), this.motionMode))
 
       Column({ space: 9 }) {
