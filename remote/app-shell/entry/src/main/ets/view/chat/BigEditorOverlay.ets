@@ -102,7 +102,7 @@ export struct BigEditorOverlay {
     .backgroundColor(this.themeBg)
     .transition(
       TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std })
-        .combine(TransitionEffect.translate({ y: '100%' }).animation(Motion.baseElastic()))
+        .combine(TransitionEffect.translate({ y: '100%' }).animation({ duration: Motion.emph, curve: Motion.std }))
     )
   }
 }

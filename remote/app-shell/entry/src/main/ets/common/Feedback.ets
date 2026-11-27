@@ -186,29 +186,64 @@ export function appVersion(): string {
   }
 }
 
-/** 网络类型：wifi / cellular / ethernet / none。 */
+/** 网络类型：wifi+cellular / wifi / cellular / ethernet / vpn / offline / other。 */
 function netText(): string {
   try {
-    const net: connection.NetHandle | undefined = connection.getDefaultNetSync();
-    if (net === undefined || net.netId === 0) {
+    const bearers: number[] = [];
+    const addCaps = (caps?: connection.NetCapabilities): void => {
+      if (caps === undefined || caps.bearerTypes === undefined) {
+        return;
+      }
+      for (let i = 0; i < caps.bearerTypes.length; i++) {
+        const b: number = caps.bearerTypes[i];
+        if (bearers.indexOf(b) < 0) {
+          bearers.push(b);
+        }
+      }
+    };
+    try {
+      const all: connection.NetHandle[] = connection.getAllNetsSync();
+      if (all !== undefined) {
+        for (let i = 0; i < all.length; i++) {
+          const h: connection.NetHandle = all[i];
+          if (h !== undefined && h.netId !== 0) {
+            try {
+              addCaps(connection.getNetCapabilitiesSync(h));
+            } catch (_e) {
+            }
+          }
+        }
+      }
+    } catch (_e) {
+    }
+    try {
+      const net: connection.NetHandle | undefined = connection.getDefaultNetSync();
+      if (net !== undefined && net.netId !== 0) {
+        addCaps(connection.getNetCapabilitiesSync(net));
+      }
+    } catch (_e) {
+    }
+    if (bearers.length === 0) {
       return 'offline';
     }
-    const caps: connection.NetCapabilities = connection.getNetCapabilitiesSync(net);
-    const bearers: number[] = caps.bearerTypes ?? [];
-    for (let i = 0; i < bearers.length; i++) {
-      if (bearers[i] === connection.NetBearType.BEARER_WIFI) {
-        return 'wifi';
-      }
+    const hasWifi: boolean = bearers.indexOf(connection.NetBearType.BEARER_WIFI) >= 0;
+    const hasCell: boolean = bearers.indexOf(connection.NetBearType.BEARER_CELLULAR) >= 0;
+    const hasEth: boolean = bearers.indexOf(connection.NetBearType.BEARER_ETHERNET) >= 0;
+    const hasVpn: boolean = bearers.indexOf(connection.NetBearType.BEARER_VPN) >= 0;
+    if (hasWifi && hasCell) {
+      return 'wifi+cellular';
     }
-    for (let i = 0; i < bearers.length; i++) {
-      if (bearers[i] === connection.NetBearType.BEARER_CELLULAR) {
-        return 'cellular';
-      }
+    if (hasWifi) {
+      return 'wifi';
     }
-    for (let i = 0; i < bearers.length; i++) {
-      if (bearers[i] === connection.NetBearType.BEARER_ETHERNET) {
-        return 'ethernet';
-      }
+    if (hasEth) {
+      return 'ethernet';
+    }
+    if (hasCell) {
+      return 'cellular';
+    }
+    if (hasVpn) {
+      return 'vpn';
     }
     return 'other';
   } catch (e) {

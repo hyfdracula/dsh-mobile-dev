@@ -1304,8 +1304,9 @@ export struct SessionList {
         .height('100%')
         .hitTestBehavior(HitTestMode.Transparent)
         .transition(
-          TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std })
-            .combine(TransitionEffect.move(TransitionEdge.BOTTOM).animation(Motion.baseElastic()))
+          TransitionEffect.OPACITY
+            .combine(TransitionEffect.move(TransitionEdge.BOTTOM))
+            .animation({ duration: Motion.move, curve: Motion.std })
         )
       }
 

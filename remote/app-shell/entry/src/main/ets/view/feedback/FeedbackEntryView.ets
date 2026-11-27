@@ -1,25 +1,34 @@
+import { AppCtx } from '../../common/AppCtx';
 import { copyText } from '../../common/Clipboard';
+import { appVersion } from '../../common/Feedback';
 import { Haptics } from '../../common/Haptics';
+import { LinkLog } from '../../common/LinkLog';
 import { Mat } from '../../common/Mat';
 import { BloomWaveTracker, Motion, MOTION_VIVID } from '../../common/Motion';
+import { Saver } from '../../common/Saver';
+import { Toast } from '../../common/Toast';
 import { Tokens } from '../../common/Tokens';
 import { QQ_GROUP } from './FeedbackTypes';
 
 /**
- * 反馈入口视图：提交反馈 / 我的反馈 / QQ 交流群快捷复制（与外部设置页材质、错峰绽放统一）。
+ * 反馈入口视图：提交反馈 / 我的反馈 / 导出运行诊断日志 / QQ 交流群快捷复制（与外部设置页材质、错峰绽放统一）。
  */
 @Component
 export struct FeedbackEntryView {
+  @Prop verText: string = '';
   onGoSubmit: () => void = () => {};
   onGoMine: () => void = () => {};
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
+  @State private logCount: number = 0;
+  @State private exporting: boolean = false;
   @State private entered: boolean = true;
   private enterTimer: number = -1;
   private wave: BloomWaveTracker = new BloomWaveTracker();
 
   aboutToAppear(): void {
+    this.logCount = LinkLog.count();
     if (Motion.isFlagship(this.motionMode)) {
       this.entered = false;
       this.enterTimer = setTimeout(() => {
@@ -35,6 +44,30 @@ export struct FeedbackEntryView {
     if (this.enterTimer >= 0) {
       clearTimeout(this.enterTimer);
       this.enterTimer = -1;
+    }
+  }
+
+  private async exportDiagLog(): Promise<void> {
+    if (this.exporting) {
+      return;
+    }
+    Haptics.tap();
+    this.exporting = true;
+    try {
+      const ctx = AppCtx.ability();
+      const ver: string = this.verText !== '' ? this.verText
+        : ('Agent远程控制台' + (appVersion() !== '' ? ' v' + appVersion() : ''));
+      const content: string = LinkLog.exportContent(ver);
+      const saved: boolean = await Saver.saveText(ctx, content, 'agent-mobile-diag-log.txt');
+      this.logCount = LinkLog.count();
+      if (saved) {
+        Haptics.success();
+        Toast.ok('已导出脱敏运行诊断日志');
+      }
+    } catch (e) {
+      Toast.err('导出失败：' + (e as Error).message);
+    } finally {
+      this.exporting = false;
     }
   }
 
@@ -124,7 +157,7 @@ export struct FeedbackEntryView {
           ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('fb:hdr', 0), this.motionMode)
           : null)
 
-      this.entryRow('提交反馈', '填写描述并附带截图、录屏或脱敏日志', 'fb:submit', 72, () => {
+      this.entryRow('提交反馈', '填写描述并默认自动附带脱敏运行诊断日志', 'fb:submit', 72, () => {
         Haptics.tap();
         this.onGoSubmit();
       })
@@ -132,8 +165,17 @@ export struct FeedbackEntryView {
         Haptics.tap();
         this.onGoMine();
       })
+      this.entryRow(
+        this.exporting ? '正在导出运行诊断日志…' : '导出运行诊断日志',
+        String(this.logCount) + ' 条脱敏记录 · 网络/引擎/运行状态，不含令牌与正文',
+        'fb:diag',
+        228,
+        () => {
+          void this.exportDiagLog();
+        }
+      )
       if (QQ_GROUP !== '') {
-        this.entryRow('交流群 ' + QQ_GROUP, '点此复制群号，进群反馈交流', 'fb:qq', 228, () => {
+        this.entryRow('交流群 ' + QQ_GROUP, '点此复制群号，进群反馈交流', 'fb:qq', 306, () => {
           void copyText(QQ_GROUP, '群号已复制');
         })
       }
@@ -150,7 +192,7 @@ export struct FeedbackEntryView {
         .animation(null)
         .opacity(this.entered ? 1 : 0)
         .animation(this.entered
-          ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf('fb:foot', 300), this.motionMode)
+          ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf('fb:foot', 380), this.motionMode)
           : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
@@ -159,7 +201,7 @@ export struct FeedbackEntryView {
           centerY: '50%'
         })
         .animation(this.entered
-          ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('fb:foot', 300), this.motionMode)
+          ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('fb:foot', 380), this.motionMode)
           : null)
     }
     .width('100%')

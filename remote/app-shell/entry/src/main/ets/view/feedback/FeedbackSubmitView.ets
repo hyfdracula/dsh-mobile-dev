@@ -28,6 +28,7 @@ export struct FeedbackSubmitView {
   @Link text: string;
   @Link contact: string;
   @Link notifyOn: boolean;
+  @Link autoAttachLog: boolean;
   @Prop pend: PendingAttachment[] = [];
   @Prop busy: boolean = false;
   @Prop err: string = '';
@@ -39,9 +40,14 @@ export struct FeedbackSubmitView {
   onBottomFieldFocus: () => void = () => {};
   onSubmit: () => void = () => {};
 
+  @State private logCount: number = 0;
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
+
+  aboutToAppear(): void {
+    this.logCount = LinkLog.count();
+  }
 
   private countOf(targetKind: string): number {
     let n: number = 0;
@@ -179,7 +185,7 @@ export struct FeedbackSubmitView {
         this.attachBtn('添加截图', 'screenshot', () => {
           this.onAddShot();
         })
-        this.attachBtn('日志与样本', 'log', () => {
+        this.attachBtn(this.autoAttachLog && this.countOf('log') === 0 ? '其他日志' : '日志与样本', 'log', () => {
           this.onAddLog();
         })
         this.attachBtn('录屏', 'video', () => {
@@ -276,6 +282,27 @@ export struct FeedbackSubmitView {
 
       Column() {
         RowSwitch({
+          title: '自动附带脱敏运行诊断日志',
+          hint: this.countOf('log') > 0
+            ? '已手动添加日志文件，提交时优先上传手动附件'
+            : ('当前 ' + String(this.logCount) + ' 条记录 · 提交时自动上传，无需手动导出再导入'),
+          value: this.autoAttachLog,
+          onChanged: (on: boolean) => {
+            this.autoAttachLog = on;
+          }
+        })
+      }
+      .width('100%')
+      .margin({ top: 10 })
+      .borderRadius(Tokens.rCard)
+      .backgroundColor(Mat.cardBg(this.hdsOn))
+      .border(Mat.cardBorder(this.hdsOn))
+      .shadow(Mat.cardShadow(this.hdsOn))
+      .clip(true)
+      .transition(Motion.bloomCard(3, this.motionMode))
+
+      Column() {
+        RowSwitch({
           title: '工单有新动态时通知我',
           hint: '开发者回复或工单状态更新时发送提醒',
           value: this.notifyOn,
@@ -292,7 +319,7 @@ export struct FeedbackSubmitView {
       .border(Mat.cardBorder(this.hdsOn))
       .shadow(Mat.cardShadow(this.hdsOn))
       .clip(true)
-      .transition(Motion.bloomCard(3, this.motionMode))
+      .transition(Motion.bloomCard(4, this.motionMode))
 
       Column() {
         Row() {
@@ -336,7 +363,7 @@ export struct FeedbackSubmitView {
       .backgroundColor(Mat.cardBg(this.hdsOn))
       .border(Mat.cardBorder(this.hdsOn))
       .shadow(Mat.cardShadow(this.hdsOn))
-      .transition(Motion.bloomCard(4, this.motionMode))
+      .transition(Motion.bloomCard(5, this.motionMode))
 
       if (this.err !== '') {
         Text(this.err)

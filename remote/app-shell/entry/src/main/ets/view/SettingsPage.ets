@@ -48,7 +48,7 @@ const PREF_GROUP_ROWS: NavRow[] = [
 
 const DATA_GROUP_ROWS: NavRow[] = [
   { id: 'data', name: '数据与存储', hint: '缓存空间、草稿与待发清理' },
-  { id: 'about', name: '关于与协议', hint: '版本、运行诊断日志、隐私政策与开源许可' }
+  { id: 'about', name: '关于与协议', hint: '版本、反馈与支持、隐私政策与开源许可' }
 ];
 
 /**
@@ -859,7 +859,7 @@ export struct SettingsPage {
         }
       })
     } else if (name === 'feedback') {
-      FeedbackPage({ onExit: () => { this.closeSub(); } })
+      FeedbackPage({ verText: this.verText, onExit: () => { this.closeSub(); } })
     } else if (name === 'storage') {
       StoragePage({ onExit: () => { this.closeSub(); } })
     } else if (name === 'extras_plugins') {
@@ -998,7 +998,7 @@ export struct SettingsPage {
       })
     } else {
       AboutPanel({
-        rows: this.aboutRows(), verText: this.verText,
+        rows: this.aboutRows(),
         onFeedback: (): void => {
           LinkLog.record('NAV', 'open feedback');
           this.subStack.pushPathByName('feedback', null);

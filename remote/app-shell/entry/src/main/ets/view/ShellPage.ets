@@ -474,7 +474,7 @@ export struct ShellPage {
         x: this.pressIdx === i ? 0.82 : 1,
         y: this.pressIdx === i ? 0.82 : 1
       })
-      .animation(Motion.baseElastic())
+      .animation(Motion.flagshipSnappy())
     }
     .width('100%')
     .height('100%')

@@ -32,7 +32,7 @@ export struct MessageSelectSheet {
       .height(34)
       .borderRadius(Tokens.rPill)
       .backgroundColor(Color.Transparent)
-      .animation(Motion.baseElastic())
+      .animation({ duration: Motion.move, curve: Motion.std })
       .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
       .onClick(() => {
         Haptics.tap();
@@ -93,7 +93,7 @@ export struct MessageSelectSheet {
               ? { radius: 6, color: Tokens.isDark ? '#33000000' : '#1A000000', offsetY: 1 }
               : { radius: 0, color: Color.Transparent })
             .translate({ x: this.selRaw ? '100%' : '0%' })
-            .animation(Motion.baseElastic())
+            .animation({ duration: Motion.move, curve: Motion.std })
           Row() {
             this.selTab('正文', 'body', (): void => {
               this.selRaw = false;

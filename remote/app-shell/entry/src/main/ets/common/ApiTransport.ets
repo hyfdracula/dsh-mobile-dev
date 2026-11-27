@@ -78,6 +78,7 @@ export class ApiTransport {
   protected lanCands: string[] = [];
   protected inflightProbe: Promise<string> | null = null;
   protected inflightBase: Promise<string> | null = null;
+  protected bgLanProbeGen: number = -1;
   protected rebaseGen: number = 0;
   protected pinnedHostId: string = '';
   protected e2ee: E2eeClient = new E2eeClient();
@@ -471,14 +472,17 @@ export class ApiTransport {
         console.info('DSH_BASE wan (forced) ' + this.wanBase);
         return this.chosen;
       }
-      // 纯蜂窝移动网络不可能命中 192.168.x.x 等局域网入口，直接走公网隧道免去冷启动等待
+      // 纯蜂窝网络下零等待先走公网隧道；若配置了局域网候选，仍异步非阻塞探一次兜底（兼容双网加速/系统瞬时隐藏 Wi-Fi 句柄）
       if (Net.isCellularOnly()) {
         this.chosen = this.wanBase;
-        this.lanDownUntil = Date.now() + 60000;
-        this.nextLanProbe = Date.now() + 60000;
+        this.lanDownUntil = Date.now() + 90000;
+        this.nextLanProbe = Date.now() + 90000;
         this.emitStage(stageCb, 1, '蜂窝网络直连公网 ' + this.wanBase);
-        LinkLog.record('NET', 'cellular fast-path -> wan ' + this.wanBase);
+        LinkLog.record('NET', 'cellular fast-path -> wan ' + this.wanBase + ' bearers=' + Net.describeBearers());
         console.info('DSH_BASE cellular -> wan ' + this.wanBase);
+        if (this.lanCands.length > 0) {
+          this.triggerBgLanProbe(1200);
+        }
         return this.chosen;
       }
       if (Date.now() >= this.lanDownUntil) {
@@ -537,7 +541,8 @@ export class ApiTransport {
       console.info('DSH_BASE poke lan-only ' + (this.chosen !== '' ? this.chosen : '-'));
       return;
     }
-    if (this.autoLan && !this.forceWan && !Net.isCellularOnly()) {
+    const cellOnly: boolean = Net.isCellularOnly();
+    if (this.autoLan && !this.forceWan && !cellOnly) {
       const hit: string = await this.probeLan(2500, stageCb);
       if (this.rebaseGen !== myGen) {
         return;
@@ -555,24 +560,61 @@ export class ApiTransport {
       return;
     }
     this.chosen = this.wanBase;
-    const cool: number = Date.now() + 60000;
+    const cool: number = Date.now() + (cellOnly ? 90000 : 60000);
     this.lanDownUntil = cool;
     this.nextLanProbe = cool;
     this.emitStage(stageCb, 1, '使用公网入口 ' + this.wanBase);
     console.info('DSH_BASE poke wan ' + this.wanBase);
+    if (this.autoLan && !this.forceWan && cellOnly && this.lanCands.length > 0) {
+      this.triggerBgLanProbe(1200);
+    }
+  }
+
+  /** 非阻塞后台局域网探测：不拖慢当前公网首包，命中即无缝升级为局域网直连。 */
+  protected triggerBgLanProbe(timeoutMs: number): void {
+    if (!this.autoLan || this.forceWan || this.lanOnly || this.lanCands.length === 0) {
+      return;
+    }
+    const myGen: number = this.rebaseGen;
+    if (this.bgLanProbeGen === myGen) {
+      return;
+    }
+    this.bgLanProbeGen = myGen;
+    this.probeLan(timeoutMs).then((hit: string) => {
+      if (this.rebaseGen !== myGen) {
+        return;
+      }
+      if (hit !== '') {
+        this.chosen = hit;
+        this.lanDownUntil = 0;
+        this.lanFailStreak = 0;
+        this.syncLinkStatus(false);
+        LinkLog.record('NET', 'bg-probe -> lan ' + hit);
+        console.info('DSH_BASE bg-probe lan ' + hit);
+      }
+    }).catch(() => {
+    }).finally(() => {
+      if (this.bgLanProbeGen === myGen) {
+        this.bgLanProbeGen = -1;
+      }
+    });
   }
 
   protected scheduleLanProbe(): void {
-    if (!this.autoLan || this.forceWan || Net.isCellularOnly()) {
+    if (!this.autoLan || this.forceWan || this.lanCands.length === 0) {
       return;
     }
     const now: number = Date.now();
     if (now < this.nextLanProbe || now < this.lanDownUntil) {
       return;
     }
+    const cellOnly: boolean = Net.isCellularOnly();
     const myGen: number = this.rebaseGen;
-    this.nextLanProbe = now + 30000;
-    this.probeLan(2500).then((hit: string) => {
+    const gapMs: number = cellOnly ? 90000 : 30000;
+    const coolMs: number = cellOnly ? 90000 : 60000;
+    const timeoutMs: number = cellOnly ? 1200 : 2500;
+    this.nextLanProbe = now + gapMs;
+    this.probeLan(timeoutMs).then((hit: string) => {
       if (this.rebaseGen !== myGen) {
         return;
       }
@@ -584,13 +626,13 @@ export class ApiTransport {
         LinkLog.record('NET', 'auto switch -> lan ' + hit);
         console.info('DSH_BASE switch lan ' + hit);
       } else {
-        this.lanDownUntil = Date.now() + 60000;
+        this.lanDownUntil = Date.now() + coolMs;
       }
     }).catch(() => {
       if (this.rebaseGen !== myGen) {
         return;
       }
-      this.lanDownUntil = Date.now() + 60000;
+      this.lanDownUntil = Date.now() + coolMs;
     });
   }
 

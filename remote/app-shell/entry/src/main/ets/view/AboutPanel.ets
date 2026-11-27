@@ -1,12 +1,8 @@
-import { AppCtx } from '../common/AppCtx';
 import { isFeedbackEnabled } from '../common/Feedback';
 import { Haptics } from '../common/Haptics';
 import { LegalDocKind } from '../common/LegalDocs';
-import { LinkLog } from '../common/LinkLog';
 import { Mat } from '../common/Mat';
 import { BloomWaveTracker, Motion, MOTION_VIVID } from '../common/Motion';
-import { Saver } from '../common/Saver';
-import { Toast } from '../common/Toast';
 import { Tokens } from '../common/Tokens';
 
 /** 关于页的一行「键 - 值」。 */
@@ -17,17 +13,14 @@ export interface AboutRow {
 }
 
 /**
- * 「关于与协议」：版本/环境概况 + 运行诊断日志导出 + 隐私政策/用户协议/开源许可 + 条件反馈入口。
+ * 「关于与协议」：版本/环境概况 + 条件反馈入口 + 隐私政策/用户协议/开源许可。
  */
 @Component
 export struct AboutPanel {
   @Prop rows: AboutRow[] = [];
-  @Prop verText: string = '';
   onFeedback: () => void = () => {};
   onLegal: (kind: LegalDocKind) => void = () => {};
 
-  @State private logCount: number = 0;
-  @State private exporting: boolean = false;
   @State private entered: boolean = true;
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
@@ -36,7 +29,6 @@ export struct AboutPanel {
   private wave: BloomWaveTracker = new BloomWaveTracker();
 
   aboutToAppear(): void {
-    this.logCount = LinkLog.count();
     if (Motion.isFlagship(this.motionMode)) {
       this.entered = false;
       this.enterTimer = setTimeout(() => {
@@ -55,34 +47,12 @@ export struct AboutPanel {
     }
   }
 
-  private async exportDiagLog(): Promise<void> {
-    if (this.exporting) {
-      return;
-    }
-    Haptics.tap();
-    this.exporting = true;
-    try {
-      const ctx = AppCtx.ability();
-      const content: string = LinkLog.exportContent(this.verText);
-      const saved: boolean = await Saver.saveText(ctx, content, 'agent-mobile-diag-log.txt');
-      this.logCount = LinkLog.count();
-      if (saved) {
-        Haptics.success();
-        Toast.ok('已导出脱敏运行诊断日志');
-      }
-    } catch (e) {
-      Toast.err('导出失败：' + (e as Error).message);
-    } finally {
-      this.exporting = false;
-    }
-  }
-
   private diagBaseIdx(): number {
     return this.rows.length;
   }
 
   private legalStartIdx(): number {
-    return this.rows.length + (isFeedbackEnabled() ? 2 : 1);
+    return this.rows.length + (isFeedbackEnabled() ? 1 : 0);
   }
 
   @Builder
@@ -214,7 +184,7 @@ export struct AboutPanel {
       }
       .width('100%')
 
-      Text('诊断与协议')
+      Text('支持与协议')
         .fontSize(Tokens.fsCaption)
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
@@ -238,18 +208,8 @@ export struct AboutPanel {
           : null)
 
       Column({ space: 9 }) {
-        this.actionCard(
-          this.exporting ? '正在导出运行诊断日志…' : '导出运行诊断日志',
-          String(this.logCount) + ' 条脱敏记录 · 网络/引擎/运行状态，不含令牌与正文',
-          'act:diag',
-          32 + this.diagBaseIdx() * 58 + 56,
-          () => {
-            void this.exportDiagLog();
-          }
-        )
-
         if (isFeedbackEnabled()) {
-          this.actionCard('反馈与支持', '提交问题、功能建议与查看进度', 'act:fb', 32 + this.diagBaseIdx() * 58 + 132, () => {
+          this.actionCard('反馈与支持', '提交问题、导出诊断日志与查看进度', 'act:fb', 32 + this.diagBaseIdx() * 58 + 56, () => {
             this.onFeedback();
           })
         }

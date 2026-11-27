@@ -5,6 +5,7 @@ import { HdsNavDestination } from '@kit.UIDesignKit';
 import { AppCtx } from '../common/AppCtx';
 import { PageHeader, TopFade } from '../common/Chrome';
 import {
+  appVersion,
   contactPref,
   detail,
   envLine,
@@ -17,9 +18,11 @@ import {
   Ticket,
   upload,
   UPLOADS,
-  UploadSpec
+  UploadSpec,
+  uploadText
 } from '../common/Feedback';
 import { Haptics } from '../common/Haptics';
+import { LinkLog } from '../common/LinkLog';
 import { Motion, MOTION_VIVID } from '../common/Motion';
 import { Notifier } from '../common/Notifier';
 import { Toast } from '../common/Toast';
@@ -37,6 +40,7 @@ import { PendingAttachment } from './feedback/FeedbackTypes';
  */
 @Component
 export struct FeedbackPage {
+  @Prop verText: string = '';
   onExit: () => void = () => {};
 
   @StorageLink('topInset') topInset: number = 40;
@@ -57,6 +61,7 @@ export struct FeedbackPage {
   @State private text: string = '';
   @State private contact: string = '';
   @State private notifyOn: boolean = true;
+  @State private autoAttachLog: boolean = true;
   @State private pend: PendingAttachment[] = [];
 
   // 我的反馈列表状态
@@ -259,6 +264,18 @@ export struct FeedbackPage {
           failed = one.spec.label + ' 上传未成功：' + (e as BusinessError).message;
         }
       }
+      if (this.autoAttachLog && this.countOf('log') === 0) {
+        try {
+          const ver: string = this.verText !== '' ? this.verText
+            : ('Agent远程控制台' + (appVersion() !== '' ? ' v' + appVersion() : ''));
+          const diagText: string = LinkLog.exportContent(ver);
+          await uploadText(id, UPLOADS[2], diagText, 'agent-mobile-diag-log.txt');
+        } catch (e) {
+          const msg: string = (e as BusinessError).message !== undefined
+            ? (e as BusinessError).message : String(e);
+          failed = (failed !== '' ? failed + '；' : '') + '运行诊断日志自动附带失败：' + msg;
+        }
+      }
       this.text = '';
       this.pend = [];
       this.rows = [];
@@ -342,6 +359,7 @@ export struct FeedbackPage {
                   text: $text,
                   contact: $contact,
                   notifyOn: $notifyOn,
+                  autoAttachLog: $autoAttachLog,
                   pend: this.pend,
                   busy: this.busy,
                   err: this.err,
@@ -503,6 +521,7 @@ export struct FeedbackPage {
           Column() {
             Column() {
               FeedbackEntryView({
+                verText: this.verText,
                 onGoSubmit: (): void => {
                   this.note = '';
                   this.err = '';

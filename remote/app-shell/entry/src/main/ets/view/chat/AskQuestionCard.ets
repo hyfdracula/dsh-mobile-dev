@@ -120,7 +120,7 @@ export struct AskQuestionCard {
       next[keys[i]] = this.customOpenMap[keys[i]];
     }
     next[qid] = !this.isCustomOpen(qid);
-    this.getUIContext().animateTo(Motion.baseElastic(), () => {
+    this.getUIContext().animateTo({ duration: Motion.move, curve: Motion.std }, () => {
       this.customOpenMap = next;
     });
   }
@@ -489,7 +489,7 @@ export struct AskQuestionCard {
       .shadow(Mat.cardShadow(this.hdsOn))
       .transition(
         TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std })
-          .combine(TransitionEffect.translate({ y: 8 }).animation(Motion.baseElastic()))
+          .combine(TransitionEffect.translate({ y: 8 }).animation({ duration: Motion.move, curve: Motion.std }))
       )
     }
   }

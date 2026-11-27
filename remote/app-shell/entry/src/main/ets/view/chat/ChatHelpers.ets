@@ -132,22 +132,30 @@ export async function fetchResolvedModelState(api: Api, sessionId: string): Prom
   return fallback;
 }
 
-/** 收敛双路键盘高度（以系统 avoidArea 为准，兜 65% 窗口高度上限与 16vp 手势条抵扣）。 */
+/**
+ * 收敛双路键盘高度（优先采信最新触发通道，避免连续点击时旧通道 0 值或低值压扁输入框，
+ * 且不再扣减 16vp，防止输入框底边与输入法上沿重合）。
+ */
 export function resolveKeyboardHeightVp(
   kwRep: number,
   kwAvoid: number,
   kwAvoidSeen: boolean,
-  winH: number
+  winH: number,
+  latestVp: number = -1
 ): number {
-  let vp: number = kwRep;
-  if (kwAvoidSeen) {
-    vp = kwAvoid <= 0 ? 0 : Math.min(kwAvoid, kwRep > 0 ? kwRep : kwAvoid);
+  let vp: number = 0;
+  if (latestVp === 0) {
+    return 0;
+  }
+  if (latestVp > 0) {
+    vp = latestVp;
+  } else if (kwAvoidSeen) {
+    vp = kwAvoid > 0 ? kwAvoid : kwRep;
+  } else {
+    vp = kwRep > 0 ? kwRep : kwAvoid;
   }
   if (winH > 0 && vp > winH * 0.65) {
     vp = winH * 0.6;
-  }
-  if (vp > 0) {
-    vp = vp > 16 ? vp - 16 : 0;
   }
   return vp < 0 ? 0 : vp;
 }

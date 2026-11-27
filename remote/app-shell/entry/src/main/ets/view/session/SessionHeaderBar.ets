@@ -158,7 +158,7 @@ export struct SessionHeaderBar {
     if (Motion.isVivid(this.motionMode)) {
       this.searchGrow = 1;
       this.searchGlyphTrigger += 1;
-      this.getUIContext().animateTo(Motion.moveOpts(this.motionMode), () => {
+      this.getUIContext().animateTo(Motion.flagshipSnappy(), () => {
         this.onSearchingChange(true);
       });
       return;
@@ -172,7 +172,7 @@ export struct SessionHeaderBar {
     this.onQueryChange('');
     this.hdrEntered = true;
     if (Motion.isVivid(this.motionMode)) {
-      this.getUIContext().animateTo(Motion.moveOpts(this.motionMode), () => {
+      this.getUIContext().animateTo(Motion.flagshipSnappy(), () => {
         this.onSearchingChange(false);
       });
       return;

@@ -147,8 +147,10 @@ export struct ChatPage {
   private kbScrollTimer: number = -1;
   private kbDismissTimer: number = -1;
   private kbSettleTimer: number = -1;
-  private kbScrollPendingDelta: number = 0;
   private kbScrolling: boolean = false;
+  private kbAnchorY: number = -1;
+  private kbAnchorBasePad: number = 0;
+  private kbLatestVp: number = -1;
 
   @State private msgs: Message[] = [];
   @State private total: number = 0;
@@ -417,8 +419,10 @@ export struct ChatPage {
       clearTimeout(this.kbSettleTimer);
       this.kbSettleTimer = -1;
     }
-    this.kbScrollPendingDelta = 0;
     this.kbScrolling = false;
+    this.kbAnchorY = -1;
+    this.kbAnchorBasePad = 0;
+    this.kbLatestVp = -1;
   }
 
   private refreshWinHeight(): void {
@@ -445,7 +449,12 @@ export struct ChatPage {
       this.refreshWinHeight();
       this.acquireKbPin();
       this.kwCb = (h: number) => {
-        this.kwRep = h > 0 ? AppCtx.px2vp(h) : 0;
+        const vp: number = h > 0 ? AppCtx.px2vp(h) : 0;
+        this.kwRep = vp;
+        if (vp === 0) {
+          this.kwAvoid = 0;
+        }
+        this.kbLatestVp = vp;
         this.refreshWinHeight();
         this.applyKb();
       };
@@ -454,8 +463,13 @@ export struct ChatPage {
         if (data.type !== window.AvoidAreaType.TYPE_KEYBOARD) return;
         const area: window.AvoidArea = data.area;
         const px: number = area === undefined || area.bottomRect === undefined ? 0 : area.bottomRect.height;
-        this.kwAvoid = px > 0 ? AppCtx.px2vp(px) : 0;
+        const vp: number = px > 0 ? AppCtx.px2vp(px) : 0;
+        this.kwAvoid = vp;
         this.kwAvoidSeen = true;
+        if (vp === 0) {
+          this.kwRep = 0;
+        }
+        this.kbLatestVp = vp;
         this.refreshWinHeight();
         this.applyKb();
       };
@@ -465,7 +479,9 @@ export struct ChatPage {
 
   private applyKb(): void {
     this.refreshWinHeight();
-    const rawNext: number = resolveKeyboardHeightVp(this.kwRep, this.kwAvoid, this.kwAvoidSeen, this.winH);
+    const rawNext: number = resolveKeyboardHeightVp(
+      this.kwRep, this.kwAvoid, this.kwAvoidSeen, this.winH, this.kbLatestVp
+    );
     const next: number = clampKeyboardByContainer(rawNext, this.winH, this.pageH, this.pageGlobalY);
     if (Math.abs(next - this.kbH) <= 0.5) {
       if (this.kbDismissTimer < 0 && Math.abs(this.listKbPad - next) > 0.5) {
@@ -475,18 +491,24 @@ export struct ChatPage {
     }
 
     const prevKb: number = this.kbH;
-    const prevPad: number = this.padForKb(prevKb);
-    const nextPad: number = this.padForKb(next);
-    const deltaPad: number = nextPad - prevPad;
     const rising: boolean = next > prevKb;
-    const wasBottom: boolean = this.atBottom || this.kbScrolling;
 
     if (this.kbDismissTimer >= 0) {
       clearTimeout(this.kbDismissTimer);
       this.kbDismissTimer = -1;
     }
+    if (this.kbScrollTimer >= 0) {
+      clearTimeout(this.kbScrollTimer);
+      this.kbScrollTimer = -1;
+    }
 
     if (rising) {
+      // 首次从 0 弹起且位于底部时，锁定一次绝对基准锚点（kbAnchorY / kbAnchorBasePad）；
+      // 连续反复点击输入法时始终复用同一绝对目标，杜绝相对累加漂移把页面越拉越低
+      if (prevKb <= 0.5 && this.kbAnchorY < 0 && this.atBottom) {
+        this.kbAnchorBasePad = this.padForKb(this.listKbPad);
+        this.kbAnchorY = Math.max(0, this.scroller.currentOffset()?.yOffset ?? 0);
+      }
       this.listKbPad = next;
       try {
         this.getUIContext().animateTo(Motion.kbComposerAnim(this.motionMode), () => {
@@ -496,25 +518,18 @@ export struct ChatPage {
         this.kbH = next;
       }
 
-      if (wasBottom) {
+      if (this.kbAnchorY >= 0) {
+        const targetY: number = Math.max(0, this.kbAnchorY + (this.padForKb(next) - this.kbAnchorBasePad));
         this.kbScrolling = true;
-        this.kbScrollPendingDelta += deltaPad;
-        if (this.kbScrollTimer >= 0) {
-          clearTimeout(this.kbScrollTimer);
-        }
         this.kbScrollTimer = setTimeout(() => {
           this.kbScrollTimer = -1;
-          if (!this.alive) return;
-          const d: number = this.kbScrollPendingDelta;
-          this.kbScrollPendingDelta = 0;
-          if (d === 0) return;
-          const curY: number = this.scroller.currentOffset()?.yOffset ?? 0;
+          if (!this.alive || this.kbAnchorY < 0) return;
           try {
             this.scroller.scrollTo({
               xOffset: 0,
-              yOffset: Math.max(0, curY + d + 2),
+              yOffset: targetY,
               animation: {
-                duration: 780,
+                duration: 580,
                 curve: Motion.kbListFollowCurve(this.motionMode),
                 canOverScroll: false
               }
@@ -530,7 +545,7 @@ export struct ChatPage {
         this.kbSettleTimer = setTimeout(() => {
           this.kbSettleTimer = -1;
           this.kbScrolling = false;
-        }, 820);
+        }, 640);
       }
     } else {
       try {
@@ -541,45 +556,49 @@ export struct ChatPage {
         this.kbH = next;
       }
 
-      this.kbScrolling = true;
-      this.kbScrollPendingDelta += deltaPad;
-      if (this.kbScrollTimer >= 0) {
-        clearTimeout(this.kbScrollTimer);
+      if (this.kbSettleTimer >= 0) {
+        clearTimeout(this.kbSettleTimer);
+        this.kbSettleTimer = -1;
       }
-      this.kbScrollTimer = setTimeout(() => {
-        this.kbScrollTimer = -1;
-        if (!this.alive) return;
-        const d: number = this.kbScrollPendingDelta;
-        this.kbScrollPendingDelta = 0;
-        const curY: number = this.scroller.currentOffset()?.yOffset ?? 0;
-        if (curY > 0 && d < 0) {
+
+      if (this.kbAnchorY >= 0) {
+        const targetY: number = next > 0
+          ? Math.max(0, this.kbAnchorY + (this.padForKb(next) - this.kbAnchorBasePad))
+          : Math.max(0, this.kbAnchorY);
+        this.kbScrolling = true;
+        this.kbScrollTimer = setTimeout(() => {
+          this.kbScrollTimer = -1;
+          if (!this.alive || this.kbAnchorY < 0) return;
           try {
             this.scroller.scrollTo({
               xOffset: 0,
-              yOffset: Math.max(0, curY + d),
+              yOffset: targetY,
               animation: {
-                duration: 760,
+                duration: 540,
                 curve: Motion.kbListFollowCurve(this.motionMode),
                 canOverScroll: false
               }
             });
           } catch (_e) {}
-        }
-      }, Motion.KB_LIST_LAG_DISMISS_MS);
+        }, Motion.KB_LIST_LAG_DISMISS_MS);
 
-      if (this.kbSettleTimer >= 0) {
-        clearTimeout(this.kbSettleTimer);
-        this.kbSettleTimer = -1;
-      }
-      this.kbDismissTimer = setTimeout(() => {
-        this.kbDismissTimer = -1;
-        if (!this.alive) return;
+        this.kbDismissTimer = setTimeout(() => {
+          this.kbDismissTimer = -1;
+          if (!this.alive) return;
+          this.listKbPad = next;
+          this.kbScrolling = false;
+          if (next <= 0.5) {
+            this.kbAnchorY = -1;
+            this.kbAnchorBasePad = 0;
+          }
+          try {
+            this.atBottom = this.scroller.isAtEnd();
+          } catch (_e) {}
+        }, 600);
+      } else {
         this.listKbPad = next;
         this.kbScrolling = false;
-        try {
-          this.atBottom = this.scroller.isAtEnd();
-        } catch (_e) {}
-      }, 800);
+      }
     }
   }
 
@@ -1588,9 +1607,24 @@ export struct ChatPage {
         this.kbSettleTimer = -1;
       }
       this.kbScrolling = false;
+      this.kbAnchorY = -1;
+      this.kbAnchorBasePad = 0;
       this.atBottom = true;
       await this.refreshSoft();
-      setTimeout(() => { if (this.alive) this.scroller.scrollEdge(Edge.Bottom); }, 60);
+      setTimeout(() => {
+        if (!this.alive) return;
+        this.scroller.scrollEdge(Edge.Bottom);
+        if (this.kbH > 0) {
+          setTimeout(() => {
+            if (!this.alive || this.kbH <= 0) return;
+            const yNow: number = this.scroller.currentOffset()?.yOffset ?? 0;
+            const basePad: number = this.padForKb(0);
+            const kbDelta: number = this.padForKb(this.kbH) - basePad;
+            this.kbAnchorBasePad = basePad;
+            this.kbAnchorY = Math.max(0, yNow - kbDelta);
+          }, 80);
+        }
+      }, 60);
     } catch (e) {
       this.err = (e as Error).message;
       this.retryText = text;
@@ -2318,8 +2352,10 @@ export struct ChatPage {
           }
         })
         .onTouch((e: TouchEvent) => {
-          if (e.type === TouchType.Down && this.kbScrolling) {
+          if (e.type === TouchType.Down) {
             this.kbScrolling = false;
+            this.kbAnchorY = -1;
+            this.kbAnchorBasePad = 0;
           }
         })
         .hitTestBehavior(HitTestMode.Transparent)

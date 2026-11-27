@@ -182,7 +182,7 @@ struct Index {
         return;
       }
       await this.syncHostMeta();
-      if (this.netMode === 'wan' || Net.isCellularOnly()) {
+      if (this.netMode === 'wan') {
         return;
       }
       if (!this.api.isLan() && this.api.lanCandidates().length > beforeCount) {
