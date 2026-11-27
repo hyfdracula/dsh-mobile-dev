@@ -18,17 +18,17 @@ export class Motion {
 
   static readonly BLOOM_SCALE_START: number = 0.45;
   static readonly BLOOM_HEADER_SCALE_START: number = 0.90;
-  static readonly HEADER_BTN_SCALE_START: number = 0.84;
-  static readonly HEADER_TITLE_SCALE_START: number = 0.94;
-  static readonly HEADER_SLIDE_BACK_X: number = -48;
-  static readonly HEADER_SLIDE_TITLE_X: number = -36;
-  static readonly HEADER_SLIDE_RIGHT_X: number = -44;
-  static readonly HEADER_SLIDE_RIGHT_OUTER_X: number = -54;
+  static readonly HEADER_BTN_SCALE_START: number = 0.72;
+  static readonly HEADER_TITLE_SCALE_START: number = 0.84;
+  static readonly HEADER_SLIDE_BACK_X: number = -82;
+  static readonly HEADER_SLIDE_TITLE_X: number = -104;
+  static readonly HEADER_SLIDE_RIGHT_X: number = -96;
+  static readonly HEADER_SLIDE_RIGHT_OUTER_X: number = -112;
 
   static readonly std = curves.cubicBezierCurve(0.2, 0.72, 0.32, 1);
   static readonly growCurve = curves.cubicBezierCurve(0.16, 0.90, 0.28, 1.0);
-  /** 统一弹性生长与顶栏左->右推出物理曲线（约 420ms 柔和弹性顿停、约 550ms 稳态落定） */
-  static readonly unifiedElastic = curves.springMotion(0.54, 0.76);
+  /** 统一弹性生长与顶栏左->右推出物理曲线（约 400ms 弹性顿停、约 580ms 稳态落定） */
+  static readonly unifiedElastic = curves.springMotion(0.56, 0.72);
   static readonly spring = curves.springCurve(0.42, 0.62, 200, 12);
 
   /** 基础物理弹簧曲线：自然阻尼与速度继承 */
@@ -218,7 +218,7 @@ export class Motion {
     if (!Motion.isFlagship(mode)) {
       return undefined;
     }
-    const opts: AnimateParam = { duration: 220, delay: delayMs, curve: Motion.std };
+    const opts: AnimateParam = { duration: 200, delay: delayMs, curve: Motion.std };
     return opts;
   }
 

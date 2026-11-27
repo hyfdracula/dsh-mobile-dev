@@ -1895,7 +1895,7 @@ export struct ChatPage {
             .accessibilityText('返回')
             .animation(null)
             .opacity(this.hdrEntered ? 1 : 0)
-            .animation(Motion.headerPopOpacityAnim(105, this.motionMode))
+            .animation(Motion.headerPopOpacityAnim(125, this.motionMode))
             .translate({ x: this.hdrEntered ? 0 : Motion.HEADER_SLIDE_BACK_X })
             .scale({
               x: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
@@ -1903,7 +1903,7 @@ export struct ChatPage {
               centerX: '0%',
               centerY: '50%'
             })
-            .animation(Motion.headerPopScaleAnim(105, this.motionMode))
+            .animation(Motion.headerPopScaleAnim(125, this.motionMode))
 
           HeaderTitleCapsule({
             title: this.titleNow !== '' ? this.titleNow : '会话',
@@ -1919,7 +1919,7 @@ export struct ChatPage {
             .layoutWeight(1)
             .animation(null)
             .opacity(this.hdrEntered ? 1 : 0)
-            .animation(Motion.headerPopOpacityAnim(55, this.motionMode))
+            .animation(Motion.headerPopOpacityAnim(115, this.motionMode))
             .translate({ x: this.hdrEntered ? 0 : Motion.HEADER_SLIDE_TITLE_X })
             .scale({
               x: this.hdrEntered ? 1 : Motion.HEADER_TITLE_SCALE_START,
@@ -1927,7 +1927,7 @@ export struct ChatPage {
               centerX: '0%',
               centerY: '50%'
             })
-            .animation(Motion.headerTitleSlideAnim(55, this.motionMode))
+            .animation(Motion.headerTitleSlideAnim(115, this.motionMode))
 
           HeaderCirclePill({
             glyph: 'stats',
@@ -1937,7 +1937,7 @@ export struct ChatPage {
             .accessibilityText('上下文与统计')
             .animation(null)
             .opacity(this.hdrEntered ? 1 : 0)
-            .animation(Motion.headerPopOpacityAnim(150, this.motionMode))
+            .animation(Motion.headerPopOpacityAnim(155, this.motionMode))
             .translate({ x: this.hdrEntered ? 0 : Motion.HEADER_SLIDE_RIGHT_X })
             .scale({
               x: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
@@ -1945,7 +1945,7 @@ export struct ChatPage {
               centerX: '0%',
               centerY: '50%'
             })
-            .animation(Motion.headerPopScaleAnim(150, this.motionMode))
+            .animation(Motion.headerPopScaleAnim(155, this.motionMode))
 
           HeaderCirclePill({
             glyph: '···',
@@ -1955,7 +1955,7 @@ export struct ChatPage {
             .accessibilityText('更多菜单')
             .animation(null)
             .opacity(this.hdrEntered ? 1 : 0)
-            .animation(Motion.headerPopOpacityAnim(115, this.motionMode))
+            .animation(Motion.headerPopOpacityAnim(125, this.motionMode))
             .translate({ x: this.hdrEntered ? 0 : Motion.HEADER_SLIDE_RIGHT_OUTER_X })
             .scale({
               x: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
@@ -1963,7 +1963,7 @@ export struct ChatPage {
               centerX: '0%',
               centerY: '50%'
             })
-            .animation(Motion.headerPopScaleAnim(115, this.motionMode))
+            .animation(Motion.headerPopScaleAnim(125, this.motionMode))
             .bindPopup(this.menuOn, Mat.popupOpts(
               this.hdsOn,
               (): void => { this.chatMenuBuilder(); },

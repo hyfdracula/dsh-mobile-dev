@@ -22,8 +22,8 @@ import { ChatParam } from '../common/Types';
 import {
   ListViewPrefs, RowModel, SessionDataSource, WsBuildResult, WsOpt,
   buildSessionRowModels, buildWsOptions, collectGroupLabels,
-  collectRecentWsChoices, normCwdKey, plainPreview, readListViewPrefs, resolveBaseCwd,
-  sigOfSessionRows, tidyCwd, writeListViewPrefs, wsLeafName
+  collectRecentWsChoices, normCwdKey, plainPreview, readCachedPreviews, readListViewPrefs, resolveBaseCwd,
+  sigOfSessionRows, tidyCwd, writeCachedPreviews, writeListViewPrefs, wsLeafName
 } from './session/SessionModels';
 import { SessionTile } from './session/SessionTile';
 import { SessionHeaderBar } from './session/SessionHeaderBar';
@@ -113,12 +113,14 @@ export struct SessionList {
   private revealTimer: number = -1;
   private previewFlushTimer: number = -1;
   private backendsFlushTimer: number = -1;
+  private coldRevealInFlight: boolean = false;
 
   aboutToAppear(): void {
     const prefs: ListViewPrefs = readListViewPrefs();
     this.groupBy = prefs.groupBy;
     this.listState = prefs.listState;
     this.sortBy = prefs.sortBy;
+    readCachedPreviews(this.previewTextMap, this.previewCountMap);
 
     const age: number = Date.now() - this.api.cachedSessionsUpdatedAt();
     if (this.api.cachedSessionsUpdatedAt() > 0 && age < 8000) {
@@ -204,8 +206,8 @@ export struct SessionList {
     this.timedOut = false;
     this.err = '';
     if (this.loading) {
-      this.loading = false;
-      this.loadSlow = false;
+      void this.finishColdApply(this.api.cachedSessions(), false);
+      return;
     }
     this.applyFetchedRows(this.api.cachedSessions());
     this.triggerInitialReveal();
@@ -282,12 +284,45 @@ export struct SessionList {
     }, remain + 24);
   }
 
-  private async prefetchInitialPreviews(fetched: SessionRow[]): Promise<void> {
+  private orderedActiveIds(fetched: SessionRow[], limit: number): string[] {
+    const active: SessionRow[] = fetched.filter((r: SessionRow) => r.archived !== true);
+    active.sort((a: SessionRow, b: SessionRow) => {
+      const pa: number = a.pinned === true ? 0 : 1;
+      const pb: number = b.pinned === true ? 0 : 1;
+      if (pa !== pb) {
+        return pa - pb;
+      }
+      return b.updatedAt - a.updatedAt;
+    });
     const ids: string[] = [];
-    for (let i = 0; i < fetched.length && ids.length < 24; i++) {
-      const r: SessionRow = fetched[i];
-      if (r.archived !== true && !this.previewTextMap.has(r.id) && ids.indexOf(r.id) < 0) {
-        ids.push(r.id);
+    for (let i = 0; i < active.length && ids.length < limit; i++) {
+      const id: string = active[i].id;
+      if (id !== '' && ids.indexOf(id) < 0) {
+        ids.push(id);
+      }
+    }
+    return ids;
+  }
+
+  private async prefetchInitialPreviews(fetched: SessionRow[], timeoutMs: number): Promise<void> {
+    const ordered: string[] = this.orderedActiveIds(fetched, 24);
+    if (ordered.length === 0) {
+      return;
+    }
+    const topCheck: number = ordered.length < 12 ? ordered.length : 12;
+    let missingTop: number = 0;
+    for (let i = 0; i < topCheck; i++) {
+      if (!this.previewTextMap.has(ordered[i])) {
+        missingTop++;
+      }
+    }
+    if (missingTop === 0) {
+      return;
+    }
+    const ids: string[] = [];
+    for (let i = 0; i < ordered.length; i++) {
+      if (!this.previewTextMap.has(ordered[i])) {
+        ids.push(ordered[i]);
       }
     }
     if (ids.length === 0) {
@@ -298,7 +333,7 @@ export struct SessionList {
       timer = setTimeout(() => {
         timer = -1;
         resolve([]);
-      }, 380);
+      }, timeoutMs);
     });
     const fetchPromise: Promise<PreviewRow[]> = this.api.previews(ids).catch((): PreviewRow[] => []);
     try {
@@ -309,12 +344,45 @@ export struct SessionList {
         this.previewTextMap.set(got[i].id, clean);
         this.previewCountMap.set(got[i].id, cnt);
       }
+      if (got.length > 0) {
+        writeCachedPreviews(this.previewTextMap, this.previewCountMap, this.orderedActiveIds(fetched, 80));
+      }
     } catch (e) {
     } finally {
       if (timer !== -1) {
         clearTimeout(timer);
         timer = -1;
       }
+    }
+  }
+
+  private async finishColdApply(fetched: SessionRow[], clearSig: boolean): Promise<void> {
+    if (!this.loading || this.coldRevealInFlight) {
+      return;
+    }
+    this.coldRevealInFlight = true;
+    try {
+      for (let i = 0; i < fetched.length; i++) {
+        const r: SessionRow = fetched[i];
+        if (r.preview !== undefined && r.preview !== '' && !this.previewTextMap.has(r.id)) {
+          this.previewTextMap.set(r.id, plainPreview(r.preview));
+        }
+      }
+      const timeoutMs: number = this.api.onWan() ? 1400 : 800;
+      await this.prefetchInitialPreviews(fetched, timeoutMs);
+      if (clearSig) {
+        this.rowSig = '';
+      }
+      this.applyFetchedRows(fetched);
+      this.loading = false;
+      this.loadSlow = false;
+      if (this.slowTimer !== -1) {
+        clearTimeout(this.slowTimer);
+        this.slowTimer = -1;
+      }
+      this.triggerInitialReveal();
+    } finally {
+      this.coldRevealInFlight = false;
     }
   }
 
@@ -391,25 +459,23 @@ export struct SessionList {
       if (gen !== this.loadGen) {
         return;
       }
-      if (this.loading) {
-        await this.prefetchInitialPreviews(fetched);
-        if (gen !== this.loadGen) {
-          return;
-        }
-      }
       this.api.cacheSessions(fetched);
       this.timedOut = false;
-      if (clearSig) {
-        this.rowSig = '';
+      if (this.loading) {
+        await this.finishColdApply(fetched, clearSig);
+      } else {
+        if (clearSig) {
+          this.rowSig = '';
+        }
+        this.applyFetchedRows(fetched);
       }
-      this.applyFetchedRows(fetched);
     } catch (e) {
       if (gen !== this.loadGen) {
         return;
       }
       this.err = (e as Error).message;
     } finally {
-      if (gen === this.loadGen) {
+      if (gen === this.loadGen && this.loading && !this.coldRevealInFlight) {
         this.loading = false;
         this.loadSlow = false;
         if (this.slowTimer !== -1) {
@@ -446,6 +512,7 @@ export struct SessionList {
         }
       }
       if (changed) {
+        writeCachedPreviews(this.previewTextMap, this.previewCountMap, this.orderedActiveIds(this.allRows, 80));
         this.scheduleRebuildAfterReveal();
       }
     } catch (e) {

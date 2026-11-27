@@ -452,6 +452,90 @@ export function writeListViewPrefs(groupBy: string, listState: string, sortBy: s
   }
 }
 
+interface CachedPreviewEntry {
+  id: string;
+  p: string;
+  c: number;
+}
+
+const PREVIEW_CACHE_STORE: string = 'dsh_mobile_previews';
+
+/**
+ * 同步读取本地最近一次会话摘要与消息数缓存，使冷启动首屏渲染即可按完整三行高度展示，避免公网等待摘要造成的高度跳变。
+ */
+export function readCachedPreviews(textMap: Map<string, string>, countMap: Map<string, number>): void {
+  try {
+    const opts: preferences.Options = { name: PREVIEW_CACHE_STORE };
+    const store: preferences.Preferences = preferences.getPreferencesSync(AppCtx.ability(), opts);
+    const raw: string = store.getSync('items', '') as string;
+    if (raw === '') {
+      return;
+    }
+    const parsed: CachedPreviewEntry[] = JSON.parse(raw) as CachedPreviewEntry[];
+    if (!Array.isArray(parsed)) {
+      return;
+    }
+    for (let i = 0; i < parsed.length; i++) {
+      const item: CachedPreviewEntry = parsed[i];
+      if (item === null || item === undefined || typeof item.id !== 'string' || item.id === '' ||
+        typeof item.p !== 'string') {
+        continue;
+      }
+      if (!textMap.has(item.id)) {
+        textMap.set(item.id, item.p);
+      }
+      if (!countMap.has(item.id)) {
+        const cnt: number = typeof item.c === 'number' && item.c >= 0 ? item.c : 0;
+        countMap.set(item.id, cnt);
+      }
+    }
+  } catch (e) {
+  }
+}
+
+/**
+ * 将首屏与近期活跃会话的摘要与消息数写入本地轻量缓存（最多保留 80 条）。
+ */
+export function writeCachedPreviews(
+  textMap: Map<string, string>,
+  countMap: Map<string, number>,
+  orderIds: string[]
+): void {
+  try {
+    const out: CachedPreviewEntry[] = [];
+    const seen: Set<string> = new Set<string>();
+    for (let i = 0; i < orderIds.length && out.length < 80; i++) {
+      const id: string = orderIds[i];
+      if (id === '' || seen.has(id)) {
+        continue;
+      }
+      if (textMap.has(id) || (countMap.get(id) ?? 0) > 0) {
+        seen.add(id);
+        out.push({
+          id: id,
+          p: textMap.get(id) ?? '',
+          c: countMap.get(id) ?? 0
+        });
+      }
+    }
+    textMap.forEach((pv: string, id: string) => {
+      if (out.length >= 80 || id === '' || seen.has(id)) {
+        return;
+      }
+      const cnt: number = countMap.get(id) ?? 0;
+      if (pv !== '' || cnt > 0) {
+        seen.add(id);
+        out.push({ id: id, p: pv, c: cnt });
+      }
+    });
+    const opts: preferences.Options = { name: PREVIEW_CACHE_STORE };
+    const store: preferences.Preferences = preferences.getPreferencesSync(AppCtx.ability(), opts);
+    store.putSync('items', JSON.stringify(out));
+    store.flushSync();
+  } catch (e) {
+  }
+}
+
 /**
  * 会话列表 LazyForEach 轻量数据源（M4）。
  */
