@@ -189,6 +189,25 @@ export class Mat {
     return opts;
   }
 
+  /** 对话框沉浸光感高通透液态玻璃（提升背景气泡透出感，同时保留字体可读性） */
+  static composerGlassEffect(glass: boolean, dense: boolean = false): BackgroundEffectOptions {
+    if (!glass) {
+      const off: BackgroundEffectOptions = { radius: 0, color: Color.Transparent };
+      return off;
+    }
+    const opts: BackgroundEffectOptions = {
+      radius: dense ? 22 : 16,
+      saturation: Tokens.isDark ? 1.55 : 1.45,
+      brightness: Tokens.isDark ? 0.98 : 1.01,
+      color: dense
+        ? (Tokens.isDark ? '#33141A26' : '#3BFFFFFF')
+        : (Tokens.isDark ? '#1A161B26' : '#1CFFFFFF'),
+      adaptiveColor: AdaptiveColor.DEFAULT,
+      policy: BlurStyleActivePolicy.ALWAYS_ACTIVE
+    };
+    return opts;
+  }
+
   /**
    * 底部悬浮阅读卡（隐私政策 / 用户协议 / 开源许可 / 外网配置向导）专用沉浸光感雾面玻璃：
    * 在保持正文清晰可读的同时，透出后方景深虚化色彩，关闭沉浸光感时退回完全实色零模糊表面。
@@ -240,7 +259,7 @@ export class Mat {
     if (Mat.composerCache === undefined) {
       Mat.composerCache = Mat.make(
         uiMaterial.ImmersiveStyle.ULTRA_THIN,
-        Tokens.isDark ? '#24161B26' : '#26FFFFFF',
+        Tokens.isDark ? '#1A161B26' : '#1CFFFFFF',
         false,
         true,
         Tokens.isDark ? '#99FFFFFF' : '#FFFFFFFF'

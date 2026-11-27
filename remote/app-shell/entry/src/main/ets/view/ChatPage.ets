@@ -1,7 +1,6 @@
 import { inputMethod } from '@kit.IMEKit';
 import { HdsNavDestination, HdsNavigationTitleBarOptions, hdsEffect } from '@kit.UIDesignKit';
 import window from '@ohos.window';
-import { KeyboardAvoidMode as KbMode } from '@ohos.arkui.UIContext';
 import {
   AgentRef,
   Api,
@@ -45,6 +44,7 @@ import { MdBlock, parseMd } from '../common/Md';
 import { Motion, MOTION_VIVID } from '../common/Motion';
 import { Net } from '../common/Net';
 import { Outbox, StashItem } from '../common/Outbox';
+import { SafeArea } from '../common/SafeArea';
 import { Toast } from '../common/Toast';
 import { Tokens } from '../common/Tokens';
 import { ChatParam } from '../common/Types';
@@ -55,7 +55,7 @@ import { PendingBoard, PendRow } from './PendingBoard';
 import { PendingImages } from './PendingImages';
 import { TypingBubble } from './TypingBubble';
 import { WebConsolePage } from './WebConsolePage';
-import { AiFlowGlow } from './chat/AiFlowGlow';
+import { AiFlowGlow, pickNextAiFlowVariant } from './chat/AiFlowGlow';
 import { AskQuestionCard } from './chat/AskQuestionCard';
 import { BigEditorOverlay } from './chat/BigEditorOverlay';
 import { ChatBubbleItem } from './chat/ChatBubbleItem';
@@ -92,6 +92,7 @@ import {
   reorderPendList,
   replayOutboxItems,
   ResolvedModelState,
+  clampKeyboardByContainer,
   resolveKeyboardHeightVp,
   resolveLinkState,
   saveSessionMarkdown,
@@ -131,6 +132,7 @@ export struct ChatPage {
   @StorageLink('wideScreen') wideScreen: boolean = false;
 
   @State private kbH: number = 0;
+  @State private listKbPad: number = 0;
   private kwWin: window.Window | null = null;
   private kwCb: ((h: number) => void) | null = null;
   private kwRep: number = 0;
@@ -138,6 +140,15 @@ export struct ChatPage {
   private kwAvoidSeen: boolean = false;
   private kwAvoidCb: ((data: window.AvoidAreaOptions) => void) | null = null;
   private winH: number = 0;
+  private pageH: number = 0;
+  private pageGlobalY: number = 0;
+  private kbToken: number = 0;
+  private kbHeld: boolean = false;
+  private kbScrollTimer: number = -1;
+  private kbDismissTimer: number = -1;
+  private kbSettleTimer: number = -1;
+  private kbScrollPendingDelta: number = 0;
+  private kbScrolling: boolean = false;
 
   @State private msgs: Message[] = [];
   @State private total: number = 0;
@@ -152,8 +163,11 @@ export struct ChatPage {
   @State private atBottom: boolean = true;
 
   @State private draft: string = '';
-  @State private sending: boolean = false;
+  @State @Watch('onSendingChange') private sending: boolean = false;
   @State @Watch('onRunningChange') private running: boolean = false;
+  private static lastFlowVariant: number = -1;
+  @State private flowVariant: number = 0;
+  private flowWasActive: boolean = false;
   @State private pendImgs: ImagePart[] = [];
   @State private pendFiles: FilePart[] = [];
   @State private queueItems: QueuedItem[] = [];
@@ -303,6 +317,8 @@ export struct ChatPage {
   private onAppFgChange(): void {
     if (!this.alive) return;
     if (this.appFg === true) {
+      this.acquireKbPin();
+      this.refreshWinHeight();
       Unread.markRead(this.param.id);
       void this.refreshSoft();
       this.startRealtimeStream();
@@ -318,7 +334,26 @@ export struct ChatPage {
     }
   }
 
+  private isComposerFlowActive(): boolean {
+    return (this.running || this.sending) && Motion.isVivid(this.motionMode);
+  }
+
+  private syncFlowVariant(): void {
+    const now: boolean = this.isComposerFlowActive();
+    if (now && !this.flowWasActive) {
+      const next: number = pickNextAiFlowVariant(ChatPage.lastFlowVariant);
+      ChatPage.lastFlowVariant = next;
+      this.flowVariant = next;
+    }
+    this.flowWasActive = now;
+  }
+
+  private onSendingChange(): void {
+    this.syncFlowVariant();
+  }
+
   private onRunningChange(): void {
+    this.syncFlowVariant();
     if (this.running && this.alive) {
       if (this.dotTimer === 0) {
         this.dotTimer = setInterval(() => {
@@ -346,26 +381,82 @@ export struct ChatPage {
 
   // ---------- 键盘避让（U5 / M2） ----------
 
+  private acquireKbPin(): void {
+    if (this.kbToken === 0) {
+      this.kbToken = SafeArea.nextKbToken();
+    }
+    this.kbHeld = true;
+    try {
+      SafeArea.holdKeyboardNone(this.kbToken, this.getUIContext());
+    } catch (_e) {
+      SafeArea.holdKeyboardNone(this.kbToken);
+    }
+  }
+
+  private releaseKbPin(): void {
+    if (this.kbHeld && this.kbToken !== 0) {
+      this.kbHeld = false;
+      try {
+        SafeArea.releaseKeyboardNone(this.kbToken, this.getUIContext());
+      } catch (_e) {
+        SafeArea.releaseKeyboardNone(this.kbToken);
+      }
+    }
+  }
+
+  private clearKbTimers(): void {
+    if (this.kbScrollTimer >= 0) {
+      clearTimeout(this.kbScrollTimer);
+      this.kbScrollTimer = -1;
+    }
+    if (this.kbDismissTimer >= 0) {
+      clearTimeout(this.kbDismissTimer);
+      this.kbDismissTimer = -1;
+    }
+    if (this.kbSettleTimer >= 0) {
+      clearTimeout(this.kbSettleTimer);
+      this.kbSettleTimer = -1;
+    }
+    this.kbScrollPendingDelta = 0;
+    this.kbScrolling = false;
+  }
+
+  private refreshWinHeight(): void {
+    if (this.kwWin === null) {
+      return;
+    }
+    try {
+      const hVp: number = AppCtx.px2vp(this.kwWin.getWindowProperties().windowRect.height);
+      if (hVp > 0) {
+        this.winH = hVp;
+      }
+    } catch (_e) {}
+  }
+
+  private padForKb(kb: number): number {
+    return kb > 0 ? (kb + 10) : Math.max(20, this.bottomInset + 6);
+  }
+
   private pinKeyboard(): void {
-    try { this.getUIContext().setKeyboardAvoidMode(KbMode.NONE); } catch (e) {}
+    this.acquireKbPin();
     window.getLastWindow(AppCtx.ability()).then((w: window.Window) => {
       if (!this.alive) return;
       this.kwWin = w;
-      try {
-        this.winH = AppCtx.px2vp(w.getWindowProperties().windowRect.height);
-      } catch (e) {
-        this.winH = 0;
-      }
+      this.refreshWinHeight();
+      this.acquireKbPin();
       this.kwCb = (h: number) => {
         this.kwRep = h > 0 ? AppCtx.px2vp(h) : 0;
+        this.refreshWinHeight();
         this.applyKb();
       };
       w.on('keyboardHeightChange', this.kwCb);
       this.kwAvoidCb = (data: window.AvoidAreaOptions) => {
+        if (data.type !== window.AvoidAreaType.TYPE_KEYBOARD) return;
         const area: window.AvoidArea = data.area;
         const px: number = area === undefined || area.bottomRect === undefined ? 0 : area.bottomRect.height;
         this.kwAvoid = px > 0 ? AppCtx.px2vp(px) : 0;
         this.kwAvoidSeen = true;
+        this.refreshWinHeight();
         this.applyKb();
       };
       w.on('avoidAreaChange', this.kwAvoidCb);
@@ -373,22 +464,122 @@ export struct ChatPage {
   }
 
   private applyKb(): void {
-    const next: number = resolveKeyboardHeightVp(this.kwRep, this.kwAvoid, this.kwAvoidSeen, this.winH);
-    if (Math.abs(next - this.kbH) > 0.5) {
-      const wasBottom: boolean = this.atBottom;
-      const rising: boolean = next > this.kbH;
+    this.refreshWinHeight();
+    const rawNext: number = resolveKeyboardHeightVp(this.kwRep, this.kwAvoid, this.kwAvoidSeen, this.winH);
+    const next: number = clampKeyboardByContainer(rawNext, this.winH, this.pageH, this.pageGlobalY);
+    if (Math.abs(next - this.kbH) <= 0.5) {
+      if (this.kbDismissTimer < 0 && Math.abs(this.listKbPad - next) > 0.5) {
+        this.listKbPad = next;
+      }
+      return;
+    }
+
+    const prevKb: number = this.kbH;
+    const prevPad: number = this.padForKb(prevKb);
+    const nextPad: number = this.padForKb(next);
+    const deltaPad: number = nextPad - prevPad;
+    const rising: boolean = next > prevKb;
+    const wasBottom: boolean = this.atBottom || this.kbScrolling;
+
+    if (this.kbDismissTimer >= 0) {
+      clearTimeout(this.kbDismissTimer);
+      this.kbDismissTimer = -1;
+    }
+
+    if (rising) {
+      this.listKbPad = next;
       try {
-        this.getUIContext().animateTo(Motion.moveOpts(this.motionMode), () => {
+        this.getUIContext().animateTo(Motion.kbComposerAnim(this.motionMode), () => {
           this.kbH = next;
         });
-      } catch (e) {
+      } catch (_e) {
         this.kbH = next;
       }
-      if (wasBottom && rising) {
-        setTimeout(() => {
-          if (this.alive) this.scroller.scrollEdge(Edge.Bottom);
-        }, 60);
+
+      if (wasBottom) {
+        this.kbScrolling = true;
+        this.kbScrollPendingDelta += deltaPad;
+        if (this.kbScrollTimer >= 0) {
+          clearTimeout(this.kbScrollTimer);
+        }
+        this.kbScrollTimer = setTimeout(() => {
+          this.kbScrollTimer = -1;
+          if (!this.alive) return;
+          const d: number = this.kbScrollPendingDelta;
+          this.kbScrollPendingDelta = 0;
+          if (d === 0) return;
+          const curY: number = this.scroller.currentOffset()?.yOffset ?? 0;
+          try {
+            this.scroller.scrollTo({
+              xOffset: 0,
+              yOffset: Math.max(0, curY + d + 2),
+              animation: {
+                duration: 480,
+                curve: Motion.kbListFollowCurve(this.motionMode),
+                canOverScroll: false
+              }
+            });
+          } catch (_e) {
+            this.scroller.scrollEdge(Edge.Bottom);
+          }
+        }, Motion.KB_LIST_LAG_RISE_MS);
+
+        if (this.kbSettleTimer >= 0) {
+          clearTimeout(this.kbSettleTimer);
+        }
+        this.kbSettleTimer = setTimeout(() => {
+          this.kbSettleTimer = -1;
+          this.kbScrolling = false;
+        }, 560);
       }
+    } else {
+      try {
+        this.getUIContext().animateTo(Motion.kbComposerAnim(this.motionMode), () => {
+          this.kbH = next;
+        });
+      } catch (_e) {
+        this.kbH = next;
+      }
+
+      this.kbScrolling = true;
+      this.kbScrollPendingDelta += deltaPad;
+      if (this.kbScrollTimer >= 0) {
+        clearTimeout(this.kbScrollTimer);
+      }
+      this.kbScrollTimer = setTimeout(() => {
+        this.kbScrollTimer = -1;
+        if (!this.alive) return;
+        const d: number = this.kbScrollPendingDelta;
+        this.kbScrollPendingDelta = 0;
+        const curY: number = this.scroller.currentOffset()?.yOffset ?? 0;
+        if (curY > 0 && d < 0) {
+          try {
+            this.scroller.scrollTo({
+              xOffset: 0,
+              yOffset: Math.max(0, curY + d),
+              animation: {
+                duration: 440,
+                curve: Motion.kbListFollowCurve(this.motionMode),
+                canOverScroll: false
+              }
+            });
+          } catch (_e) {}
+        }
+      }, Motion.KB_LIST_LAG_DISMISS_MS);
+
+      if (this.kbSettleTimer >= 0) {
+        clearTimeout(this.kbSettleTimer);
+        this.kbSettleTimer = -1;
+      }
+      this.kbDismissTimer = setTimeout(() => {
+        this.kbDismissTimer = -1;
+        if (!this.alive) return;
+        this.listKbPad = next;
+        this.kbScrolling = false;
+        try {
+          this.atBottom = this.scroller.isAtEnd();
+        } catch (_e) {}
+      }, 460);
     }
   }
 
@@ -399,6 +590,7 @@ export struct ChatPage {
     if (this.kwWin !== null && this.kwAvoidCb !== null) {
       try { this.kwWin.off('avoidAreaChange', this.kwAvoidCb); } catch (e) {}
     }
+    this.clearKbTimers();
     this.kwWin = null;
     this.kwCb = null;
     this.kwAvoidCb = null;
@@ -406,7 +598,8 @@ export struct ChatPage {
     this.kwAvoid = 0;
     this.kwAvoidSeen = false;
     this.kbH = 0;
-    try { this.getUIContext().setKeyboardAvoidMode(KbMode.RESIZE); } catch (e) {}
+    this.listKbPad = 0;
+    this.releaseKbPin();
   }
 
   private hideKb(): void {
@@ -1390,6 +1583,11 @@ export struct ChatPage {
       this.pendFiles = [];
       if (this.queueItems.length === 0) this.pendH = 0;
       this.pendingKey = '';
+      if (this.kbSettleTimer >= 0) {
+        clearTimeout(this.kbSettleTimer);
+        this.kbSettleTimer = -1;
+      }
+      this.kbScrolling = false;
       this.atBottom = true;
       await this.refreshSoft();
       setTimeout(() => { if (this.alive) this.scroller.scrollEdge(Edge.Bottom); }, 60);
@@ -1590,15 +1788,15 @@ export struct ChatPage {
   }
 
   private inputBottomPad(): number {
-    return this.kbH > 0 ? (this.kbH + 10) : Math.max(20, this.bottomInset + 6);
+    return this.padForKb(this.kbH);
   }
 
-  /** 列表底部真实占位高度：贴合底部输入总成实际高度，避免拉到底后与输入框间留出大块空白 */
+  /** 列表底部真实占位高度：由 listKbPad 独立控制，配合软键盘弹收做惯性错拍跟推 */
   private listBottomSpacerHeight(): number {
     const dockH: number = this.bottomStackH > 0
       ? this.bottomStackH
       : ((this.inputH > 0 ? this.inputH : 108) + this.pendH);
-    return dockH + this.inputBottomPad() + 6;
+    return dockH + this.padForKb(this.listKbPad) + 6;
   }
 
   private ctxUsed(): number {
@@ -1836,8 +2034,8 @@ export struct ChatPage {
           .linearGradient({
             angle: 155,
             colors: this.themeDark
-              ? [['#29FFFFFF', 0.0], ['#0AFFFFFF', 0.34], ['#00FFFFFF', 0.68], ['#1494B8FF', 1.0]]
-              : [['#78FFFFFF', 0.0], ['#24FFFFFF', 0.38], ['#00FFFFFF', 0.72], ['#1A3B6EF6', 1.0]]
+              ? [['#1AFFFFFF', 0.0], ['#06FFFFFF', 0.32], ['#00FFFFFF', 0.66], ['#0D94B8FF', 1.0]]
+              : [['#38FFFFFF', 0.0], ['#10FFFFFF', 0.34], ['#00FFFFFF', 0.68], ['#0F3B6EF6', 1.0]]
           })
           .hitTestBehavior(HitTestMode.None)
 
@@ -1848,7 +2046,7 @@ export struct ChatPage {
             angle: 90,
             colors: [
               ['#00FFFFFF', 0.0],
-              [this.themeDark ? '#5CFFFFFF' : '#E6FFFFFF', 0.5],
+              [this.themeDark ? '#4DFFFFFF' : '#CCFFFFFF', 0.5],
               ['#00FFFFFF', 1.0]
             ]
           })
@@ -1871,9 +2069,9 @@ export struct ChatPage {
           .hitTestBehavior(HitTestMode.None)
       }
 
-      // 3. AI 回复中双边流光
-      if (this.running && Motion.isVivid(this.motionMode)) {
-        AiFlowGlow({ radius: Tokens.rCard, glowOpacity: 0.58 })
+      // 3. AI 待回复多风格液态水波纹（仅挂载在输入框上）
+      if (this.isComposerFlowActive()) {
+        AiFlowGlow({ radius: Tokens.rCard, glowOpacity: 0.62, variant: this.flowVariant })
       }
     }
     .width('100%')
@@ -2114,7 +2312,16 @@ export struct ChatPage {
         .padding({ left: 14, right: 14 })
         .scrollBar(BarState.Off)
         .edgeEffect(EdgeEffect.Spring)
-        .onDidScroll(() => { try { this.atBottom = this.scroller.isAtEnd(); } catch (e) {} })
+        .onDidScroll(() => {
+          if (!this.kbScrolling) {
+            try { this.atBottom = this.scroller.isAtEnd(); } catch (e) {}
+          }
+        })
+        .onTouch((e: TouchEvent) => {
+          if (e.type === TouchType.Down && this.kbScrolling) {
+            this.kbScrolling = false;
+          }
+        })
         .hitTestBehavior(HitTestMode.Transparent)
 
         // 顶部柔和渐隐/非沉浸回退衬板（四枚顶栏控件已归位至 HdsNavDestination.titleBar 以启用真实沉浸光感）
@@ -2298,6 +2505,10 @@ export struct ChatPage {
                         this.attachOn = false;
                       }
                     })
+                    .onFocus(() => {
+                      this.acquireKbPin();
+                      this.refreshWinHeight();
+                    })
                     .onSubmit(() => {
                       if (this.enterSend) void this.send();
                     })
@@ -2393,7 +2604,7 @@ export struct ChatPage {
               .width('100%')
               .padding({ top: 6, bottom: 6 })
               .backgroundColor(this.hdsOn ? Color.Transparent : Tokens.surface)
-              .backgroundEffect(Mat.glassEffect(this.hdsOn, this.attachOn || this.pendImgs.length > 0))
+              .backgroundEffect(Mat.composerGlassEffect(this.hdsOn, this.attachOn || this.pendImgs.length > 0))
               .visualEffect(this.buildComposerEffect())
               .borderRadius(Tokens.rCard)
               .border(Mat.glassRimBorder(this.hdsOn))
@@ -2558,6 +2769,22 @@ export struct ChatPage {
       }
       .width('100%')
       .height('100%')
+      .onAreaChange((_oldVal: Area, newVal: Area) => {
+        const h: number = Number(newVal.height);
+        const gy: number = Number(newVal.globalPosition.y);
+        const changed: boolean = (h > 100 && Math.abs(h - this.pageH) > 2) ||
+          (Number.isFinite(gy) && Math.abs(gy - this.pageGlobalY) > 2);
+        if (h > 100) {
+          this.pageH = h;
+        }
+        if (Number.isFinite(gy)) {
+          this.pageGlobalY = gy;
+        }
+        if (changed && (this.kwRep > 0 || this.kwAvoid > 0 || this.kbH > 0)) {
+          this.refreshWinHeight();
+          this.applyKb();
+        }
+      })
     }
     .hideTitleBar(this.bigEditOn || this.extrasMode !== '' || this.searchOn || this.webConsoleOn)
     .titleBar(this.hdsTitle())
@@ -2591,5 +2818,17 @@ export struct ChatPage {
     .bindToScrollable([this.scroller])
     .backgroundColor(this.themeBg)
     .mode(NavDestinationMode.STANDARD)
+    .onShown(() => {
+      if (this.alive) {
+        this.acquireKbPin();
+        this.refreshWinHeight();
+      }
+    })
+    .onHidden(() => {
+      this.clearKbTimers();
+      this.kbH = 0;
+      this.listKbPad = 0;
+      this.releaseKbPin();
+    })
   }
 }

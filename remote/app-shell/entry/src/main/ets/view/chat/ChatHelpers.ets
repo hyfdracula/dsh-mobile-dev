@@ -152,6 +152,31 @@ export function resolveKeyboardHeightVp(
   return vp < 0 ? 0 : vp;
 }
 
+/**
+ * 几何级防双重避让兜底：
+ * 若窗口总高 winH 已知，且聊天页根容器实际底边 (pageGlobalY + pageH) 已被系统 RESIZE / OFFSET
+ * 压缩或上推超过 40vp，则扣减系统已避让的高度，杜绝键盘上方空白与输入框顶到标题栏。
+ */
+export function clampKeyboardByContainer(
+  rawKb: number,
+  winH: number,
+  pageH: number,
+  pageGlobalY: number
+): number {
+  if (rawKb <= 0) {
+    return 0;
+  }
+  if (winH > 120 && pageH > 120) {
+    const containerBottom: number = pageGlobalY + pageH;
+    const osAvoided: number = winH - containerBottom;
+    if (osAvoided > 40) {
+      const remain: number = rawKb - osAvoided;
+      return remain > 0 ? remain : 0;
+    }
+  }
+  return rawKb;
+}
+
 /** 按 seq 增量合并或原地更新消息，保证流式推送与软刷新不重排旧项、不漏掉原地增长。 */
 export function mergeMessageList(base: Message[], incoming: Message[]): Message[] {
   if (incoming.length === 0) return base;

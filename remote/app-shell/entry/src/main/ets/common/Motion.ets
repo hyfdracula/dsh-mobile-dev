@@ -28,6 +28,8 @@ export class Motion {
   static readonly HEADER_DELAY_TITLE: number = 145;
   static readonly HEADER_DELAY_SUB_TITLE: number = 95;
   static readonly HEADER_DELAY_BACK: number = 195;
+  static readonly KB_LIST_LAG_RISE_MS: number = 46;
+  static readonly KB_LIST_LAG_DISMISS_MS: number = 34;
 
   static readonly std = curves.cubicBezierCurve(0.2, 0.72, 0.32, 1);
   static readonly growCurve = curves.cubicBezierCurve(0.16, 0.90, 0.28, 1.0);
@@ -108,6 +110,24 @@ export class Motion {
     return base;
   }
 
+  /** 键盘弹出/收起时底部输入框的物理弹簧动画参数 */
+  static kbComposerAnim(mode: string): AnimateParam {
+    if (Motion.isFlagship(mode)) {
+      const opts: AnimateParam = { curve: curves.springMotion(0.38, 0.86) };
+      return opts;
+    }
+    const base: AnimateParam = { curve: Motion.springPhysics };
+    return base;
+  }
+
+  /** 键盘推动消息列表上移/回落的惯性跟随曲线（周期略重于输入框，形成被推着走的惯性滞后感） */
+  static kbListFollowCurve(mode: string): ICurve {
+    if (Motion.isFlagship(mode)) {
+      return curves.interpolatingSpring(0, 1, 225, 25.5);
+    }
+    return curves.interpolatingSpring(0, 1, 260, 29);
+  }
+
   /** 沉底悬浮按钮等圆形悬浮控件转场 */
   static fabTransition(_mode: string): TransitionEffect {
     return TransitionEffect.asymmetric(
@@ -154,10 +174,10 @@ export class Motion {
     );
   }
 
-  /** 卡片瀑布绽放统一错峰延时计算（12ms 紧凑逐卡错峰） */
+  /** 卡片瀑布绽放统一错峰延时计算（24ms 逐卡错峰） */
   static bloomDelay(idx: number, baseDelay: number = 16): number {
     const clamped: number = idx < 0 ? 0 : (idx > 16 ? 16 : idx);
-    return baseDelay + clamped * 12;
+    return baseDelay + clamped * 24;
   }
 
   /** 计算瀑布绽放动画完全落定所需的总时长，供延迟合流刷新避免半途重构闪烁 */
@@ -245,7 +265,7 @@ export class Motion {
 
   /**
    * 由上到下逐卡景深绽放（供仍依赖 TransitionEffect 的辅助场景复用）：
-   * 卡片从 0.04 倍居中缩放入场 + 淡入，每张卡错峰 12ms，共用 unifiedElastic。
+   * 卡片从 0.04 倍居中缩放入场 + 淡入，每张卡错峰 24ms，共用 unifiedElastic。
    */
   static bloomCard(idx: number, mode: string, baseDelay: number = 16): TransitionEffect {
     if (!Motion.isFlagship(mode) || idx < 0 || idx >= 18) {

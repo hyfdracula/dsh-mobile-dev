@@ -1,4 +1,4 @@
-import { KeyboardAvoidMode, window } from '@kit.ArkUI';
+import { KeyboardAvoidMode, UIContext, window } from '@kit.ArkUI';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { AppCtx } from './AppCtx';
 
@@ -14,6 +14,8 @@ export class SafeArea {
   private static hasPendingBar: boolean = false;
   private static lastDark: boolean = true;
   private static lastBg: string = '#0A0C10';
+  private static kbNoneTokenSeq: number = 0;
+  private static kbNoneHolders: Set<number> = new Set<number>();
 
   private static readonly onAvoidChange: (opts: window.AvoidAreaOptions) => void =
     (opts: window.AvoidAreaOptions): void => {
@@ -145,6 +147,7 @@ export class SafeArea {
       }
       SafeArea.avoidBound = false;
     }
+    SafeArea.kbNoneHolders.clear();
     SafeArea.mainWin = null;
   }
 
@@ -178,13 +181,52 @@ export class SafeArea {
     }
   }
 
+  static nextKbToken(): number {
+    SafeArea.kbNoneTokenSeq += 1;
+    return SafeArea.kbNoneTokenSeq;
+  }
+
+  private static applyKeyboardAvoidMode(uiCtx?: UIContext): void {
+    const mode: KeyboardAvoidMode = SafeArea.kbNoneHolders.size > 0
+      ? KeyboardAvoidMode.NONE
+      : KeyboardAvoidMode.RESIZE;
+    if (uiCtx !== undefined) {
+      try {
+        uiCtx.setKeyboardAvoidMode(mode);
+      } catch (e) {
+        console.info('DSH_SAFE keyboardMode uiCtx failed: ' + JSON.stringify(e));
+      }
+    }
+    if (SafeArea.mainWin !== null) {
+      try {
+        SafeArea.mainWin.getUIContext().setKeyboardAvoidMode(mode);
+      } catch (e) {
+        console.info('DSH_SAFE keyboardMode mainWin failed: ' + JSON.stringify(e));
+      }
+    }
+  }
+
+  static holdKeyboardNone(token: number, uiCtx?: UIContext): void {
+    SafeArea.kbNoneHolders.add(token);
+    SafeArea.applyKeyboardAvoidMode(uiCtx);
+  }
+
+  static releaseKeyboardNone(token: number, uiCtx?: UIContext): void {
+    SafeArea.kbNoneHolders.delete(token);
+    SafeArea.applyKeyboardAvoidMode(uiCtx);
+  }
+
+  static enforceKeyboardAvoidMode(uiCtx?: UIContext): void {
+    SafeArea.applyKeyboardAvoidMode(uiCtx);
+  }
+
   /**
    * 页面加载完成后默认启用软键盘 RESIZE 避让，使配对页、设置页、弹窗表单在呼出键盘时可滚可见。
-   * 聊天页进出时会按自身需要临时接管并恢复。
+   * 若已有页面持有 kbNone 令牌则维持 KeyboardAvoidMode.NONE，避免晚到的初始化回写覆盖。
    */
   static setKeyboardResize(win: window.Window): void {
     try {
-      win.getUIContext().setKeyboardAvoidMode(KeyboardAvoidMode.RESIZE);
+      SafeArea.applyKeyboardAvoidMode(win.getUIContext());
     } catch (e) {
       console.info('DSH_SAFE keyboardResize skipped: ' + JSON.stringify(e));
     }
