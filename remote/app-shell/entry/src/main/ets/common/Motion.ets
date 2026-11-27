@@ -4,12 +4,88 @@ export const MOTION_VIVID: string = 'vivid';
 export const MOTION_CLASSIC: string = 'classic';
 
 /**
+ * 卡片瀑布绽放的空间距离追踪器：
+ * 通过 onAreaChange 记录各卡片与分组标题的真实纵向中心坐标（globalPosition.y + height / 2），
+ * 以恒定空间传播速度按真实纵向距离换算起播延时（不再使用固定每卡常数间隔），
+ * 仅写入普通 Map，不触发任何多余状态重绘。
+ */
+export class BloomWaveTracker {
+  private centers: Map<string, number> = new Map<string, number>();
+
+  /** 记录元素在窗口中的真实纵向中心坐标（vp） */
+  record(key: string, area: Area): void {
+    const gy: number = Number(area.globalPosition.y);
+    const h: number = Number(area.height);
+    if (!Number.isFinite(gy) || !Number.isFinite(h)) {
+      return;
+    }
+    const centerY: number = gy + (h > 0 ? h * 0.5 : 0);
+    this.centers.set(key, centerY);
+  }
+
+  /** 清空坐标缓存（如列表数据集切换或重置） */
+  reset(): void {
+    this.centers.clear();
+  }
+
+  /**
+   * 计算元素中心相对当前首屏最上方可见元素中心的真实纵向距离（vp）。
+   * 若首次尚未完成测量，则回退到调用方提供的布局估算距离。
+   */
+  distanceOf(key: string, fallbackDistanceVp: number): number {
+    const cy: number | undefined = this.centers.get(key);
+    if (cy === undefined) {
+      return fallbackDistanceVp > 0 ? fallbackDistanceVp : 0;
+    }
+    let originY: number = cy;
+    let hasVisible: boolean = false;
+    this.centers.forEach((v: number) => {
+      if (v >= 0) {
+        if (!hasVisible || v < originY) {
+          originY = v;
+          hasVisible = true;
+        }
+      }
+    });
+    if (!hasVisible) {
+      this.centers.forEach((v: number) => {
+        if (v < originY) {
+          originY = v;
+        }
+      });
+    }
+    const dist: number = cy - originY;
+    return dist > 0 ? dist : 0;
+  }
+
+  /** 返回当前已测量元素中最大的首屏纵向跨度（vp），供估算总落定时长 */
+  maxVisibleSpan(fallbackSpanVp: number): number {
+    let minY: number = Number.POSITIVE_INFINITY;
+    let maxY: number = Number.NEGATIVE_INFINITY;
+    this.centers.forEach((v: number) => {
+      if (v >= 0) {
+        if (v < minY) {
+          minY = v;
+        }
+        if (v > maxY) {
+          maxY = v;
+        }
+      }
+    });
+    if (!Number.isFinite(minY) || !Number.isFinite(maxY) || maxY <= minY) {
+      return fallbackSpanVp > 0 ? fallbackSpanVp : 0;
+    }
+    return maxY - minY;
+  }
+}
+
+/**
  * 全 App 统一动效引擎（双档实时切换，零重启）：
- * - 经典（classic）：包含完整的 P0 + P1 基础动效（物理弹簧、首屏错峰、数字翻滚、
- *   AI 思考双边流光、一镜到底与矢量图标形变），简洁克制；
- * - 灵动（vivid，默认）：在经典全部能力之上，解锁全屏水平视差推拉（Push/Pop）、
- *   页内卡片由上到下逐卡景深绽放、锚点悬浮下拉卡片展开、阅读卡片景深高斯虚化缩退
- *   以及液态玻璃弹簧 Toast。
+ * - 全应用基础物理曲线统一收口至专属欠阻尼弹簧 unifiedElastic（springMotion(0.54, 0.80)）：
+ *   顶栏控件滑入、卡片按空间距离绽放、聊天页软键盘推起气泡、浮层弹出与容器展开共享同一物理节奏；
+ * - 经典（classic）：包含完整的 P0 + P1 基础动效（统一弹簧、数字翻滚、AI 流光、一镜到底与矢量形变）；
+ * - 灵动（vivid，默认）：在经典全部能力之上，解锁全屏水平视差推拉、页内按空间距离逐卡绽放、
+ *   锚点悬浮下拉卡片展开、悬浮阅读卡片以及液态玻璃弹簧 Toast。
  */
 export class Motion {
   static readonly fade: number = 160;
@@ -18,6 +94,11 @@ export class Motion {
 
   static readonly BLOOM_SCALE_START: number = 0.04;
   static readonly BLOOM_HEADER_SCALE_START: number = 0.76;
+  /** 空间波纹传播速率：每 vp 纵向中心距对应的起播延时（ms/vp）与最大首屏错峰上限（ms） */
+  static readonly BLOOM_MS_PER_VP: number = 0.42;
+  static readonly BLOOM_MAX_STAGGER_MS: number = 440;
+  static readonly BLOOM_FALLBACK_STEP_VP: number = 78;
+
   static readonly HEADER_SLIDE_RIGHT_OUTER_X: number = -280;
   static readonly HEADER_SLIDE_RIGHT_INNER_X: number = -240;
   static readonly HEADER_SLIDE_TITLE_X: number = -210;
@@ -33,16 +114,28 @@ export class Motion {
 
   static readonly std = curves.cubicBezierCurve(0.2, 0.72, 0.32, 1);
   static readonly growCurve = curves.cubicBezierCurve(0.16, 0.90, 0.28, 1.0);
-  /** 专属欠阻尼弹簧物理曲线（response 0.54s / dampingFraction 0.80：约 1.5% 柔和超调、~450ms 弹性顿停、~780ms 稳态落定） */
-  static readonly unifiedElastic = curves.springMotion(0.54, 0.80);
-  static readonly spring = curves.springCurve(0.42, 0.62, 200, 12);
 
-  /** 基础物理弹簧曲线：自然阻尼与速度继承 */
-  static readonly springPhysics = curves.springMotion(0.36, 0.84);
-  /** 基础轻弹曲线：用于浮层、按钮、新消息气泡 */
-  static readonly springSnappy = curves.springMotion(0.30, 0.80);
-  /** 跟手曲线：用于打断与快速状态响应 */
-  static readonly springFollow = curves.responsiveSpringMotion();
+  /**
+   * 全 App 基础欠阻尼弹簧物理曲线（response=0.54s, dampingFraction=0.80）：
+   * 约 1.5% 柔和超调、~450ms 弹性顿停、~780ms 稳态落定。
+   * 顶部控件、卡片绽放、对话框与气泡推动、弹窗与面板展开全部基于此曲线。
+   */
+  static readonly unifiedElastic = curves.springMotion(0.54, 0.80);
+
+  /**
+   * 与 unifiedElastic（response=0.54s, dampingFraction=0.80）严格数学等价的插值弹簧曲线：
+   * ω0 = 2π / 0.54 ≈ 11.6355 rad/s, stiffness = ω0² ≈ 135.385, damping = 2 * 0.80 * ω0 ≈ 18.617。
+   * 专供 Scroller.scrollTo 等插值滚动接口使用，确保气泡被推起与顶部控件曲线完全一致。
+   */
+  static readonly unifiedElasticScroll = curves.interpolatingSpring(0, 1, 135.385, 18.617);
+
+  static readonly spring = Motion.unifiedElastic;
+  /** 基础物理弹簧曲线：统一指向全 App 基础曲线 unifiedElastic */
+  static readonly springPhysics = Motion.unifiedElastic;
+  /** 基础轻弹曲线：统一指向全 App 基础曲线 unifiedElastic */
+  static readonly springSnappy = Motion.unifiedElastic;
+  /** 跟手曲线：用于拖拽跟手反馈 */
+  static readonly springFollow = curves.responsiveSpringMotion(0.54, 0.80);
 
   private static cachedNumTrans: NumericTextTransition | undefined = undefined;
   private static cachedReplaceFx: ReplaceSymbolEffect | undefined = undefined;
@@ -68,72 +161,62 @@ export class Motion {
     return true;
   }
 
-  /** 旗舰空间弹性曲线：用于景深虚化、容器高度形变、卡片展开 */
-  static flagshipSpring(): AnimateParam {
-    const opts: AnimateParam = { curve: curves.springMotion(0.38, 0.86) };
+  /** 全 App 基础空间弹性动画参数（统一使用 unifiedElastic） */
+  static baseElastic(delayMs: number = 0): AnimateParam {
+    if (delayMs > 0) {
+      const delayed: AnimateParam = { delay: delayMs, curve: Motion.unifiedElastic };
+      return delayed;
+    }
+    const opts: AnimateParam = { curve: Motion.unifiedElastic };
     return opts;
   }
 
-  /** 旗舰灵巧弹跳曲线：用于按压回弹、锚点下拉展开、轻量角标 */
+  /** 旗舰空间弹性曲线：用于容器高度形变、卡片展开与布局过渡 */
+  static flagshipSpring(): AnimateParam {
+    return Motion.baseElastic();
+  }
+
+  /** 旗舰灵巧弹跳曲线：用于按压回弹、锚点下拉展开、分段滑块与轻量角标 */
   static flagshipSnappy(): AnimateParam {
-    const opts: AnimateParam = { curve: curves.springMotion(0.28, 0.78) };
-    return opts;
+    return Motion.baseElastic();
   }
 
   /** 旗舰悬浮阅读卡弹出与拖拽回弹曲线 */
   static flagshipSheet(): AnimateParam {
-    const opts: AnimateParam = { curve: curves.springMotion(0.42, 0.88) };
-    return opts;
+    return Motion.baseElastic();
   }
 
   /** 旗舰全屏双层视差推拉与步骤横滑曲线 */
   static flagshipParallax(): AnimateParam {
-    const opts: AnimateParam = { curve: curves.springMotion(0.36, 0.90) };
-    return opts;
+    return Motion.baseElastic();
   }
 
   /** 位移、展开、尺寸类显式/属性动画参数 */
-  static moveOpts(mode: string): AnimateParam {
-    if (Motion.isFlagship(mode)) {
-      return Motion.flagshipSpring();
-    }
-    const base: AnimateParam = { curve: Motion.springPhysics };
-    return base;
+  static moveOpts(_mode: string): AnimateParam {
+    return Motion.baseElastic();
   }
 
   /** 轻状态切换动画参数（颜色、旋转、徽标） */
-  static fadeOpts(mode: string): AnimateParam {
-    if (Motion.isFlagship(mode)) {
-      return Motion.flagshipSnappy();
-    }
-    const base: AnimateParam = { curve: Motion.springSnappy };
-    return base;
+  static fadeOpts(_mode: string): AnimateParam {
+    return Motion.baseElastic();
   }
 
-  /** 键盘弹出/收起时底部输入框的物理弹簧动画参数 */
-  static kbComposerAnim(mode: string): AnimateParam {
-    if (Motion.isFlagship(mode)) {
-      const opts: AnimateParam = { curve: curves.springMotion(0.38, 0.86) };
-      return opts;
-    }
-    const base: AnimateParam = { curve: Motion.springPhysics };
-    return base;
+  /** 键盘弹出/收起时底部输入框的物理弹簧动画参数（与顶栏及全 App 基础曲线一致） */
+  static kbComposerAnim(_mode: string): AnimateParam {
+    return Motion.baseElastic();
   }
 
-  /** 键盘推动消息列表上移/回落的惯性跟随曲线（周期略重于输入框，形成被推着走的惯性滞后感） */
-  static kbListFollowCurve(mode: string): ICurve {
-    if (Motion.isFlagship(mode)) {
-      return curves.interpolatingSpring(0, 1, 225, 25.5);
-    }
-    return curves.interpolatingSpring(0, 1, 260, 29);
+  /** 键盘推动消息气泡列表上移/回落的跟随曲线（与顶部控件 unifiedElastic 严格同曲线） */
+  static kbListFollowCurve(_mode: string): ICurve {
+    return Motion.unifiedElasticScroll;
   }
 
   /** 沉底悬浮按钮等圆形悬浮控件转场 */
   static fabTransition(_mode: string): TransitionEffect {
     return TransitionEffect.asymmetric(
       TransitionEffect.OPACITY.animation({ duration: 180, curve: Motion.std })
-        .combine(TransitionEffect.scale({ x: 0.76, y: 0.76 }).animation({ curve: Motion.springSnappy }))
-        .combine(TransitionEffect.translate({ y: 10 }).animation({ curve: Motion.springSnappy })),
+        .combine(TransitionEffect.scale({ x: 0.76, y: 0.76 }).animation({ curve: Motion.unifiedElastic }))
+        .combine(TransitionEffect.translate({ y: 10 }).animation({ curve: Motion.unifiedElastic })),
       TransitionEffect.OPACITY.animation({ duration: 140, curve: Motion.std })
         .combine(TransitionEffect.scale({ x: 0.86, y: 0.86 }).animation({ duration: 140, curve: Motion.std }))
     );
@@ -143,8 +226,8 @@ export class Motion {
   static panelTransition(_mode: string): TransitionEffect {
     return TransitionEffect.asymmetric(
       TransitionEffect.OPACITY.animation({ duration: 180, curve: Motion.std })
-        .combine(TransitionEffect.scale({ x: 0.96, y: 0.96 }).animation({ curve: Motion.springSnappy }))
-        .combine(TransitionEffect.translate({ y: 10 }).animation({ curve: Motion.springSnappy })),
+        .combine(TransitionEffect.scale({ x: 0.96, y: 0.96 }).animation({ curve: Motion.unifiedElastic }))
+        .combine(TransitionEffect.translate({ y: 10 }).animation({ curve: Motion.unifiedElastic })),
       TransitionEffect.OPACITY.animation({ duration: 140, curve: Motion.std })
         .combine(TransitionEffect.translate({ y: 6 }).animation({ duration: 140, curve: Motion.std }))
     );
@@ -154,8 +237,8 @@ export class Motion {
   static bubbleTransition(_mode: string): TransitionEffect {
     return TransitionEffect.asymmetric(
       TransitionEffect.OPACITY.animation({ duration: 180, curve: Motion.std })
-        .combine(TransitionEffect.scale({ x: 0.97, y: 0.97 }).animation({ curve: Motion.springPhysics }))
-        .combine(TransitionEffect.translate({ y: 12 }).animation({ curve: Motion.springPhysics })),
+        .combine(TransitionEffect.scale({ x: 0.97, y: 0.97 }).animation({ curve: Motion.unifiedElastic }))
+        .combine(TransitionEffect.translate({ y: 12 }).animation({ curve: Motion.unifiedElastic })),
       TransitionEffect.IDENTITY
     );
   }
@@ -174,10 +257,23 @@ export class Motion {
     );
   }
 
-  /** 卡片瀑布绽放统一错峰延时计算（24ms 逐卡错峰） */
+  /** 根据真实纵向中心距离（vp）动态计算卡片开始长大的延时（ms） */
+  static bloomDelayByDistance(distanceVp: number, baseDelay: number = 16): number {
+    const d: number = distanceVp > 0 ? distanceVp : 0;
+    const raw: number = Math.round(d * Motion.BLOOM_MS_PER_VP);
+    const clamped: number = raw > Motion.BLOOM_MAX_STAGGER_MS ? Motion.BLOOM_MAX_STAGGER_MS : raw;
+    return baseDelay + clamped;
+  }
+
+  /** 兼容旧调用的序号延时换算（按默认卡片间距估算距离） */
   static bloomDelay(idx: number, baseDelay: number = 16): number {
     const clamped: number = idx < 0 ? 0 : (idx > 16 ? 16 : idx);
-    return baseDelay + clamped * 24;
+    return Motion.bloomDelayByDistance(clamped * Motion.BLOOM_FALLBACK_STEP_VP, baseDelay);
+  }
+
+  /** 按首屏纵向跨度计算瀑布绽放完全落定的总时长 */
+  static bloomTotalMsBySpan(spanVp: number, baseDelay: number = 16): number {
+    return Motion.bloomDelayByDistance(spanVp, baseDelay) + 820;
   }
 
   /** 计算瀑布绽放动画完全落定所需的总时长，供延迟合流刷新避免半途重构闪烁 */
@@ -186,17 +282,62 @@ export class Motion {
     return Motion.bloomDelay(lastIdx, baseDelay) + 820;
   }
 
+  /** 按真实距离计算的卡片显隐动画参数（纯中心缩放 + 淡入） */
+  static bloomOpacityAnimByDist(distanceVp: number, mode: string, baseDelay: number = 16): AnimateParam | undefined {
+    if (!Motion.isFlagship(mode) || distanceVp < 0) {
+      return undefined;
+    }
+    const opts: AnimateParam = {
+      duration: 210,
+      delay: Motion.bloomDelayByDistance(distanceVp, baseDelay),
+      curve: Motion.std
+    };
+    return opts;
+  }
+
+  /** 按真实距离计算的卡片纯中心等比绽放动画参数（0.04 -> 1.0，共享 unifiedElastic） */
+  static bloomScaleAnimByDist(distanceVp: number, mode: string, baseDelay: number = 16): AnimateParam | undefined {
+    if (!Motion.isFlagship(mode) || distanceVp < 0) {
+      return undefined;
+    }
+    const opts: AnimateParam = {
+      delay: Motion.bloomDelayByDistance(distanceVp, baseDelay),
+      curve: Motion.unifiedElastic
+    };
+    return opts;
+  }
+
+  /** 按真实距离计算的分组小标题显隐动画参数 */
+  static bloomHeaderOpacityAnimByDist(distanceVp: number, mode: string, baseDelay: number = 16): AnimateParam | undefined {
+    if (!Motion.isFlagship(mode) || distanceVp < 0) {
+      return undefined;
+    }
+    const opts: AnimateParam = {
+      duration: 190,
+      delay: Motion.bloomDelayByDistance(distanceVp, baseDelay),
+      curve: Motion.std
+    };
+    return opts;
+  }
+
+  /** 按真实距离计算的分组小标题缩放动画参数 */
+  static bloomHeaderScaleAnimByDist(distanceVp: number, mode: string, baseDelay: number = 16): AnimateParam | undefined {
+    if (!Motion.isFlagship(mode) || distanceVp < 0) {
+      return undefined;
+    }
+    const opts: AnimateParam = {
+      delay: Motion.bloomDelayByDistance(distanceVp, baseDelay),
+      curve: Motion.unifiedElastic
+    };
+    return opts;
+  }
+
   /** 卡片从小到大长大显隐动画参数（纯中心缩放 + 淡入） */
   static bloomOpacityAnim(idx: number, mode: string, baseDelay: number = 16): AnimateParam | undefined {
     if (!Motion.isFlagship(mode) || idx < 0 || idx >= 18) {
       return undefined;
     }
-    const opts: AnimateParam = {
-      duration: 210,
-      delay: Motion.bloomDelay(idx, baseDelay),
-      curve: Motion.std
-    };
-    return opts;
+    return Motion.bloomOpacityAnimByDist(idx * Motion.BLOOM_FALLBACK_STEP_VP, mode, baseDelay);
   }
 
   /** 卡片从小到大纯中心等比绽放动画参数（0.04 -> 1.0，与顶栏共享 unifiedElastic 物理弹簧曲线） */
@@ -204,11 +345,7 @@ export class Motion {
     if (!Motion.isFlagship(mode) || idx < 0 || idx >= 18) {
       return undefined;
     }
-    const opts: AnimateParam = {
-      delay: Motion.bloomDelay(idx, baseDelay),
-      curve: Motion.unifiedElastic
-    };
-    return opts;
+    return Motion.bloomScaleAnimByDist(idx * Motion.BLOOM_FALLBACK_STEP_VP, mode, baseDelay);
   }
 
   /** 分组小标题显隐动画参数 */
@@ -216,12 +353,7 @@ export class Motion {
     if (!Motion.isFlagship(mode) || idx < 0 || idx >= 18) {
       return undefined;
     }
-    const opts: AnimateParam = {
-      duration: 190,
-      delay: Motion.bloomDelay(idx, baseDelay),
-      curve: Motion.std
-    };
-    return opts;
+    return Motion.bloomHeaderOpacityAnimByDist(idx * Motion.BLOOM_FALLBACK_STEP_VP, mode, baseDelay);
   }
 
   /** 分组小标题缩放动画参数 */
@@ -229,11 +361,7 @@ export class Motion {
     if (!Motion.isFlagship(mode) || idx < 0 || idx >= 18) {
       return undefined;
     }
-    const opts: AnimateParam = {
-      delay: Motion.bloomDelay(idx, baseDelay),
-      curve: Motion.unifiedElastic
-    };
-    return opts;
+    return Motion.bloomHeaderScaleAnimByDist(idx * Motion.BLOOM_FALLBACK_STEP_VP, mode, baseDelay);
   }
 
   /** 顶栏控件左->右弹性推出透明度动画参数 */
@@ -245,7 +373,7 @@ export class Motion {
     return opts;
   }
 
-  /** 顶栏控件左->右弹性推出物理弹簧参数（与卡片共用 unifiedElastic） */
+  /** 顶栏控件左->右弹性推出物理弹簧参数（与全 App 共用 unifiedElastic） */
   static headerPopScaleAnim(delayMs: number, mode: string): AnimateParam | undefined {
     if (!Motion.isFlagship(mode)) {
       return undefined;
@@ -254,7 +382,7 @@ export class Motion {
     return opts;
   }
 
-  /** 顶栏标题左->右弹性滑入动画参数（与卡片共用 unifiedElastic） */
+  /** 顶栏标题左->右弹性滑入动画参数（与全 App 共用 unifiedElastic） */
   static headerTitleSlideAnim(delayMs: number, mode: string): AnimateParam | undefined {
     if (!Motion.isFlagship(mode)) {
       return undefined;
@@ -265,7 +393,7 @@ export class Motion {
 
   /**
    * 由上到下逐卡景深绽放（供仍依赖 TransitionEffect 的辅助场景复用）：
-   * 卡片从 0.04 倍居中缩放入场 + 淡入，每张卡错峰 24ms，共用 unifiedElastic。
+   * 卡片从 0.04 倍居中缩放入场 + 淡入，共用 unifiedElastic。
    */
   static bloomCard(idx: number, mode: string, baseDelay: number = 16): TransitionEffect {
     if (!Motion.isFlagship(mode) || idx < 0 || idx >= 18) {
@@ -288,11 +416,10 @@ export class Motion {
       return TransitionEffect.IDENTITY;
     }
     const clamped: number = idx > 11 ? 11 : idx;
-    const wait: number = baseDelay + clamped * 26;
-    const springCurve = curves.springMotion(0.36, 0.86);
+    const wait: number = Motion.bloomDelayByDistance(clamped * Motion.BLOOM_FALLBACK_STEP_VP, baseDelay);
     return TransitionEffect.asymmetric(
       TransitionEffect.OPACITY.animation({ duration: 180, curve: Motion.std, delay: wait })
-        .combine(TransitionEffect.translate({ y: 8 }).animation({ curve: springCurve, delay: wait })),
+        .combine(TransitionEffect.translate({ y: 8 }).animation({ curve: Motion.unifiedElastic, delay: wait })),
       TransitionEffect.IDENTITY
     );
   }
@@ -310,8 +437,7 @@ export class Motion {
   }
 
   /**
-   * 64-65 秒同款锚点下拉卡片展开转场：
-   * 从触发按钮锚点角向内/向下弹出。
+   * 锚点下拉卡片展开转场：从触发按钮锚点角向内/向下弹出，共用 unifiedElastic。
    */
   static popupMenuTransition(mode: string, anchorRight: boolean = true): TransitionEffect {
     const cx: string = anchorRight ? '94%' : '6%';
@@ -319,39 +445,31 @@ export class Motion {
       return TransitionEffect.asymmetric(
         TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std })
           .combine(TransitionEffect.scale({ x: 0.94, y: 0.94, centerX: cx, centerY: '0%' })
-            .animation({ duration: Motion.fade, curve: Motion.std })),
+            .animation({ curve: Motion.unifiedElastic })),
         TransitionEffect.OPACITY.animation({ duration: 120, curve: Motion.std })
       );
     }
-    const snappy = curves.springMotion(0.28, 0.80);
     return TransitionEffect.asymmetric(
       TransitionEffect.OPACITY.animation({ duration: 160, curve: Motion.std })
-        .combine(TransitionEffect.scale({ x: 0.82, y: 0.82, centerX: cx, centerY: '0%' }).animation({ curve: snappy }))
-        .combine(TransitionEffect.translate({ y: -6 }).animation({ curve: snappy })),
+        .combine(TransitionEffect.scale({ x: 0.82, y: 0.82, centerX: cx, centerY: '0%' }).animation({ curve: Motion.unifiedElastic }))
+        .combine(TransitionEffect.translate({ y: -6 }).animation({ curve: Motion.unifiedElastic })),
       TransitionEffect.OPACITY.animation({ duration: 120, curve: Motion.std })
         .combine(TransitionEffect.scale({ x: 0.90, y: 0.90, centerX: cx, centerY: '0%' })
           .animation({ duration: 120, curve: Motion.std }))
     );
   }
 
-  /** 同构双屏/多步骤容器整体横滑动画参数（无回弹错位重叠） */
-  static stepPaneAnim(mode: string): AnimateParam {
-    if (Motion.isFlagship(mode)) {
-      const opts: AnimateParam = { curve: curves.springMotion(0.34, 0.92) };
-      return opts;
-    }
-    const base: AnimateParam = { duration: Motion.move, curve: Motion.std };
-    return base;
+  /** 同构双屏/多步骤容器整体横滑动画参数（统一基于 unifiedElastic） */
+  static stepPaneAnim(_mode: string): AnimateParam {
+    return Motion.baseElastic();
   }
 
   /**
    * 步骤页 / 同构选项卡左右横推转场（零渐变淡入淡出，整页等速退场防止重合）：
    * 用于配对流程「电脑端准备 <-> 连接电脑」以及反馈中心内部页面切换。
    */
-  static stepSlide(forward: boolean, mode: string): TransitionEffect {
-    const anim: AnimateParam = Motion.isFlagship(mode)
-      ? Motion.flagshipParallax()
-      : { duration: Motion.move, curve: Motion.std };
+  static stepSlide(forward: boolean, _mode: string): TransitionEffect {
+    const anim: AnimateParam = Motion.baseElastic();
     const enterX: string = forward ? '100%' : '-100%';
     const exitX: string = forward ? '-100%' : '100%';
     return TransitionEffect.asymmetric(

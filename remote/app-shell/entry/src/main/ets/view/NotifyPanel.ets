@@ -5,7 +5,7 @@ import { PushStatusResp, PushTestResp } from '../common/ApiTypes';
 import { AppCtx } from '../common/AppCtx';
 import { Haptics } from '../common/Haptics';
 import { Mat } from '../common/Mat';
-import { Motion, MOTION_VIVID } from '../common/Motion';
+import { BloomWaveTracker, Motion, MOTION_VIVID } from '../common/Motion';
 import { Notifier } from '../common/Notifier';
 import { PushBridge } from '../common/PushBridge';
 import { Toast } from '../common/Toast';
@@ -48,6 +48,7 @@ export struct NotifyPanel {
   @State private entered: boolean = true;
   private pollTimer: number = -1;
   private enterTimer: number = -1;
+  private wave: BloomWaveTracker = new BloomWaveTracker();
 
   aboutToAppear(): void {
     if (Motion.isFlagship(this.motionMode)) {
@@ -55,7 +56,7 @@ export struct NotifyPanel {
       this.enterTimer = setTimeout(() => {
         this.enterTimer = -1;
         this.entered = true;
-      }, 16);
+      }, 24);
     } else {
       this.entered = true;
     }
@@ -324,32 +325,46 @@ export struct NotifyPanel {
       .borderRadius(Tokens.rRow)
       .clip(true)
       .margin({ top: 6 })
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('notify:perm', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomOpacityAnim(0, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('notify:perm', 0), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         centerX: '50%',
         centerY: '50%'
       })
-      .animation(Motion.bloomScaleAnim(0, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('notify:perm', 0), this.motionMode)
+        : null)
 
       Text('提醒偏好')
         .fontSize(Tokens.fsCaption)
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
         .margin({ left: 6, top: 16, bottom: 8 })
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('hdr:pref', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomHeaderOpacityAnim(1, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf('hdr:pref', 94), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           centerX: '0%',
           centerY: '50%'
         })
-        .animation(Motion.bloomHeaderScaleAnim(1, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('hdr:pref', 94), this.motionMode)
+          : null)
 
       Column({ space: 9 }) {
         // 1. 回合结束提醒
@@ -369,16 +384,23 @@ export struct NotifyPanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('notify:done', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomOpacityAnim(1, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('notify:done', 148), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           centerX: '50%',
           centerY: '50%'
         })
-        .animation(Motion.bloomScaleAnim(1, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('notify:done', 148), this.motionMode)
+          : null)
 
         // 2. 仅在后台提醒
         Column() {
@@ -398,16 +420,23 @@ export struct NotifyPanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('notify:bgOnly', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomOpacityAnim(2, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('notify:bgOnly', 228), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           centerX: '50%',
           centerY: '50%'
         })
-        .animation(Motion.bloomScaleAnim(2, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('notify:bgOnly', 228), this.motionMode)
+          : null)
 
         // 3. 推送显示会话标题
         Column() {
@@ -427,16 +456,23 @@ export struct NotifyPanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('notify:showTitle', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomOpacityAnim(3, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('notify:showTitle', 308), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           centerX: '50%',
           centerY: '50%'
         })
-        .animation(Motion.bloomScaleAnim(3, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('notify:showTitle', 308), this.motionMode)
+          : null)
       }
       .width('100%')
 
@@ -445,16 +481,23 @@ export struct NotifyPanel {
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
         .margin({ left: 6, top: 16, bottom: 8 })
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('hdr:push', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomHeaderOpacityAnim(4, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf('hdr:push', 386), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           centerX: '0%',
           centerY: '50%'
         })
-        .animation(Motion.bloomHeaderScaleAnim(4, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('hdr:push', 386), this.motionMode)
+          : null)
 
       // 4. 华为系统推送通道（多行状态与操作复合卡）
       Column({ space: 10 }) {
@@ -533,32 +576,46 @@ export struct NotifyPanel {
       .shadow(Mat.rowShadow(this.hdsOn))
       .borderRadius(Tokens.rCard)
       .alignItems(HorizontalAlign.Start)
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('notify:push', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomOpacityAnim(4, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('notify:push', 480), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         centerX: '50%',
         centerY: '50%'
       })
-      .animation(Motion.bloomScaleAnim(4, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('notify:push', 480), this.motionMode)
+        : null)
 
       Text('调试与未读')
         .fontSize(Tokens.fsCaption)
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
         .margin({ left: 6, top: 16, bottom: 8 })
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('hdr:debug', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomHeaderOpacityAnim(5, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf('hdr:debug', 598), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           centerX: '0%',
           centerY: '50%'
         })
-        .animation(Motion.bloomHeaderScaleAnim(5, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('hdr:debug', 598), this.motionMode)
+          : null)
 
       Column({ space: 9 }) {
         // 5. 测试本地通知
@@ -596,16 +653,23 @@ export struct NotifyPanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('notify:test', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomOpacityAnim(5, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('notify:test', 652), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           centerX: '50%',
           centerY: '50%'
         })
-        .animation(Motion.bloomScaleAnim(5, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('notify:test', 652), this.motionMode)
+          : null)
 
         // 6. 清除未读与桌面角标
         Row() {
@@ -650,16 +714,23 @@ export struct NotifyPanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('notify:unread', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomOpacityAnim(6, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('notify:unread', 730), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           centerX: '50%',
           centerY: '50%'
         })
-        .animation(Motion.bloomScaleAnim(6, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('notify:unread', 730), this.motionMode)
+          : null)
       }
       .width('100%')
 
@@ -669,16 +740,23 @@ export struct NotifyPanel {
         .lineHeight(18)
         .width('100%')
         .margin({ top: 12, left: 4, right: 4 })
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('notify:foot', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomHeaderOpacityAnim(7, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf('notify:foot', 804), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           centerX: '0%',
           centerY: '50%'
         })
-        .animation(Motion.bloomHeaderScaleAnim(7, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('notify:foot', 804), this.motionMode)
+          : null)
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)

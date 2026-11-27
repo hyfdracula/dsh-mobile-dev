@@ -1,10 +1,10 @@
-import curves from '@ohos.curves';
 import uiMaterial from '@ohos.arkui.uiMaterial';
 import { HdsBarWidthRangeOptions, HdsTabs, HdsTabsController, HdsTabsFloatingStyle, SystemMaterialParams, hdsMaterial } from '@kit.UIDesignKit';
 import { Api } from '../common/Api';
 import { AppCtx } from '../common/AppCtx';
 import { Machines } from '../common/Machines';
 import { Mat } from '../common/Mat';
+import { Motion } from '../common/Motion';
 import { Tokens } from '../common/Tokens';
 import { Haptics } from '../common/Haptics';
 import { Notifier } from '../common/Notifier';
@@ -474,7 +474,7 @@ export struct ShellPage {
         x: this.pressIdx === i ? 0.82 : 1,
         y: this.pressIdx === i ? 0.82 : 1
       })
-      .animation({ duration: 420, curve: curves.springCurve(0.42, 0.62, 200, 12) })
+      .animation(Motion.baseElastic())
     }
     .width('100%')
     .height('100%')

@@ -4,7 +4,7 @@ import { Haptics } from '../common/Haptics';
 import { LegalDocKind } from '../common/LegalDocs';
 import { LinkLog } from '../common/LinkLog';
 import { Mat } from '../common/Mat';
-import { Motion, MOTION_VIVID } from '../common/Motion';
+import { BloomWaveTracker, Motion, MOTION_VIVID } from '../common/Motion';
 import { Saver } from '../common/Saver';
 import { Toast } from '../common/Toast';
 import { Tokens } from '../common/Tokens';
@@ -33,6 +33,7 @@ export struct AboutPanel {
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
   private enterTimer: number = -1;
+  private wave: BloomWaveTracker = new BloomWaveTracker();
 
   aboutToAppear(): void {
     this.logCount = LinkLog.count();
@@ -41,7 +42,7 @@ export struct AboutPanel {
       this.enterTimer = setTimeout(() => {
         this.enterTimer = -1;
         this.entered = true;
-      }, 16);
+      }, 24);
     } else {
       this.entered = true;
     }
@@ -85,7 +86,7 @@ export struct AboutPanel {
   }
 
   @Builder
-  actionCard(title: string, hint: string, idx: number, onTap: () => void) {
+  actionCard(title: string, hint: string, waveKey: string, fallbackDistVp: number, onTap: () => void) {
     Row() {
       Column() {
         Text(title)
@@ -120,16 +121,23 @@ export struct AboutPanel {
     .borderRadius(Tokens.rRow)
     .clip(true)
     .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
+    .onAreaChange((_old: Area, area: Area) => {
+      this.wave.record(waveKey, area);
+    })
     .animation(null)
     .opacity(this.entered ? 1 : 0)
-    .animation(Motion.bloomOpacityAnim(idx, this.motionMode))
+    .animation(this.entered
+      ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf(waveKey, fallbackDistVp), this.motionMode)
+      : null)
     .scale({
       x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
       y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
       centerX: '50%',
       centerY: '50%'
     })
-    .animation(Motion.bloomScaleAnim(idx, this.motionMode))
+    .animation(this.entered
+      ? Motion.bloomScaleAnimByDist(this.wave.distanceOf(waveKey, fallbackDistVp), this.motionMode)
+      : null)
     .onClick(() => {
       Haptics.tap();
       onTap();
@@ -143,16 +151,23 @@ export struct AboutPanel {
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
         .margin({ left: 6, top: 6, bottom: 8 })
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('hdr:ver', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomHeaderOpacityAnim(0, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf('hdr:ver', 0), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           centerX: '0%',
           centerY: '50%'
         })
-        .animation(Motion.bloomHeaderScaleAnim(0, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('hdr:ver', 0), this.motionMode)
+          : null)
 
       Column({ space: 9 }) {
         ForEach(this.rows, (r: AboutRow, i: number) => {
@@ -178,16 +193,23 @@ export struct AboutPanel {
           .shadow(Mat.rowShadow(this.hdsOn))
           .borderRadius(Tokens.rRow)
           .clip(true)
+          .onAreaChange((_old: Area, area: Area) => {
+            this.wave.record('row:' + r.k, area);
+          })
           .animation(null)
           .opacity(this.entered ? 1 : 0)
-          .animation(Motion.bloomOpacityAnim(i, this.motionMode))
+          .animation(this.entered
+            ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('row:' + r.k, 32 + i * 58), this.motionMode)
+            : null)
           .scale({
             x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
             y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
             centerX: '50%',
             centerY: '50%'
           })
-          .animation(Motion.bloomScaleAnim(i, this.motionMode))
+          .animation(this.entered
+            ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('row:' + r.k, 32 + i * 58), this.motionMode)
+            : null)
         }, (r: AboutRow) => r.k + ':' + r.v)
       }
       .width('100%')
@@ -197,42 +219,50 @@ export struct AboutPanel {
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
         .margin({ left: 6, top: 16, bottom: 8 })
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('hdr:diag', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomHeaderOpacityAnim(this.diagBaseIdx(), this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf('hdr:diag', 32 + this.diagBaseIdx() * 58 + 20), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           centerX: '0%',
           centerY: '50%'
         })
-        .animation(Motion.bloomHeaderScaleAnim(this.diagBaseIdx(), this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('hdr:diag', 32 + this.diagBaseIdx() * 58 + 20), this.motionMode)
+          : null)
 
       Column({ space: 9 }) {
         this.actionCard(
           this.exporting ? '正在导出运行诊断日志…' : '导出运行诊断日志',
           String(this.logCount) + ' 条脱敏记录 · 网络/引擎/运行状态，不含令牌与正文',
-          this.diagBaseIdx(),
+          'act:diag',
+          32 + this.diagBaseIdx() * 58 + 56,
           () => {
             void this.exportDiagLog();
           }
         )
 
         if (isFeedbackEnabled()) {
-          this.actionCard('反馈与支持', '提交问题、功能建议与查看进度', this.diagBaseIdx() + 1, () => {
+          this.actionCard('反馈与支持', '提交问题、功能建议与查看进度', 'act:fb', 32 + this.diagBaseIdx() * 58 + 132, () => {
             this.onFeedback();
           })
         }
 
-        this.actionCard('隐私政策', '说明本地存储、权限范围与加密机制', this.legalStartIdx(), () => {
+        this.actionCard('隐私政策', '说明本地存储、权限范围与加密机制', 'act:privacy', 32 + this.legalStartIdx() * 68 + 56, () => {
           this.onLegal('privacy');
         })
 
-        this.actionCard('用户协议', '使用约定与免责说明', this.legalStartIdx() + 1, () => {
+        this.actionCard('用户协议', '使用约定与免责说明', 'act:terms', 32 + (this.legalStartIdx() + 1) * 68 + 56, () => {
           this.onLegal('terms');
         })
 
-        this.actionCard('开源许可', '查看第三方组件与标准协议声明', this.legalStartIdx() + 2, () => {
+        this.actionCard('开源许可', '查看第三方组件与标准协议声明', 'act:licenses', 32 + (this.legalStartIdx() + 2) * 68 + 56, () => {
           this.onLegal('licenses');
         })
       }

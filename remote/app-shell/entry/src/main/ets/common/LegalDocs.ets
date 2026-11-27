@@ -26,6 +26,20 @@ export function legalBodyOf(kind: LegalDocKind): string {
   return OPEN_SOURCE_NOTICES_TEXT;
 }
 
+/** 按段落拆分的合规文档文本，避免单节点超长段落排版阻塞弹出首帧导致掉帧 */
+export function legalParagraphsOf(kind: LegalDocKind): string[] {
+  const raw: string = legalBodyOf(kind);
+  const lines: string[] = raw.split('\n');
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const t: string = lines[i].trim();
+    if (t !== '') {
+      out.push(t);
+    }
+  }
+  return out;
+}
+
 export const PRIVACY_POLICY_TEXT: string = [
   '更新日期：2026 年 11 月 27 日 ｜ 生效日期：2026 年 11 月 27 日',
   '应用名称：Agent远程控制台（应用包名：com.agent.mobile）',

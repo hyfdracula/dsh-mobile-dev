@@ -6,10 +6,10 @@ import { AppCtx } from '../common/AppCtx';
 import { AppIcon, ICON_DARK } from '../common/AppIcon';
 import { PageHeader, TopFade, buildTransparentHdsTitle } from '../common/Chrome';
 import { Haptics } from '../common/Haptics';
-import { legalBodyOf, LegalDocKind, legalTitleOf } from '../common/LegalDocs';
+import { LegalDocKind } from '../common/LegalDocs';
 import { LinkLog } from '../common/LinkLog';
 import { Mat } from '../common/Mat';
-import { Motion, MOTION_VIVID } from '../common/Motion';
+import { BloomWaveTracker, Motion, MOTION_VIVID } from '../common/Motion';
 import { Pairing } from '../common/Pairing';
 import { PushBridge } from '../common/PushBridge';
 import { Toast } from '../common/Toast';
@@ -19,7 +19,6 @@ import { Unread } from '../common/Unread';
 import { AboutPanel, AboutRow } from './AboutPanel';
 import { AgentEnginesPanel } from './AgentEnginesPanel';
 import { AgentPanel } from './AgentPanel';
-import { AiSetupGuideBody, TunnelSetupGuideBody } from './AgentSetupCard';
 import { AppearancePanel } from './AppearancePanel';
 import { ConnectPanel } from './ConnectPanel';
 import { DataStoragePanel } from './DataStoragePanel';
@@ -27,6 +26,7 @@ import { ExtrasPanel } from './ExtrasPanel';
 import { FeedbackPage } from './FeedbackPage';
 import { NotifyPanel } from './NotifyPanel';
 import { PairPage } from './PairPage';
+import { ReadingSheetOverlay } from './ReadingSheetOverlay';
 import { StoragePage } from './StoragePage';
 import { WebConsolePage } from './WebConsolePage';
 
@@ -110,16 +110,15 @@ export struct SettingsPage {
   @State private enterSendUi: boolean = true;
   @State private compactHistoryUi: boolean = false;
   @State private textScaleUi: number = 1;
-  @State private rootEntered: boolean = true;
+  @State private rootEntered: boolean = false;
   private rootEnterTimer: number = -1;
   private lastTab: number = 0;
+  private rootWave: BloomWaveTracker = new BloomWaveTracker();
 
-  // 仅用于「隐私政策 / 用户协议 / 开源许可 / 外网向导（AI 与隧道）」的景深悬浮阅读浮卡
+  // 仅用于「隐私政策 / 用户协议 / 开源许可 / 外网向导（AI 与隧道）」的高帧率隔离悬浮阅读卡
   @State private readingRoute: string = '';
   @State private readingMounted: boolean = false;
-  @State private readingOpenFactor: number = 0;
-  @State private readingDragY: number = 0;
-  private readingCloseTimer: number = -1;
+  @State private readingCloseSignal: number = 0;
 
   @State private info: ApiInfo | null = null;
   @State private base: string = '';
@@ -193,84 +192,30 @@ export struct SettingsPage {
     }
   }
 
-  private clearReadingTimer(): void {
-    if (this.readingCloseTimer >= 0) {
-      clearTimeout(this.readingCloseTimer);
-      this.readingCloseTimer = -1;
-    }
-  }
-
   private openReadingSheet(route: string): void {
-    this.clearReadingTimer();
     LinkLog.record('NAV', 'reading ' + route);
     this.readingRoute = route;
-    this.readingDragY = 0;
-    this.readingOpenFactor = 0;
+    this.readingCloseSignal = 0;
     this.readingMounted = true;
     this.sheetOpen = true;
     this.syncSubFromStack();
-    setTimeout(() => {
-      if (this.readingMounted && this.readingRoute === route) {
-        this.getUIContext().animateTo(Motion.flagshipSheet(), () => {
-          this.readingOpenFactor = 1;
-        });
-      }
-    }, 16);
   }
 
   private closeReadingSheet(): void {
-    this.clearReadingTimer();
     if (!this.readingMounted) {
       this.sheetOpen = false;
       this.syncSubFromStack();
       return;
     }
-    this.getUIContext().animateTo(Motion.flagshipSheet(), () => {
-      this.readingOpenFactor = 0;
-      this.readingDragY = 0;
-    });
-    this.readingCloseTimer = setTimeout(() => {
-      this.readingCloseTimer = -1;
-      this.readingMounted = false;
-      this.readingRoute = '';
-      this.readingDragY = 0;
-      this.sheetOpen = false;
-      this.syncSubFromStack();
-    }, 240);
+    this.readingCloseSignal += 1;
   }
 
-  private effectiveBackdrop(): number {
-    if (!this.readingMounted || this.readingOpenFactor <= 0) {
-      return 0;
-    }
-    const dragRatio: number = Math.min(1, Math.max(0, this.readingDragY / 320));
-    return Math.max(0, this.readingOpenFactor * (1 - dragRatio));
-  }
-
-  private readingHeightFor(route: string): string {
-    if (route === 'guide:ai') {
-      return '78%';
-    }
-    if (route === 'guide:tunnel') {
-      return '84%';
-    }
-    return '80%';
-  }
-
-  private readingTitleOf(route: string): string {
-    if (route === 'guide:ai') {
-      return '让 AI 帮你配';
-    }
-    if (route === 'guide:tunnel') {
-      return '外网访问配置向导';
-    }
-    if (route === 'legal:terms') {
-      return legalTitleOf('terms');
-    }
-    if (route === 'legal:licenses') {
-      return legalTitleOf('licenses');
-    }
-    return legalTitleOf('privacy');
+  private finishReadingSheetClose(): void {
+    this.readingMounted = false;
+    this.readingRoute = '';
+    this.readingCloseSignal = 0;
+    this.sheetOpen = false;
+    this.syncSubFromStack();
   }
 
   private openSettingEntry(id: string): void {
@@ -317,7 +262,14 @@ export struct SettingsPage {
     this.editBase = this.wanBase;
     this.editToken = this.token0;
     this.lastTab = this.shellTab;
-    this.playRootEnter();
+    if (!Motion.isFlagship(this.motionMode)) {
+      this.rootEntered = true;
+    } else if (this.shellTab === 1) {
+      this.rootEntered = false;
+      this.scheduleRootEnter(24);
+    } else {
+      this.rootEntered = false;
+    }
     void this.load();
     if (this.token0 !== '' && this.wanBase !== '' && Api.cachedBackends().length === 0) {
       void this.api.backends(false).catch(() => {});
@@ -330,25 +282,40 @@ export struct SettingsPage {
     }, 2000);
   }
 
-  private playRootEnter(): void {
+  private clearRootEnterTimer(): void {
     if (this.rootEnterTimer >= 0) {
       clearTimeout(this.rootEnterTimer);
       this.rootEnterTimer = -1;
     }
-    if (Motion.isFlagship(this.motionMode)) {
-      this.rootEntered = false;
-      this.rootEnterTimer = setTimeout(() => {
-        this.rootEnterTimer = -1;
+  }
+
+  private scheduleRootEnter(waitMs: number): void {
+    this.clearRootEnterTimer();
+    this.rootEnterTimer = setTimeout(() => {
+      this.rootEnterTimer = -1;
+      if (this.shellTab === 1) {
         this.rootEntered = true;
-      }, 16);
-    } else {
-      this.rootEntered = true;
-    }
+      }
+    }, waitMs);
   }
 
   private onShellTabChange(): void {
-    if (this.shellTab === 1 && this.lastTab !== 1 && this.sub === '' && !this.readingMounted) {
-      this.playRootEnter();
+    this.clearRootEnterTimer();
+    if (!Motion.isFlagship(this.motionMode)) {
+      this.rootEntered = true;
+      this.lastTab = this.shellTab;
+      return;
+    }
+    if (this.shellTab !== 1) {
+      // 离开设置页时在离屏态无动画归位，再次切回时零闪现、零顶部大卡片反向收缩
+      this.rootEntered = false;
+    } else if (this.lastTab !== 1) {
+      if (this.sub === '' && !this.readingMounted) {
+        this.rootEntered = false;
+        this.scheduleRootEnter(24);
+      } else {
+        this.rootEntered = true;
+      }
     }
     this.lastTab = this.shellTab;
   }
@@ -359,11 +326,7 @@ export struct SettingsPage {
       this.linkTimer = -1;
     }
     this.stopSaveTimer();
-    this.clearReadingTimer();
-    if (this.rootEnterTimer >= 0) {
-      clearTimeout(this.rootEnterTimer);
-      this.rootEnterTimer = -1;
-    }
+    this.clearRootEnterTimer();
   }
 
   private startSaveTimer(): void {
@@ -638,9 +601,9 @@ export struct SettingsPage {
         .fontColor(Tokens.fg)
         .animation(null)
         .opacity(this.rootEntered ? 1 : 0)
-        .animation(Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_SUB_TITLE, this.motionMode, 220))
+        .animation(this.rootEntered ? Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_SUB_TITLE, this.motionMode, 220) : null)
         .translate({ x: this.rootEntered ? 0 : Motion.HEADER_SLIDE_SUB_TITLE_X })
-        .animation(Motion.headerTitleSlideAnim(Motion.HEADER_DELAY_SUB_TITLE, this.motionMode))
+        .animation(this.rootEntered ? Motion.headerTitleSlideAnim(Motion.HEADER_DELAY_SUB_TITLE, this.motionMode) : null)
       Blank()
     }
     .width('100%').height(52).padding({ left: 16, right: 16 })
@@ -649,26 +612,33 @@ export struct SettingsPage {
   }
 
   @Builder
-  groupTitle(text: string, topGap: number, bloomIdx: number) {
+  groupTitle(text: string, topGap: number, waveKey: string, fallbackDistVp: number) {
     Text(text)
       .fontSize(Tokens.fsCaption)
       .fontColor(Tokens.dim2)
       .letterSpacing(1.4)
       .margin({ left: 6, top: topGap, bottom: 8 })
+      .onAreaChange((_old: Area, area: Area) => {
+        this.rootWave.record(waveKey, area);
+      })
       .animation(null)
       .opacity(this.rootEntered ? 1 : 0)
-      .animation(Motion.bloomHeaderOpacityAnim(bloomIdx, this.motionMode, 12))
+      .animation(this.rootEntered
+        ? Motion.bloomHeaderOpacityAnimByDist(this.rootWave.distanceOf(waveKey, fallbackDistVp), this.motionMode, 12)
+        : null)
       .scale({
         x: this.rootEntered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         y: this.rootEntered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         centerX: '0%',
         centerY: '50%'
       })
-      .animation(Motion.bloomHeaderScaleAnim(bloomIdx, this.motionMode, 12))
+      .animation(this.rootEntered
+        ? Motion.bloomHeaderScaleAnimByDist(this.rootWave.distanceOf(waveKey, fallbackDistVp), this.motionMode, 12)
+        : null)
   }
 
   @Builder
-  navRowCard(r: NavRow, idx: number) {
+  navRowCard(r: NavRow, fallbackDistVp: number) {
     Row() {
       Stack({ alignContent: Alignment.Center }) {
         Image(this.navIconRes(r.id)).width(18).height(18).fillColor(Tokens.navIconInk).objectFit(ImageFit.Contain)
@@ -713,16 +683,23 @@ export struct SettingsPage {
     .borderRadius(Tokens.rRow)
     .clip(true)
     .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
+    .onAreaChange((_old: Area, area: Area) => {
+      this.rootWave.record('row:' + r.id, area);
+    })
     .animation(null)
     .opacity(this.rootEntered ? 1 : 0)
-    .animation(Motion.bloomOpacityAnim(idx, this.motionMode, 12))
+    .animation(this.rootEntered
+      ? Motion.bloomOpacityAnimByDist(this.rootWave.distanceOf('row:' + r.id, fallbackDistVp), this.motionMode, 12)
+      : null)
     .scale({
       x: this.rootEntered ? 1 : Motion.BLOOM_SCALE_START,
       y: this.rootEntered ? 1 : Motion.BLOOM_SCALE_START,
       centerX: '50%',
       centerY: '50%'
     })
-    .animation(Motion.bloomScaleAnim(idx, this.motionMode, 12))
+    .animation(this.rootEntered
+      ? Motion.bloomScaleAnimByDist(this.rootWave.distanceOf('row:' + r.id, fallbackDistVp), this.motionMode, 12)
+      : null)
     .onClick(() => { this.openSettingEntry(r.id); })
   }
 
@@ -785,16 +762,23 @@ export struct SettingsPage {
     }
     .width('100%').padding(16).backgroundColor(Mat.cardBg(this.hdsOn))
     .border(Mat.cardBorder(this.hdsOn)).shadow(Mat.cardShadow(this.hdsOn)).borderRadius(Tokens.rCard)
+    .onAreaChange((_old: Area, area: Area) => {
+      this.rootWave.record('banner', area);
+    })
     .animation(null)
     .opacity(this.rootEntered ? 1 : 0)
-    .animation(Motion.bloomOpacityAnim(0, this.motionMode, 12))
+    .animation(this.rootEntered
+      ? Motion.bloomOpacityAnimByDist(this.rootWave.distanceOf('banner', 0), this.motionMode, 12)
+      : null)
     .scale({
       x: this.rootEntered ? 1 : Motion.BLOOM_SCALE_START,
       y: this.rootEntered ? 1 : Motion.BLOOM_SCALE_START,
       centerX: '50%',
       centerY: '50%'
     })
-    .animation(Motion.bloomScaleAnim(0, this.motionMode, 12))
+    .animation(this.rootEntered
+      ? Motion.bloomScaleAnimByDist(this.rootWave.distanceOf('banner', 0), this.motionMode, 12)
+      : null)
   }
 
   @Builder
@@ -802,24 +786,24 @@ export struct SettingsPage {
     Column() {
       this.deviceBanner()
 
-      this.groupTitle('电脑与智能体', 16, 1)
+      this.groupTitle('电脑与智能体', 16, 'grp:agent', 64)
       Column({ space: 9 }) {
-        this.navRowCard(AGENT_GROUP_ROWS[0], 1)
-        this.navRowCard(AGENT_GROUP_ROWS[1], 2)
+        this.navRowCard(AGENT_GROUP_ROWS[0], 112)
+        this.navRowCard(AGENT_GROUP_ROWS[1], 186)
       }
       .width('100%')
 
-      this.groupTitle('偏好设置', 16, 3)
+      this.groupTitle('偏好设置', 16, 'grp:pref', 244)
       Column({ space: 9 }) {
-        this.navRowCard(PREF_GROUP_ROWS[0], 3)
-        this.navRowCard(PREF_GROUP_ROWS[1], 4)
+        this.navRowCard(PREF_GROUP_ROWS[0], 292)
+        this.navRowCard(PREF_GROUP_ROWS[1], 366)
       }
       .width('100%')
 
-      this.groupTitle('数据与支持', 16, 5)
+      this.groupTitle('数据与支持', 16, 'grp:data', 424)
       Column({ space: 9 }) {
-        this.navRowCard(DATA_GROUP_ROWS[0], 5)
-        this.navRowCard(DATA_GROUP_ROWS[1], 6)
+        this.navRowCard(DATA_GROUP_ROWS[0], 472)
+        this.navRowCard(DATA_GROUP_ROWS[1], 546)
       }
       .width('100%')
 
@@ -829,16 +813,23 @@ export struct SettingsPage {
         .width('100%')
         .textAlign(TextAlign.Center)
         .padding({ top: 22, bottom: 8 })
+        .onAreaChange((_old: Area, area: Area) => {
+          this.rootWave.record('ver', area);
+        })
         .animation(null)
         .opacity(this.rootEntered ? 1 : 0)
-        .animation(Motion.bloomHeaderOpacityAnim(7, this.motionMode, 12))
+        .animation(this.rootEntered
+          ? Motion.bloomHeaderOpacityAnimByDist(this.rootWave.distanceOf('ver', 610), this.motionMode, 12)
+          : null)
         .scale({
           x: this.rootEntered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           y: this.rootEntered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           centerX: '0%',
           centerY: '50%'
         })
-        .animation(Motion.bloomHeaderScaleAnim(7, this.motionMode, 12))
+        .animation(this.rootEntered
+          ? Motion.bloomHeaderScaleAnimByDist(this.rootWave.distanceOf('ver', 610), this.motionMode, 12)
+          : null)
     }
     .width('100%').alignItems(HorizontalAlign.Start)
   }
@@ -1109,157 +1100,6 @@ export struct SettingsPage {
     })
   }
 
-  /**
-   * 仅用于「隐私政策 / 用户协议 / 开源许可 / 外网访问向导」的景深悬浮阅读浮卡：
-   * - 保留标志性的景深高斯虚化缩退背板与跟手下拉关闭动效；
-   * - 严格尊重全局 hdsOn 开关：开启为雾面通透液态玻璃，关闭为零模糊高对比实色表面。
-   */
-  @Builder
-  readingSheetOverlay() {
-    Stack({ alignContent: Alignment.Bottom }) {
-      Row()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(this.themeDark ? '#66000000' : '#2E0F172A')
-        .opacity(this.effectiveBackdrop())
-        .onClick(() => {
-          Haptics.soft();
-          this.closeReadingSheet();
-        })
-
-      Column() {
-        Stack({ alignContent: Alignment.Top }) {
-          if (this.hdsOn) {
-            Row()
-              .width('100%')
-              .height('100%')
-              .linearGradient({
-                angle: 165,
-                colors: this.themeDark
-                  ? [['#22FFFFFF', 0.0], ['#08FFFFFF', 0.28], ['#00FFFFFF', 0.65]]
-                  : [['#66FFFFFF', 0.0], ['#1AFFFFFF', 0.30], ['#00FFFFFF', 0.68]]
-              })
-              .hitTestBehavior(HitTestMode.None)
-          }
-
-          Column() {
-            // 顶部拖拽指示条 + 阅读标题栏
-            Column() {
-              Row()
-                .width(38)
-                .height(4)
-                .borderRadius(2)
-                .backgroundColor(this.themeDark ? '#40FFFFFF' : '#260F172A')
-                .margin({ top: 9, bottom: 8 })
-
-              Row({ space: 10 }) {
-                Text(this.readingTitleOf(this.readingRoute))
-                  .fontSize(Tokens.fsTitle)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor(Tokens.fg)
-                  .maxLines(1)
-                  .textOverflow({ overflow: TextOverflow.Ellipsis })
-                  .layoutWeight(1)
-
-                Stack({ alignContent: Alignment.Center }) {
-                  SymbolGlyph($r('sys.symbol.xmark'))
-                    .fontSize(15)
-                    .fontWeight(FontWeight.Medium)
-                    .fontColor([Tokens.dim])
-                }
-                .width(34)
-                .height(34)
-                .borderRadius(Tokens.rPill)
-                .backgroundColor(Mat.subCardBg(this.hdsOn))
-                .border(Mat.subCardBorder(this.hdsOn))
-                .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.9 })
-                .accessibilityText('关闭')
-                .onClick(() => {
-                  Haptics.soft();
-                  this.closeReadingSheet();
-                })
-              }
-              .width('100%')
-              .padding({ left: 18, right: 16, bottom: 10 })
-              .alignItems(VerticalAlign.Center)
-            }
-            .width('100%')
-            .alignItems(HorizontalAlign.Center)
-            .gesture(
-              PanGesture({ direction: PanDirection.Vertical, distance: 4 })
-                .onActionUpdate((e: GestureEvent) => {
-                  const dy: number = e.offsetY;
-                  this.readingDragY = dy > 0 ? dy : dy * 0.16;
-                })
-                .onActionEnd((e: GestureEvent) => {
-                  if (this.readingDragY > 96 || e.velocityY > 560) {
-                    Haptics.soft();
-                    this.closeReadingSheet();
-                  } else {
-                    this.getUIContext().animateTo(Motion.flagshipSheet(), () => {
-                      this.readingDragY = 0;
-                    });
-                  }
-                })
-            )
-
-            Scroll() {
-              Column() {
-                if (this.readingRoute === 'guide:ai') {
-                  AiSetupGuideBody()
-                } else if (this.readingRoute === 'guide:tunnel') {
-                  TunnelSetupGuideBody()
-                } else {
-                  Text(legalBodyOf(this.readingRoute === 'legal:terms'
-                    ? 'terms'
-                    : (this.readingRoute === 'legal:licenses' ? 'licenses' : 'privacy')))
-                    .fontSize(Tokens.fsBody)
-                    .fontColor(Tokens.fg)
-                    .lineHeight(22)
-                    .width('100%')
-                    .copyOption(CopyOptions.LocalDevice)
-                }
-              }
-              .width('100%')
-              .padding({ left: 18, right: 18, top: 4, bottom: 26 })
-              .alignItems(HorizontalAlign.Start)
-            }
-            .width('100%')
-            .layoutWeight(1)
-            .scrollBar(BarState.Off)
-            .edgeEffect(EdgeEffect.Spring)
-            .align(Alignment.Top)
-          }
-          .width('100%')
-          .height('100%')
-        }
-        .width('100%')
-        .constraintSize({ maxWidth: this.panelMaxWidth() + 32 })
-        .height(this.readingHeightFor(this.readingRoute))
-        .backgroundColor(this.hdsOn ? Color.Transparent : Tokens.surface)
-        .backgroundEffect(Mat.readingGlassEffect(this.hdsOn))
-        .borderRadius(28)
-        .border(Mat.glassRimBorder(this.hdsOn))
-        .shadow(Mat.glassFloatShadow(this.hdsOn))
-        .clip(true)
-        .translate({ y: (1 - this.readingOpenFactor) * 520 + this.readingDragY })
-        .scale({
-          x: 0.94 + 0.06 * this.readingOpenFactor,
-          y: 0.94 + 0.06 * this.readingOpenFactor
-        })
-        .opacity(Math.min(1, this.readingOpenFactor * 1.45))
-      }
-      .width('100%')
-      .height('100%')
-      .justifyContent(FlexAlign.End)
-      .alignItems(HorizontalAlign.Center)
-      .padding({ left: 10, right: 10, bottom: this.bottomInset + 10 })
-      .hitTestBehavior(HitTestMode.Transparent)
-    }
-    .width('100%')
-    .height('100%')
-  }
-
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
       Column() {
@@ -1291,16 +1131,16 @@ export struct SettingsPage {
       .width('100%')
       .height('100%')
       .backgroundColor(this.themeBg)
-      .blur(this.hdsOn ? this.effectiveBackdrop() * 18 : 0)
-      .scale({
-        x: 1 - 0.055 * this.effectiveBackdrop(),
-        y: 1 - 0.055 * this.effectiveBackdrop()
-      })
-      .borderRadius(this.effectiveBackdrop() > 0.01 ? 22 * this.effectiveBackdrop() : 0)
-      .clip(this.effectiveBackdrop() > 0.01)
 
       if (this.readingMounted && this.readingRoute !== '') {
-        this.readingSheetOverlay()
+        ReadingSheetOverlay({
+          route: this.readingRoute,
+          maxCardWidth: this.panelMaxWidth() + 32,
+          closeSignal: this.readingCloseSignal,
+          onClosed: () => {
+            this.finishReadingSheetClose();
+          }
+        })
       }
     }
     .width('100%')

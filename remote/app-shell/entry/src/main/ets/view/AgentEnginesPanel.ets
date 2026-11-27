@@ -1,7 +1,7 @@
 import { Api, BackendInfo } from '../common/Api';
 import { Haptics } from '../common/Haptics';
 import { Mat } from '../common/Mat';
-import { Motion, MOTION_VIVID } from '../common/Motion';
+import { BloomWaveTracker, Motion, MOTION_VIVID } from '../common/Motion';
 import { Toast } from '../common/Toast';
 import { Tokens } from '../common/Tokens';
 import { HintLabel } from '../common/Widgets';
@@ -25,6 +25,7 @@ export struct AgentEnginesPanel {
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
   private enterTimer: number = -1;
+  private wave: BloomWaveTracker = new BloomWaveTracker();
 
   aboutToAppear(): void {
     const cached: BackendInfo[] = Api.cachedBackends();
@@ -36,7 +37,7 @@ export struct AgentEnginesPanel {
       this.enterTimer = setTimeout(() => {
         this.enterTimer = -1;
         this.entered = true;
-      }, 16);
+      }, 24);
     } else {
       this.entered = true;
     }
@@ -146,16 +147,23 @@ export struct AgentEnginesPanel {
       .width('100%')
       .padding({ left: 6, right: 4, top: 6, bottom: 8 })
       .alignItems(VerticalAlign.Center)
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('hdr:eng', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomHeaderOpacityAnim(0, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf('hdr:eng', 0), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         centerX: '0%',
         centerY: '50%'
       })
-      .animation(Motion.bloomHeaderScaleAnim(0, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('hdr:eng', 0), this.motionMode)
+        : null)
 
       if (this.backends.length > 0) {
         Column({ space: 9 }) {
@@ -202,16 +210,23 @@ export struct AgentEnginesPanel {
             .shadow(Mat.rowShadow(this.hdsOn))
             .borderRadius(Tokens.rRow)
             .clip(true)
+            .onAreaChange((_old: Area, area: Area) => {
+              this.wave.record('eng:' + b.id, area);
+            })
             .animation(null)
             .opacity(this.entered ? 1 : 0)
-            .animation(Motion.bloomOpacityAnim(idx, this.motionMode))
+            .animation(this.entered
+              ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('eng:' + b.id, (idx + 1) * 72), this.motionMode)
+              : null)
             .scale({
               x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
               y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
               centerX: '50%',
               centerY: '50%'
             })
-            .animation(Motion.bloomScaleAnim(idx, this.motionMode))
+            .animation(this.entered
+              ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('eng:' + b.id, (idx + 1) * 72), this.motionMode)
+              : null)
           }, (b: BackendInfo) => b.id + ':' + String(b.enabled) + ':' + String(b.installed))
         }
         .width('100%')
@@ -231,16 +246,23 @@ export struct AgentEnginesPanel {
         .border(Mat.cardBorder(this.hdsOn))
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('eng:empty', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomOpacityAnim(0, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('eng:empty', 72), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           centerX: '50%',
           centerY: '50%'
         })
-        .animation(Motion.bloomScaleAnim(0, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('eng:empty', 72), this.motionMode)
+          : null)
       }
 
       Column() {
@@ -252,16 +274,27 @@ export struct AgentEnginesPanel {
       }
       .width('100%')
       .padding({ left: 6, right: 6, top: 10 })
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('note:eng', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomHeaderOpacityAnim(this.backends.length > 0 ? this.backends.length : 1, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomHeaderOpacityAnimByDist(
+          this.wave.distanceOf('note:eng', (this.backends.length > 0 ? this.backends.length + 1 : 2) * 72),
+          this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         centerX: '0%',
         centerY: '50%'
       })
-      .animation(Motion.bloomHeaderScaleAnim(this.backends.length > 0 ? this.backends.length : 1, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomHeaderScaleAnimByDist(
+          this.wave.distanceOf('note:eng', (this.backends.length > 0 ? this.backends.length + 1 : 2) * 72),
+          this.motionMode)
+        : null)
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)

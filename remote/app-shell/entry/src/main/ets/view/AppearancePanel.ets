@@ -3,7 +3,7 @@ import { AppCtx } from '../common/AppCtx';
 import { AppIcon, ICON_DARK, ICON_LIGHT, IconSwitchResult } from '../common/AppIcon';
 import { Haptics } from '../common/Haptics';
 import { Mat } from '../common/Mat';
-import { Motion, MOTION_CLASSIC, MOTION_VIVID } from '../common/Motion';
+import { BloomWaveTracker, Motion, MOTION_CLASSIC, MOTION_VIVID } from '../common/Motion';
 import { PickerOption, PopupPicker } from '../common/PopupPicker';
 import { Toast } from '../common/Toast';
 import { Tokens } from '../common/Tokens';
@@ -56,6 +56,7 @@ export struct AppearancePanel {
   @State private iconBusy: boolean = false;
   @State private entered: boolean = true;
   private enterTimer: number = -1;
+  private wave: BloomWaveTracker = new BloomWaveTracker();
 
   aboutToAppear(): void {
     if (Motion.isFlagship(this.motionMode)) {
@@ -63,7 +64,7 @@ export struct AppearancePanel {
       this.enterTimer = setTimeout(() => {
         this.enterTimer = -1;
         this.entered = true;
-      }, 16);
+      }, 24);
     } else {
       this.entered = true;
     }
@@ -158,22 +159,29 @@ export struct AppearancePanel {
   }
 
   @Builder
-  sectionTitle(text: string, topMargin: number, bloomIdx: number) {
+  sectionTitle(text: string, topMargin: number, waveKey: string, fallbackDistVp: number) {
     Text(text)
       .fontSize(Tokens.fsCaption)
       .fontColor(Tokens.dim2)
       .letterSpacing(1.4)
       .margin({ left: 6, top: topMargin, bottom: 8 })
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record(waveKey, area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomHeaderOpacityAnim(bloomIdx, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf(waveKey, fallbackDistVp), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         centerX: '0%',
         centerY: '50%'
       })
-      .animation(Motion.bloomHeaderScaleAnim(bloomIdx, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf(waveKey, fallbackDistVp), this.motionMode)
+        : null)
   }
 
   @Builder
@@ -194,7 +202,7 @@ export struct AppearancePanel {
   build() {
     Column() {
       // 分组 1：外观显示（逐条独立卡片）
-      this.sectionTitle('外观显示', 6, 0)
+      this.sectionTitle('外观显示', 6, 'hdr:display', 0)
       Column({ space: 9 }) {
         // 0. 主题
         Row() {
@@ -220,16 +228,23 @@ export struct AppearancePanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('card:theme', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomOpacityAnim(0, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('card:theme', 52), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           centerX: '50%',
           centerY: '50%'
         })
-        .animation(Motion.bloomScaleAnim(0, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('card:theme', 52), this.motionMode)
+          : null)
 
         // 1. 沉浸光感
         Row() {
@@ -264,16 +279,23 @@ export struct AppearancePanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('card:hds', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomOpacityAnim(1, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('card:hds', 124), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           centerX: '50%',
           centerY: '50%'
         })
-        .animation(Motion.bloomScaleAnim(1, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('card:hds', 124), this.motionMode)
+          : null)
 
         // 2. 交互动效
         Row() {
@@ -310,16 +332,23 @@ export struct AppearancePanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('card:motion', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomOpacityAnim(2, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('card:motion', 204), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           centerX: '50%',
           centerY: '50%'
         })
-        .animation(Motion.bloomScaleAnim(2, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('card:motion', 204), this.motionMode)
+          : null)
 
         // 3. 应用图标（语义整体单卡）
         Column({ space: 10 }) {
@@ -353,16 +382,23 @@ export struct AppearancePanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rCard)
         .clip(true)
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('card:icon', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomOpacityAnim(3, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('card:icon', 310), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           centerX: '50%',
           centerY: '50%'
         })
-        .animation(Motion.bloomScaleAnim(3, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('card:icon', 310), this.motionMode)
+          : null)
 
         // 4. 正文字号
         Row() {
@@ -393,21 +429,28 @@ export struct AppearancePanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('card:scale', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomOpacityAnim(4, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('card:scale', 438), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           centerX: '50%',
           centerY: '50%'
         })
-        .animation(Motion.bloomScaleAnim(4, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('card:scale', 438), this.motionMode)
+          : null)
       }
       .width('100%')
 
       // 分组 2：对话与交互（逐条独立卡片）
-      this.sectionTitle('对话与交互', 16, 5)
+      this.sectionTitle('对话与交互', 16, 'hdr:interact', 512)
       Column({ space: 9 }) {
         // 5. 触感反馈
         Row() {
@@ -436,16 +479,23 @@ export struct AppearancePanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('card:haptics', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomOpacityAnim(5, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('card:haptics', 556), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           centerX: '50%',
           centerY: '50%'
         })
-        .animation(Motion.bloomScaleAnim(5, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('card:haptics', 556), this.motionMode)
+          : null)
 
         // 6. 回车发送
         Row() {
@@ -472,16 +522,23 @@ export struct AppearancePanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('card:enter', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomOpacityAnim(6, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('card:enter', 624), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           centerX: '50%',
           centerY: '50%'
         })
-        .animation(Motion.bloomScaleAnim(6, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('card:enter', 624), this.motionMode)
+          : null)
 
         // 7. 会话精简加载
         Column() {
@@ -502,16 +559,23 @@ export struct AppearancePanel {
         .shadow(Mat.rowShadow(this.hdsOn))
         .borderRadius(Tokens.rRow)
         .clip(true)
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('card:compact', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomOpacityAnim(7, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('card:compact', 700), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           centerX: '50%',
           centerY: '50%'
         })
-        .animation(Motion.bloomScaleAnim(7, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('card:compact', 700), this.motionMode)
+          : null)
       }
       .width('100%')
     }

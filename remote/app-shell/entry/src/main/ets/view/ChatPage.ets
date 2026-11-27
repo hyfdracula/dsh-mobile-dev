@@ -514,7 +514,7 @@ export struct ChatPage {
               xOffset: 0,
               yOffset: Math.max(0, curY + d + 2),
               animation: {
-                duration: 480,
+                duration: 780,
                 curve: Motion.kbListFollowCurve(this.motionMode),
                 canOverScroll: false
               }
@@ -530,7 +530,7 @@ export struct ChatPage {
         this.kbSettleTimer = setTimeout(() => {
           this.kbSettleTimer = -1;
           this.kbScrolling = false;
-        }, 560);
+        }, 820);
       }
     } else {
       try {
@@ -558,7 +558,7 @@ export struct ChatPage {
               xOffset: 0,
               yOffset: Math.max(0, curY + d),
               animation: {
-                duration: 440,
+                duration: 760,
                 curve: Motion.kbListFollowCurve(this.motionMode),
                 canOverScroll: false
               }
@@ -579,7 +579,7 @@ export struct ChatPage {
         try {
           this.atBottom = this.scroller.isAtEnd();
         } catch (_e) {}
-      }, 460);
+      }, 800);
     }
   }
 
@@ -2093,9 +2093,9 @@ export struct ChatPage {
             .accessibilityText('返回')
             .animation(null)
             .opacity(this.hdrEntered ? 1 : 0)
-            .animation(Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_BACK, this.motionMode, 180))
+            .animation(this.hdrEntered ? Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_BACK, this.motionMode, 180) : null)
             .translate({ x: this.hdrEntered ? 0 : Motion.HEADER_SLIDE_BACK_X })
-            .animation(Motion.headerPopScaleAnim(Motion.HEADER_DELAY_BACK, this.motionMode))
+            .animation(this.hdrEntered ? Motion.headerPopScaleAnim(Motion.HEADER_DELAY_BACK, this.motionMode) : null)
 
           HeaderTitleCapsule({
             title: this.titleNow !== '' ? this.titleNow : '会话',
@@ -2111,9 +2111,9 @@ export struct ChatPage {
             .layoutWeight(1)
             .animation(null)
             .opacity(this.hdrEntered ? 1 : 0)
-            .animation(Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_TITLE, this.motionMode, 200))
+            .animation(this.hdrEntered ? Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_TITLE, this.motionMode, 200) : null)
             .translate({ x: this.hdrEntered ? 0 : Motion.HEADER_SLIDE_TITLE_X })
-            .animation(Motion.headerTitleSlideAnim(Motion.HEADER_DELAY_TITLE, this.motionMode))
+            .animation(this.hdrEntered ? Motion.headerTitleSlideAnim(Motion.HEADER_DELAY_TITLE, this.motionMode) : null)
 
           HeaderCirclePill({
             glyph: 'stats',
@@ -2123,9 +2123,9 @@ export struct ChatPage {
             .accessibilityText('上下文与统计')
             .animation(null)
             .opacity(this.hdrEntered ? 1 : 0)
-            .animation(Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_RIGHT_INNER, this.motionMode, 220))
+            .animation(this.hdrEntered ? Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_RIGHT_INNER, this.motionMode, 220) : null)
             .translate({ x: this.hdrEntered ? 0 : Motion.HEADER_SLIDE_RIGHT_INNER_X })
-            .animation(Motion.headerPopScaleAnim(Motion.HEADER_DELAY_RIGHT_INNER, this.motionMode))
+            .animation(this.hdrEntered ? Motion.headerPopScaleAnim(Motion.HEADER_DELAY_RIGHT_INNER, this.motionMode) : null)
 
           HeaderCirclePill({
             glyph: '···',
@@ -2135,9 +2135,9 @@ export struct ChatPage {
             .accessibilityText('更多菜单')
             .animation(null)
             .opacity(this.hdrEntered ? 1 : 0)
-            .animation(Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_RIGHT_OUTER, this.motionMode, 220))
+            .animation(this.hdrEntered ? Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_RIGHT_OUTER, this.motionMode, 220) : null)
             .translate({ x: this.hdrEntered ? 0 : Motion.HEADER_SLIDE_RIGHT_OUTER_X })
-            .animation(Motion.headerPopScaleAnim(Motion.HEADER_DELAY_RIGHT_OUTER, this.motionMode))
+            .animation(this.hdrEntered ? Motion.headerPopScaleAnim(Motion.HEADER_DELAY_RIGHT_OUTER, this.motionMode) : null)
             .bindPopup(this.menuOn, Mat.popupOpts(
               this.hdsOn,
               (): void => { this.chatMenuBuilder(); },

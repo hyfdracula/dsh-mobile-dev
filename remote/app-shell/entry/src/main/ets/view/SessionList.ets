@@ -11,7 +11,7 @@ import {
 } from '../common/Api';
 import { Mat } from '../common/Mat';
 import { Tokens } from '../common/Tokens';
-import { Motion, MOTION_VIVID } from '../common/Motion';
+import { BloomWaveTracker, Motion, MOTION_VIVID } from '../common/Motion';
 import { TopFade, buildTransparentHdsTitle } from '../common/Chrome';
 import { EmptyState } from '../common/Widgets';
 import { copyText } from '../common/Clipboard';
@@ -102,6 +102,7 @@ export struct SessionList {
   @State @Watch('syncSheet') private headerSheetOn: boolean = false;
 
   @State private listEntered: boolean = false;
+  private wave: BloomWaveTracker = new BloomWaveTracker();
   private scroller: Scroller = new Scroller();
   private loadStart: number = 0;
   private slowTimer: number = -1;
@@ -259,14 +260,15 @@ export struct SessionList {
       return;
     }
     const visN: number = this.rowCount > 14 ? 14 : this.rowCount;
-    this.revealFinishAt = Date.now() + Motion.bloomTotalMs(visN, 20);
+    this.revealFinishAt = Date.now() + Motion.bloomTotalMsBySpan(
+      this.wave.maxVisibleSpan(visN * Motion.BLOOM_FALLBACK_STEP_VP), 20);
     if (this.revealTimer !== -1) {
       clearTimeout(this.revealTimer);
     }
     this.revealTimer = setTimeout(() => {
       this.revealTimer = -1;
       this.listEntered = true;
-    }, 24);
+    }, 28);
   }
 
   private scheduleRebuildAfterReveal(): void {
@@ -1151,16 +1153,25 @@ export struct SessionList {
                         }
                       })
                     }
+                    .onAreaChange((_old: Area, area: Area) => {
+                      if (idx < 18) {
+                        this.wave.record(m.key, area);
+                      }
+                    })
                     .animation(null)
                     .opacity(this.listEntered || idx >= 18 ? 1 : 0)
-                    .animation(Motion.bloomHeaderOpacityAnim(idx, this.motionMode, 20))
+                    .animation(this.listEntered && idx < 18
+                      ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf(m.key, idx * 66), this.motionMode, 20)
+                      : null)
                     .scale({
                       x: this.listEntered || idx >= 18 ? 1 : Motion.BLOOM_HEADER_SCALE_START,
                       y: this.listEntered || idx >= 18 ? 1 : Motion.BLOOM_HEADER_SCALE_START,
                       centerX: '0%',
                       centerY: '50%'
                     })
-                    .animation(Motion.bloomHeaderScaleAnim(idx, this.motionMode, 20))
+                    .animation(this.listEntered && idx < 18
+                      ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf(m.key, idx * 66), this.motionMode, 20)
+                      : null)
                   } else {
                     ListItem() {
                       SessionTile({
@@ -1190,16 +1201,25 @@ export struct SessionList {
                         onFork: () => { void this.doFork(m.row); }
                       })
                     }
+                    .onAreaChange((_old: Area, area: Area) => {
+                      if (idx < 18) {
+                        this.wave.record(m.key, area);
+                      }
+                    })
                     .animation(null)
                     .opacity(this.listEntered || idx >= 18 ? 1 : 0)
-                    .animation(Motion.bloomOpacityAnim(idx, this.motionMode, 20))
+                    .animation(this.listEntered && idx < 18
+                      ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf(m.key, idx * 82), this.motionMode, 20)
+                      : null)
                     .scale({
                       x: this.listEntered || idx >= 18 ? 1 : Motion.BLOOM_SCALE_START,
                       y: this.listEntered || idx >= 18 ? 1 : Motion.BLOOM_SCALE_START,
                       centerX: '50%',
                       centerY: '50%'
                     })
-                    .animation(Motion.bloomScaleAnim(idx, this.motionMode, 20))
+                    .animation(this.listEntered && idx < 18
+                      ? Motion.bloomScaleAnimByDist(this.wave.distanceOf(m.key, idx * 82), this.motionMode, 20)
+                      : null)
                     .swipeAction(this.capsForRow(m.row).archivePin
                       ? {
                           end: {
@@ -1284,9 +1304,8 @@ export struct SessionList {
         .height('100%')
         .hitTestBehavior(HitTestMode.Transparent)
         .transition(
-          TransitionEffect.OPACITY
-            .combine(TransitionEffect.move(TransitionEdge.BOTTOM))
-            .animation({ duration: Motion.move, curve: Motion.std })
+          TransitionEffect.OPACITY.animation({ duration: Motion.fade, curve: Motion.std })
+            .combine(TransitionEffect.move(TransitionEdge.BOTTOM).animation(Motion.baseElastic()))
         )
       }
 

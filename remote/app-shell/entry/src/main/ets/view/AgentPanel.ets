@@ -1,7 +1,7 @@
 import { Api, BackendInfo } from '../common/Api';
 import { Haptics } from '../common/Haptics';
 import { Mat } from '../common/Mat';
-import { Motion, MOTION_VIVID } from '../common/Motion';
+import { BloomWaveTracker, Motion, MOTION_VIVID } from '../common/Motion';
 import { PickerOption, PopupPicker } from '../common/PopupPicker';
 import { Tokens } from '../common/Tokens';
 import { HintLabel } from '../common/Widgets';
@@ -36,6 +36,7 @@ export struct AgentPanel {
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
   @StorageLink('backendsDirty') @Watch('onBackendsDirty') backendsDirty: number = 0;
   private enterTimer: number = -1;
+  private wave: BloomWaveTracker = new BloomWaveTracker();
 
   aboutToAppear(): void {
     if (Motion.isFlagship(this.motionMode)) {
@@ -43,7 +44,7 @@ export struct AgentPanel {
       this.enterTimer = setTimeout(() => {
         this.enterTimer = -1;
         this.entered = true;
-      }, 16);
+      }, 24);
     } else {
       this.entered = true;
     }
@@ -98,7 +99,7 @@ export struct AgentPanel {
   }
 
   @Builder
-  entryCard(title: string, subtitle: string, idx: number, onTap: () => void) {
+  entryCard(title: string, subtitle: string, waveKey: string, fallbackDistVp: number, onTap: () => void) {
     Row() {
       Column() {
         Text(title)
@@ -137,16 +138,23 @@ export struct AgentPanel {
     .borderRadius(Tokens.rRow)
     .clip(true)
     .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
+    .onAreaChange((_old: Area, area: Area) => {
+      this.wave.record(waveKey, area);
+    })
     .animation(null)
     .opacity(this.entered ? 1 : 0)
-    .animation(Motion.bloomOpacityAnim(idx, this.motionMode))
+    .animation(this.entered
+      ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf(waveKey, fallbackDistVp), this.motionMode)
+      : null)
     .scale({
       x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
       y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
       centerX: '50%',
       centerY: '50%'
     })
-    .animation(Motion.bloomScaleAnim(idx, this.motionMode))
+    .animation(this.entered
+      ? Motion.bloomScaleAnimByDist(this.wave.distanceOf(waveKey, fallbackDistVp), this.motionMode)
+      : null)
     .onClick(() => {
       Haptics.tap();
       onTap();
@@ -170,18 +178,25 @@ export struct AgentPanel {
       .width('100%')
       .padding({ left: 6, right: 6, top: 6, bottom: 8 })
       .alignItems(VerticalAlign.Center)
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('hdr:0', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomHeaderOpacityAnim(0, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf('hdr:0', 0), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         centerX: '0%',
         centerY: '50%'
       })
-      .animation(Motion.bloomHeaderScaleAnim(0, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('hdr:0', 0), this.motionMode)
+        : null)
 
-      this.entryCard('电脑端智能体引擎', this.enginesSummary(), 0, () => {
+      this.entryCard('电脑端智能体引擎', this.enginesSummary(), 'c:engines', 46, () => {
         this.onOpenEngines();
       })
 
@@ -191,16 +206,23 @@ export struct AgentPanel {
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
         .margin({ left: 6, top: 16, bottom: 8 })
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('hdr:1', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomHeaderOpacityAnim(1, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf('hdr:1', 108), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           centerX: '0%',
           centerY: '50%'
         })
-        .animation(Motion.bloomHeaderScaleAnim(1, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('hdr:1', 108), this.motionMode)
+          : null)
 
       Row() {
         Row() {
@@ -235,16 +257,23 @@ export struct AgentPanel {
       .shadow(Mat.rowShadow(this.hdsOn))
       .borderRadius(Tokens.rRow)
       .clip(true)
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('c:answer', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomOpacityAnim(1, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('c:answer', 152), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         centerX: '50%',
         centerY: '50%'
       })
-      .animation(Motion.bloomScaleAnim(1, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('c:answer', 152), this.motionMode)
+        : null)
 
       // 3. 预设、插件与网页控制台（逐条独立卡片）
       Row() {
@@ -261,28 +290,35 @@ export struct AgentPanel {
       .width('100%')
       .padding({ left: 6, right: 6, top: 16, bottom: 8 })
       .alignItems(VerticalAlign.Center)
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('hdr:2', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomHeaderOpacityAnim(2, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf('hdr:2', 216), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         centerX: '0%',
         centerY: '50%'
       })
-      .animation(Motion.bloomHeaderScaleAnim(2, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('hdr:2', 216), this.motionMode)
+        : null)
 
       Column({ space: 9 }) {
-        this.entryCard('智能体预设与权限', '查看和调整默认模型、系统预设与执行权限', 2, () => {
+        this.entryCard('智能体预设与权限', '查看和调整默认模型、系统预设与执行权限', 'c:presets', 264, () => {
           this.onOpenPresets();
         })
-        this.entryCard('插件管理', '查看、启停与配置电脑端已安装扩展插件', 3, () => {
+        this.entryCard('插件管理', '查看、启停与配置电脑端已安装扩展插件', 'c:plugins', 338, () => {
           this.onOpenExtras('plugins');
         })
-        this.entryCard('自动化任务', '管理电脑端定时任务与后台计划', 4, () => {
+        this.entryCard('自动化任务', '管理电脑端定时任务与后台计划', 'c:sched', 412, () => {
           this.onOpenExtras('schedules');
         })
-        this.entryCard('电脑完整网页控制台', '免密打开电脑端完整面板，处理高级设置', 5, () => {
+        this.entryCard('电脑完整网页控制台', '免密打开电脑端完整面板，处理高级设置', 'c:console', 486, () => {
           this.onOpenWebConsole();
         })
       }

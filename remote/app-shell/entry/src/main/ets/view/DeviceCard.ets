@@ -1,7 +1,7 @@
 import { copyText } from '../common/Clipboard';
 import { Haptics } from '../common/Haptics';
 import { Mat } from '../common/Mat';
-import { Motion, MOTION_VIVID } from '../common/Motion';
+import { BloomWaveTracker, Motion, MOTION_VIVID } from '../common/Motion';
 import { Tokens } from '../common/Tokens';
 
 /**
@@ -15,6 +15,7 @@ export struct DeviceCard {
   @Prop sessions: number = -1;
   @Prop startIdx: number = 7;
   @Prop entered: boolean = true;
+  wave: BloomWaveTracker = new BloomWaveTracker();
   onReconnect: () => void = () => {};
   onRemove: () => void = () => {};
   @StorageLink('hdsOn') hdsOn: boolean = true;
@@ -22,7 +23,7 @@ export struct DeviceCard {
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
 
   @Builder
-  devRowCard(label: string, value: string, mono: boolean, copyable: boolean, idx: number) {
+  devRowCard(label: string, value: string, mono: boolean, copyable: boolean, waveKey: string, fallbackDistVp: number) {
     Row() {
       Text(label)
         .fontSize(Tokens.fsBody)
@@ -54,16 +55,23 @@ export struct DeviceCard {
     .borderRadius(Tokens.rRow)
     .clip(true)
     .clickEffect(copyable && this.base !== '' ? { level: ClickEffectLevel.LIGHT, scale: 0.98 } : null)
+    .onAreaChange((_old: Area, area: Area) => {
+      this.wave.record(waveKey, area);
+    })
     .animation(null)
     .opacity(this.entered ? 1 : 0)
-    .animation(Motion.bloomOpacityAnim(idx, this.motionMode))
+    .animation(this.entered
+      ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf(waveKey, fallbackDistVp), this.motionMode)
+      : null)
     .scale({
       x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
       y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
       centerX: '50%',
       centerY: '50%'
     })
-    .animation(Motion.bloomScaleAnim(idx, this.motionMode))
+    .animation(this.entered
+      ? Motion.bloomScaleAnimByDist(this.wave.distanceOf(waveKey, fallbackDistVp), this.motionMode)
+      : null)
     .onClick(() => {
       if (copyable && this.base !== '') {
         void copyText(this.base, '已复制当前地址');
@@ -79,22 +87,29 @@ export struct DeviceCard {
         .letterSpacing(1.4)
         .width('100%')
         .margin({ left: 6, top: 16, bottom: 8 })
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('dev:hdr', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomHeaderOpacityAnim(this.startIdx, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf('dev:hdr', this.startIdx * 78), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           centerX: '0%',
           centerY: '50%'
         })
-        .animation(Motion.bloomHeaderScaleAnim(this.startIdx, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('dev:hdr', this.startIdx * 78), this.motionMode)
+          : null)
 
       Column({ space: 9 }) {
-        this.devRowCard('名称', this.name !== '' ? this.name : '-', false, false, this.startIdx)
-        this.devRowCard('地址', this.base !== '' ? this.base : '-', true, true, this.startIdx + 1)
-        this.devRowCard('连接插件', this.pluginVersion !== '' ? this.pluginVersion : '-', false, false, this.startIdx + 2)
-        this.devRowCard('会话', this.sessions >= 0 ? (String(this.sessions) + ' 个') : '-', false, false, this.startIdx + 3)
+        this.devRowCard('名称', this.name !== '' ? this.name : '-', false, false, 'dev:name', (this.startIdx + 1) * 78)
+        this.devRowCard('地址', this.base !== '' ? this.base : '-', true, true, 'dev:base', (this.startIdx + 2) * 78)
+        this.devRowCard('连接插件', this.pluginVersion !== '' ? this.pluginVersion : '-', false, false, 'dev:ver', (this.startIdx + 3) * 78)
+        this.devRowCard('会话', this.sessions >= 0 ? (String(this.sessions) + ' 个') : '-', false, false, 'dev:sess', (this.startIdx + 4) * 78)
 
         Row() {
           Text('重新连接')
@@ -120,16 +135,23 @@ export struct DeviceCard {
         .borderRadius(Tokens.rRow)
         .clip(true)
         .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('dev:reconn', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomOpacityAnim(this.startIdx + 4, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('dev:reconn', (this.startIdx + 5) * 78), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           centerX: '50%',
           centerY: '50%'
         })
-        .animation(Motion.bloomScaleAnim(this.startIdx + 4, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('dev:reconn', (this.startIdx + 5) * 78), this.motionMode)
+          : null)
         .onClick(() => {
           Haptics.tap();
           this.onReconnect();
@@ -159,16 +181,23 @@ export struct DeviceCard {
         .borderRadius(Tokens.rRow)
         .clip(true)
         .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('dev:remove', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomOpacityAnim(this.startIdx + 5, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('dev:remove', (this.startIdx + 6) * 78), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           centerX: '50%',
           centerY: '50%'
         })
-        .animation(Motion.bloomScaleAnim(this.startIdx + 5, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('dev:remove', (this.startIdx + 6) * 78), this.motionMode)
+          : null)
         .onClick(() => {
           Haptics.tap();
           this.onRemove();

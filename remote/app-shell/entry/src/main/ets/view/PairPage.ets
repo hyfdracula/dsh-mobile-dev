@@ -8,7 +8,7 @@ import { PageHeader, TopFade } from '../common/Chrome';
 import { copyText } from '../common/Clipboard';
 import { Haptics } from '../common/Haptics';
 import { Mat } from '../common/Mat';
-import { Motion, MOTION_VIVID } from '../common/Motion';
+import { BloomWaveTracker, Motion, MOTION_VIVID } from '../common/Motion';
 import { PairClaim, PairError, PairInfo, Pairing, PairLink } from '../common/Pairing';
 import { Tokens } from '../common/Tokens';
 import { ConnectionStageCard, SheetHeader } from '../common/Widgets';
@@ -89,6 +89,7 @@ export struct PairPage {
   private elapsedTimer: number = -1;
   private enterTimer: number = -1;
   private scroller: Scroller = new Scroller();
+  private wave: BloomWaveTracker = new BloomWaveTracker();
 
   private isPrepareMode(): boolean {
     if (this.mode !== '') {
@@ -107,7 +108,7 @@ export struct PairPage {
       this.enterTimer = setTimeout(() => {
         this.enterTimer = -1;
         this.entered = true;
-      }, 16);
+      }, 24);
     } else {
       this.entered = true;
     }
@@ -1012,61 +1013,89 @@ export struct PairPage {
       }
       .width('100%')
       .margin({ bottom: 10 })
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('conn:hdr', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomHeaderOpacityAnim(0, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf('conn:hdr', 0), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         centerX: '0%',
         centerY: '50%'
       })
-      .animation(Motion.bloomHeaderScaleAnim(0, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('conn:hdr', 0), this.motionMode)
+        : null)
 
       Column() {
         this.heroScanCard()
       }
       .width('100%')
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('conn:hero', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomOpacityAnim(1, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:hero', 96), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         centerX: '50%',
         centerY: '50%'
       })
-      .animation(Motion.bloomScaleAnim(1, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:hero', 96), this.motionMode)
+        : null)
 
       Column() {
         this.segmentedTabs()
       }
       .width('100%')
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('conn:tabs', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomOpacityAnim(2, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:tabs', 216), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         centerX: '50%',
         centerY: '50%'
       })
-      .animation(Motion.bloomScaleAnim(2, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:tabs', 216), this.motionMode)
+        : null)
 
       Column() {
         this.modeContentCard()
       }
       .width('100%')
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('conn:mode', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomOpacityAnim(3, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:mode', 356), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         centerX: '50%',
         centerY: '50%'
       })
-      .animation(Motion.bloomScaleAnim(3, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:mode', 356), this.motionMode)
+        : null)
 
       this.feedbackBlock()
 
@@ -1099,16 +1128,23 @@ export struct PairPage {
       }
       .width('100%')
       .margin({ top: 16 })
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('conn:foot', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomOpacityAnim(4, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:foot', 496), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         centerX: '50%',
         centerY: '50%'
       })
-      .animation(Motion.bloomScaleAnim(4, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:foot', 496), this.motionMode)
+        : null)
       .bindSheet($$this.helpSheet, this.helpSheetContent(),
         Mat.sheetOpts(this.hdsOn, SheetSize.FIT_CONTENT, () => {
           this.helpSheet = false;
@@ -1148,32 +1184,46 @@ export struct PairPage {
       .width('100%')
       .alignItems(HorizontalAlign.Start)
       .margin({ bottom: 6 })
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('prep:hdr', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomHeaderOpacityAnim(0, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf('prep:hdr', 0), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         centerX: '0%',
         centerY: '50%'
       })
-      .animation(Motion.bloomHeaderScaleAnim(0, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('prep:hdr', 0), this.motionMode)
+        : null)
 
       Column() {
         this.prepareStepCard('1', '安装并启用 agent-mobile-gateway',
           '在电脑终端添加网关插件后重启服务，保持网关监听在本地端口（默认 8901）。')
       }
       .width('100%')
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('prep:step1', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomOpacityAnim(1, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('prep:step1', 120), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         centerX: '50%',
         centerY: '50%'
       })
-      .animation(Motion.bloomScaleAnim(1, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('prep:step1', 120), this.motionMode)
+        : null)
 
       Row({ space: 8 }) {
         Text(PAIR_CMD)
@@ -1197,48 +1247,69 @@ export struct PairPage {
       .backgroundColor(Tokens.bgEl)
       .borderRadius(Tokens.rMd)
       .border({ width: 1, color: Tokens.lineSoft })
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('prep:cmd', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomOpacityAnim(2, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('prep:cmd', 216), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         centerX: '50%',
         centerY: '50%'
       })
-      .animation(Motion.bloomScaleAnim(2, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('prep:cmd', 216), this.motionMode)
+        : null)
 
       Column() {
         this.prepareStepCard('2', '打开电脑端「Agent Mobile」面板',
           '在桌面侧栏打开 Agent Mobile 面板，页面上方会展示配对二维码、6 位配对码与入口地址。')
       }
       .width('100%')
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('prep:step2', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomOpacityAnim(3, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('prep:step2', 310), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         centerX: '50%',
         centerY: '50%'
       })
-      .animation(Motion.bloomScaleAnim(3, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('prep:step2', 310), this.motionMode)
+        : null)
 
       Column() {
         this.prepareStepCard('3', '外网访问准备（可选）',
           '同 Wi-Fi 下可直接扫描连接；异地使用建议通过 HTTPS 或 Cloudflare 隧道暴露入口。')
       }
       .width('100%')
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('prep:step3', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomOpacityAnim(4, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('prep:step3', 416), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         centerX: '50%',
         centerY: '50%'
       })
-      .animation(Motion.bloomScaleAnim(4, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('prep:step3', 416), this.motionMode)
+        : null)
 
       Text('我已准备好，前往连接')
         .fontSize(Tokens.fsBodyLg)
@@ -1251,16 +1322,23 @@ export struct PairPage {
         .borderRadius(Tokens.rPill)
         .margin({ top: 10 })
         .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('prep:go', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomOpacityAnim(5, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('prep:go', 512), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           centerX: '50%',
           centerY: '50%'
         })
-        .animation(Motion.bloomScaleAnim(5, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('prep:go', 512), this.motionMode)
+          : null)
         .onClick(() => {
           Haptics.confirm();
           this.onGoOtherStep();

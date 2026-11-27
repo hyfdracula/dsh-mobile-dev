@@ -51,7 +51,7 @@ export struct SessionHeaderBar {
   @StorageLink('wideScreen') wideScreen: boolean = false;
   @StorageLink('shellTab') @Watch('onShellTabChange') shellTab: number = 0;
 
-  @State private hdrEntered: boolean = true;
+  @State private hdrEntered: boolean = false;
   @State private searchGrow: number = 1;
   @State private searchGlyphTrigger: number = -1;
   @State private wsMenuOn: boolean = false;
@@ -62,7 +62,14 @@ export struct SessionHeaderBar {
 
   aboutToAppear(): void {
     this.lastTab = this.shellTab;
-    this.playHeaderEnter(24);
+    if (!Motion.isFlagship(this.motionMode)) {
+      this.hdrEntered = true;
+      return;
+    }
+    this.hdrEntered = false;
+    if (this.shellTab === 0 && !this.searching) {
+      this.scheduleHeaderEnter(24);
+    }
   }
 
   aboutToDisappear(): void {
@@ -72,25 +79,42 @@ export struct SessionHeaderBar {
     }
   }
 
-  private playHeaderEnter(waitMs: number): void {
+  private clearHeaderTimer(): void {
     if (this.hdrTimer >= 0) {
       clearTimeout(this.hdrTimer);
       this.hdrTimer = -1;
     }
-    if (!Motion.isFlagship(this.motionMode)) {
-      this.hdrEntered = true;
-      return;
-    }
-    this.hdrEntered = false;
+  }
+
+  private scheduleHeaderEnter(waitMs: number): void {
+    this.clearHeaderTimer();
     this.hdrTimer = setTimeout(() => {
       this.hdrTimer = -1;
-      this.hdrEntered = true;
+      if (this.shellTab === 0) {
+        this.hdrEntered = true;
+      }
     }, waitMs);
   }
 
   private onShellTabChange(): void {
-    if (this.shellTab === 0 && this.lastTab !== 0 && !this.searching) {
-      this.playHeaderEnter(16);
+    this.clearHeaderTimer();
+    if (!Motion.isFlagship(this.motionMode)) {
+      this.hdrEntered = true;
+      this.lastTab = this.shellTab;
+      return;
+    }
+    if (this.shellTab !== 0) {
+      // 离开首页时在离屏态无动画归位，切回时零闪现、零反向回弹
+      if (!this.searching) {
+        this.hdrEntered = false;
+      }
+    } else if (this.lastTab !== 0) {
+      if (this.searching) {
+        this.hdrEntered = true;
+      } else {
+        this.hdrEntered = false;
+        this.scheduleHeaderEnter(20);
+      }
     }
     this.lastTab = this.shellTab;
   }
@@ -146,6 +170,7 @@ export struct SessionHeaderBar {
 
   private clearSearch(): void {
     this.onQueryChange('');
+    this.hdrEntered = true;
     if (Motion.isVivid(this.motionMode)) {
       this.getUIContext().animateTo(Motion.moveOpts(this.motionMode), () => {
         this.onSearchingChange(false);
@@ -436,9 +461,9 @@ export struct SessionHeaderBar {
             })
             .animation(null)
             .opacity(this.hdrEntered ? 1 : 0)
-            .animation(Motion.headerPopOpacityAnim(170, this.motionMode, 200))
+            .animation(this.hdrEntered ? Motion.headerPopOpacityAnim(170, this.motionMode, 200) : null)
             .translate({ x: this.hdrEntered ? 0 : -96 })
-            .animation(Motion.headerPopScaleAnim(170, this.motionMode))
+            .animation(this.hdrEntered ? Motion.headerPopScaleAnim(170, this.motionMode) : null)
             .bindPopup(this.wsMenuOn, Mat.popupOpts(
               this.hdsOn,
               (): void => { this.wsPopup(); },
@@ -476,9 +501,9 @@ export struct SessionHeaderBar {
             })
             .animation(null)
             .opacity(this.hdrEntered ? 1 : 0)
-            .animation(Motion.headerPopOpacityAnim(115, this.motionMode, 210))
+            .animation(this.hdrEntered ? Motion.headerPopOpacityAnim(115, this.motionMode, 210) : null)
             .translate({ x: this.hdrEntered ? 0 : -180 })
-            .animation(Motion.headerPopScaleAnim(115, this.motionMode))
+            .animation(this.hdrEntered ? Motion.headerPopScaleAnim(115, this.motionMode) : null)
             .bindPopup(this.devOn, Mat.popupOpts(
               this.hdsOn,
               (): void => { this.devPopup(); },
@@ -514,9 +539,9 @@ export struct SessionHeaderBar {
             })
             .animation(null)
             .opacity(this.hdrEntered ? 1 : 0)
-            .animation(Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_RIGHT_INNER, this.motionMode, 220))
+            .animation(this.hdrEntered ? Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_RIGHT_INNER, this.motionMode, 220) : null)
             .translate({ x: this.hdrEntered ? 0 : Motion.HEADER_SLIDE_RIGHT_INNER_X })
-            .animation(Motion.headerPopScaleAnim(Motion.HEADER_DELAY_RIGHT_INNER, this.motionMode))
+            .animation(this.hdrEntered ? Motion.headerPopScaleAnim(Motion.HEADER_DELAY_RIGHT_INNER, this.motionMode) : null)
             .bindPopup(this.viewOn, Mat.popupOpts(
               this.hdsOn,
               (): void => { this.viewPopupBody(); },
@@ -557,9 +582,9 @@ export struct SessionHeaderBar {
             })
             .animation(null)
             .opacity(this.hdrEntered ? 1 : 0)
-            .animation(Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_RIGHT_OUTER, this.motionMode, 220))
+            .animation(this.hdrEntered ? Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_RIGHT_OUTER, this.motionMode, 220) : null)
             .translate({ x: this.hdrEntered ? 0 : Motion.HEADER_SLIDE_RIGHT_OUTER_X })
-            .animation(Motion.headerPopScaleAnim(Motion.HEADER_DELAY_RIGHT_OUTER, this.motionMode))
+            .animation(this.hdrEntered ? Motion.headerPopScaleAnim(Motion.HEADER_DELAY_RIGHT_OUTER, this.motionMode) : null)
           }
           .width('100%')
           .height(50)

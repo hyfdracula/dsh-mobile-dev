@@ -54,7 +54,7 @@ export struct PendingBoard {
 
   private toggleExpand(): void {
     Haptics.tap();
-    this.getUIContext().animateTo({ duration: Motion.move, curve: Motion.std }, () => {
+    this.getUIContext().animateTo(Motion.baseElastic(), () => {
       this.expanded = !this.expanded;
     });
   }

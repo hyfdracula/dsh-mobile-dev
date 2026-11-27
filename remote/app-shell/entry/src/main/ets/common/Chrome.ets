@@ -154,9 +154,9 @@ export struct PageHeader {
         })
         .animation(null)
         .opacity(this.hdrEntered ? 1 : 0)
-        .animation(Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_BACK, this.motionMode, 180))
+        .animation(this.hdrEntered ? Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_BACK, this.motionMode, 180) : null)
         .translate({ x: this.hdrEntered ? 0 : Motion.HEADER_SLIDE_BACK_X })
-        .animation(Motion.headerPopScaleAnim(Motion.HEADER_DELAY_BACK, this.motionMode))
+        .animation(this.hdrEntered ? Motion.headerPopScaleAnim(Motion.HEADER_DELAY_BACK, this.motionMode) : null)
       }
       Column() {
         Text(this.title)
@@ -181,9 +181,9 @@ export struct PageHeader {
       .margin({ left: this.hasBack ? 12 : 0 })
       .animation(null)
       .opacity(this.hdrEntered ? 1 : 0)
-      .animation(Motion.headerPopOpacityAnim(this.titleDelayMs(), this.motionMode, this.titleFadeMs()))
+      .animation(this.hdrEntered ? Motion.headerPopOpacityAnim(this.titleDelayMs(), this.motionMode, this.titleFadeMs()) : null)
       .translate({ x: this.hdrEntered ? 0 : this.titleStartX() })
-      .animation(Motion.headerTitleSlideAnim(this.titleDelayMs(), this.motionMode))
+      .animation(this.hdrEntered ? Motion.headerTitleSlideAnim(this.titleDelayMs(), this.motionMode) : null)
       if (this.rightKind === 'glyph') {
         GlassIconButton({
           glyph: this.rightGlyph,
@@ -195,9 +195,9 @@ export struct PageHeader {
         })
         .animation(null)
         .opacity(this.hdrEntered ? 1 : 0)
-        .animation(Motion.headerPopOpacityAnim(this.right1DelayMs(), this.motionMode, 220))
+        .animation(this.hdrEntered ? Motion.headerPopOpacityAnim(this.right1DelayMs(), this.motionMode, 220) : null)
         .translate({ x: this.hdrEntered ? 0 : this.right1StartX() })
-        .animation(Motion.headerPopScaleAnim(this.right1DelayMs(), this.motionMode))
+        .animation(this.hdrEntered ? Motion.headerPopScaleAnim(this.right1DelayMs(), this.motionMode) : null)
       } else if (this.rightKind === 'icon') {
         GlassIconButton({
           icon: this.rightIcon,
@@ -209,9 +209,9 @@ export struct PageHeader {
         })
         .animation(null)
         .opacity(this.hdrEntered ? 1 : 0)
-        .animation(Motion.headerPopOpacityAnim(this.right1DelayMs(), this.motionMode, 220))
+        .animation(this.hdrEntered ? Motion.headerPopOpacityAnim(this.right1DelayMs(), this.motionMode, 220) : null)
         .translate({ x: this.hdrEntered ? 0 : this.right1StartX() })
-        .animation(Motion.headerPopScaleAnim(this.right1DelayMs(), this.motionMode))
+        .animation(this.hdrEntered ? Motion.headerPopScaleAnim(this.right1DelayMs(), this.motionMode) : null)
       } else if (this.rightKind === 'label') {
         Text(this.rightLabel)
           .fontSize(Tokens.fsBody)
@@ -226,9 +226,9 @@ export struct PageHeader {
           })
           .animation(null)
           .opacity(this.hdrEntered ? 1 : 0)
-          .animation(Motion.headerPopOpacityAnim(this.right1DelayMs(), this.motionMode, 220))
+          .animation(this.hdrEntered ? Motion.headerPopOpacityAnim(this.right1DelayMs(), this.motionMode, 220) : null)
           .translate({ x: this.hdrEntered ? 0 : this.right1StartX() })
-          .animation(Motion.headerPopScaleAnim(this.right1DelayMs(), this.motionMode))
+          .animation(this.hdrEntered ? Motion.headerPopScaleAnim(this.right1DelayMs(), this.motionMode) : null)
       }
       if (this.hasRight2) {
         GlassIconButton({
@@ -242,9 +242,9 @@ export struct PageHeader {
         .margin({ left: 8 })
         .animation(null)
         .opacity(this.hdrEntered ? 1 : 0)
-        .animation(Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_RIGHT_OUTER, this.motionMode, 220))
+        .animation(this.hdrEntered ? Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_RIGHT_OUTER, this.motionMode, 220) : null)
         .translate({ x: this.hdrEntered ? 0 : Motion.HEADER_SLIDE_RIGHT_OUTER_X })
-        .animation(Motion.headerPopScaleAnim(Motion.HEADER_DELAY_RIGHT_OUTER, this.motionMode))
+        .animation(this.hdrEntered ? Motion.headerPopScaleAnim(Motion.HEADER_DELAY_RIGHT_OUTER, this.motionMode) : null)
       }
     }
     .width('100%')

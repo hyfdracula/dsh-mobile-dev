@@ -250,7 +250,7 @@ export struct GoalSheet {
               .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.94 })
               .onClick(() => {
                 Haptics.tap();
-                this.getUIContext().animateTo({ duration: Motion.move, curve: Motion.std }, () => {
+                this.getUIContext().animateTo(Motion.baseElastic(), () => {
                   this.editing = false;
                 });
               })
@@ -302,7 +302,7 @@ export struct GoalSheet {
               .onClick(() => {
                 Haptics.tap();
                 this.draft = this.goal.objective === undefined ? '' : this.goal.objective;
-                this.getUIContext().animateTo({ duration: Motion.move, curve: Motion.std }, () => {
+                this.getUIContext().animateTo(Motion.baseElastic(), () => {
                   this.editing = true;
                 });
               })

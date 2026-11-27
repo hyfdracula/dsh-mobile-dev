@@ -3,7 +3,7 @@ import { Drafts } from '../common/Drafts';
 import { Haptics } from '../common/Haptics';
 import { Marks } from '../common/Marks';
 import { Mat } from '../common/Mat';
-import { Motion, MOTION_VIVID } from '../common/Motion';
+import { BloomWaveTracker, Motion, MOTION_VIVID } from '../common/Motion';
 import { Outbox } from '../common/Outbox';
 import { Toast } from '../common/Toast';
 import { Tokens } from '../common/Tokens';
@@ -24,6 +24,7 @@ export struct DataStoragePanel {
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
   private enterTimer: number = -1;
+  private wave: BloomWaveTracker = new BloomWaveTracker();
 
   aboutToAppear(): void {
     if (Motion.isFlagship(this.motionMode)) {
@@ -31,7 +32,7 @@ export struct DataStoragePanel {
       this.enterTimer = setTimeout(() => {
         this.enterTimer = -1;
         this.entered = true;
-      }, 16);
+      }, 24);
     } else {
       this.entered = true;
     }
@@ -77,7 +78,7 @@ export struct DataStoragePanel {
   }
 
   @Builder
-  dataRowCard(label: string, n: number, what: string, idx: number) {
+  dataRowCard(label: string, n: number, what: string, waveKey: string, fallbackDistVp: number) {
     Row() {
       Text(label)
         .fontSize(Tokens.fsBodyLg)
@@ -106,20 +107,27 @@ export struct DataStoragePanel {
     .shadow(Mat.rowShadow(this.hdsOn))
     .borderRadius(Tokens.rRow)
     .clip(true)
+    .onAreaChange((_old: Area, area: Area) => {
+      this.wave.record(waveKey, area);
+    })
     .animation(null)
     .opacity(this.entered ? 1 : 0)
-    .animation(Motion.bloomOpacityAnim(idx, this.motionMode))
+    .animation(this.entered
+      ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf(waveKey, fallbackDistVp), this.motionMode)
+      : null)
     .scale({
       x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
       y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
       centerX: '50%',
       centerY: '50%'
     })
-    .animation(Motion.bloomScaleAnim(idx, this.motionMode))
+    .animation(this.entered
+      ? Motion.bloomScaleAnimByDist(this.wave.distanceOf(waveKey, fallbackDistVp), this.motionMode)
+      : null)
   }
 
   @Builder
-  noteCard(k: string, v: string, mono: boolean, idx: number) {
+  noteCard(k: string, v: string, mono: boolean, waveKey: string, fallbackDistVp: number) {
     Row() {
       Text(k)
         .fontSize(Tokens.fsBody)
@@ -142,16 +150,23 @@ export struct DataStoragePanel {
     .shadow(Mat.rowShadow(this.hdsOn))
     .borderRadius(Tokens.rRow)
     .clip(true)
+    .onAreaChange((_old: Area, area: Area) => {
+      this.wave.record(waveKey, area);
+    })
     .animation(null)
     .opacity(this.entered ? 1 : 0)
-    .animation(Motion.bloomOpacityAnim(idx, this.motionMode))
+    .animation(this.entered
+      ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf(waveKey, fallbackDistVp), this.motionMode)
+      : null)
     .scale({
       x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
       y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
       centerX: '50%',
       centerY: '50%'
     })
-    .animation(Motion.bloomScaleAnim(idx, this.motionMode))
+    .animation(this.entered
+      ? Motion.bloomScaleAnimByDist(this.wave.distanceOf(waveKey, fallbackDistVp), this.motionMode)
+      : null)
   }
 
   build() {
@@ -161,16 +176,23 @@ export struct DataStoragePanel {
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
         .margin({ left: 6, top: 6, bottom: 8 })
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('hdr:space', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomHeaderOpacityAnim(0, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf('hdr:space', 0), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           centerX: '0%',
           centerY: '50%'
         })
-        .animation(Motion.bloomHeaderScaleAnim(0, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('hdr:space', 0), this.motionMode)
+          : null)
 
       // 0. 存储空间
       Row() {
@@ -205,16 +227,23 @@ export struct DataStoragePanel {
       .borderRadius(Tokens.rRow)
       .clip(true)
       .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('card:storage', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomOpacityAnim(0, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('card:storage', 54), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         centerX: '50%',
         centerY: '50%'
       })
-      .animation(Motion.bloomScaleAnim(0, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('card:storage', 54), this.motionMode)
+        : null)
       .onClick(() => {
         Haptics.tap();
         this.onStorage();
@@ -225,21 +254,28 @@ export struct DataStoragePanel {
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
         .margin({ left: 6, top: 16, bottom: 8 })
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('hdr:data', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomHeaderOpacityAnim(1, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf('hdr:data', 132), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           centerX: '0%',
           centerY: '50%'
         })
-        .animation(Motion.bloomHeaderScaleAnim(1, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('hdr:data', 132), this.motionMode)
+          : null)
 
       Column({ space: 9 }) {
-        this.dataRowCard('草稿', this.draftN, 'draft', 1)
-        this.dataRowCard('待发送（重启兜底）', this.outN, 'outbox', 2)
-        this.dataRowCard('阅读标记', this.markN, 'marks', 3)
+        this.dataRowCard('草稿', this.draftN, 'draft', 'data:draft', 176)
+        this.dataRowCard('待发送（重启兜底）', this.outN, 'outbox', 'data:outbox', 242)
+        this.dataRowCard('阅读标记', this.markN, 'marks', 'data:marks', 308)
       }
       .width('100%')
 
@@ -248,23 +284,30 @@ export struct DataStoragePanel {
         .fontColor(Tokens.dim2)
         .letterSpacing(1.4)
         .margin({ left: 6, top: 16, bottom: 8 })
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('hdr:notes', area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomHeaderOpacityAnim(4, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf('hdr:notes', 384), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
           centerX: '0%',
           centerY: '50%'
         })
-        .animation(Motion.bloomHeaderScaleAnim(4, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('hdr:notes', 384), this.motionMode)
+          : null)
 
       Column({ space: 9 }) {
-        this.noteCard('本地设置', '服务器地址 · 令牌 · 主题', false, 4)
-        this.noteCard('会话快照缓存', '可随时在存储空间清理，不影响电脑端记录', false, 5)
-        this.noteCard('本地缓存', '可按分类清理，不影响电脑与配对信息', false, 6)
-        this.noteCard('上传文件', '保存在电脑 .dsh/mobile-uploads', true, 7)
-        this.noteCard('归档状态', '与桌面控制台共享同一份数据', false, 8)
+        this.noteCard('本地设置', '服务器地址 · 令牌 · 主题', false, 'note:0', 428)
+        this.noteCard('会话快照缓存', '可随时在存储空间清理，不影响电脑端记录', false, 'note:1', 494)
+        this.noteCard('本地缓存', '可按分类清理，不影响电脑与配对信息', false, 'note:2', 560)
+        this.noteCard('上传文件', '保存在电脑 .dsh/mobile-uploads', true, 'note:3', 626)
+        this.noteCard('归档状态', '与桌面控制台共享同一份数据', false, 'note:4', 692)
       }
       .width('100%')
     }

@@ -15,7 +15,7 @@ import {
 } from '../common/Storage';
 import { Toast } from '../common/Toast';
 import { Mat } from '../common/Mat';
-import { Motion, MOTION_VIVID } from '../common/Motion';
+import { BloomWaveTracker, Motion, MOTION_VIVID } from '../common/Motion';
 import { Tokens } from '../common/Tokens';
 import { EmptyState } from '../common/Widgets';
 
@@ -63,6 +63,7 @@ export struct StoragePage {
   private clearTimer: number = -1;
   private enterTimer: number = -1;
   private disposed: boolean = false;
+  private wave: BloomWaveTracker = new BloomWaveTracker();
 
   aboutToAppear(): void {
     this.disposed = false;
@@ -137,7 +138,7 @@ export struct StoragePage {
           this.enterTimer = setTimeout(() => {
             this.enterTimer = -1;
             this.entered = true;
-          }, 16);
+          }, 24);
         }
       } else {
         this.entered = true;
@@ -379,22 +380,29 @@ export struct StoragePage {
   }
 
   @Builder
-  sectionLabel(text: string, topMargin: number = 18, bloomIdx: number = 0) {
+  sectionLabel(text: string, topMargin: number = 18, waveKey: string = 'hdr:0', fallbackDistVp: number = 0) {
     Text(text)
       .fontSize(Tokens.fsCaption)
       .fontColor(Tokens.dim2)
       .letterSpacing(1.4)
       .margin({ left: 6, top: topMargin, bottom: 8 })
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record(waveKey, area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomHeaderOpacityAnim(bloomIdx, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf(waveKey, fallbackDistVp), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         centerX: '0%',
         centerY: '50%'
       })
-      .animation(Motion.bloomHeaderScaleAnim(bloomIdx, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf(waveKey, fallbackDistVp), this.motionMode)
+        : null)
   }
 
   @Builder
@@ -565,16 +573,23 @@ export struct StoragePage {
     .border(Mat.cardBorder(this.hdsOn))
     .shadow(Mat.cardShadow(this.hdsOn))
     .clip(true)
+    .onAreaChange((_old: Area, area: Area) => {
+      this.wave.record('stor:overview', area);
+    })
     .animation(null)
     .opacity(this.entered ? 1 : 0)
-    .animation(Motion.bloomOpacityAnim(0, this.motionMode))
+    .animation(this.entered
+      ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('stor:overview', 150), this.motionMode)
+      : null)
     .scale({
       x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
       y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
       centerX: '50%',
       centerY: '50%'
     })
-    .animation(Motion.bloomScaleAnim(0, this.motionMode))
+    .animation(this.entered
+      ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('stor:overview', 150), this.motionMode)
+      : null)
   }
 
   @Builder
@@ -688,16 +703,23 @@ export struct StoragePage {
         .border(Mat.cardBorder(this.hdsOn))
         .shadow(Mat.rowShadow(this.hdsOn))
         .clip(true)
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('stor:bucket:' + b.key, area);
+        })
         .animation(null)
         .opacity(this.entered ? 1 : 0)
-        .animation(Motion.bloomOpacityAnim(1 + i, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('stor:bucket:' + b.key, 370 + i * 88), this.motionMode)
+          : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
           centerX: '50%',
           centerY: '50%'
         })
-        .animation(Motion.bloomScaleAnim(1 + i, this.motionMode))
+        .animation(this.entered
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('stor:bucket:' + b.key, 370 + i * 88), this.motionMode)
+          : null)
       }, (b: Bucket) => b.key + ':' + String(b.bytes) + ':' + String(this.cacheBytes) + ':' + String(this.themeDark))
     }
     .width('100%')
@@ -753,16 +775,23 @@ export struct StoragePage {
     .border(Mat.cardBorder(this.hdsOn))
     .shadow(Mat.cardShadow(this.hdsOn))
     .alignItems(HorizontalAlign.Start)
+    .onAreaChange((_old: Area, area: Area) => {
+      this.wave.record('stor:prefs', area);
+    })
     .animation(null)
     .opacity(this.entered ? 1 : 0)
-    .animation(Motion.bloomOpacityAnim(1 + this.buckets.length, this.motionMode))
+    .animation(this.entered
+      ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('stor:prefs', 430 + this.buckets.length * 88), this.motionMode)
+      : null)
     .scale({
       x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
       y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
       centerX: '50%',
       centerY: '50%'
     })
-    .animation(Motion.bloomScaleAnim(1 + this.buckets.length, this.motionMode))
+    .animation(this.entered
+      ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('stor:prefs', 430 + this.buckets.length * 88), this.motionMode)
+      : null)
   }
 
   @Builder
@@ -815,16 +844,23 @@ export struct StoragePage {
     .border(Mat.cardBorder(this.hdsOn))
     .shadow(Mat.cardShadow(this.hdsOn))
     .alignItems(HorizontalAlign.Start)
+    .onAreaChange((_old: Area, area: Area) => {
+      this.wave.record('stor:device', area);
+    })
     .animation(null)
     .opacity(this.entered ? 1 : 0)
-    .animation(Motion.bloomOpacityAnim(2 + this.buckets.length, this.motionMode))
+    .animation(this.entered
+      ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('stor:device', 560 + this.buckets.length * 88), this.motionMode)
+      : null)
     .scale({
       x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
       y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
       centerX: '50%',
       centerY: '50%'
     })
-    .animation(Motion.bloomScaleAnim(2 + this.buckets.length, this.motionMode))
+    .animation(this.entered
+      ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('stor:device', 560 + this.buckets.length * 88), this.motionMode)
+      : null)
   }
 
   build() {
@@ -847,16 +883,16 @@ export struct StoragePage {
         Scroll() {
           Column() {
             Column() {
-              this.sectionLabel('可清理缓存', 6, 0)
+              this.sectionLabel('可清理缓存', 6, 'hdr:cache', 0)
               this.cacheOverviewCard()
 
-              this.sectionLabel('可清理分类明细', 16, 1)
+              this.sectionLabel('可清理分类明细', 16, 'hdr:detail', 318)
               this.bucketDetailCard()
 
-              this.sectionLabel('应用配置与凭据', 16, 1 + this.buckets.length)
+              this.sectionLabel('应用配置与凭据', 16, 'hdr:prefs', 382 + this.buckets.length * 88)
               this.prefsProtectedCard()
 
-              this.sectionLabel('设备存储', 16, 2 + this.buckets.length)
+              this.sectionLabel('设备存储', 16, 'hdr:device', 512 + this.buckets.length * 88)
               this.deviceCapacityCard()
 
               Text('缓存仅用于本地加速首屏与预览，清理后不影响电脑端任何会话与文件；配对凭据、电脑列表与偏好设置会安全保留。')
@@ -864,16 +900,23 @@ export struct StoragePage {
                 .fontColor(Tokens.dim2)
                 .lineHeight(18)
                 .margin({ top: 12, left: 4, right: 4 })
+                .onAreaChange((_old: Area, area: Area) => {
+                  this.wave.record('stor:foot', area);
+                })
                 .animation(null)
                 .opacity(this.entered ? 1 : 0)
-                .animation(Motion.bloomHeaderOpacityAnim(3 + this.buckets.length, this.motionMode))
+                .animation(this.entered
+                  ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf('stor:foot', 648 + this.buckets.length * 88), this.motionMode)
+                  : null)
                 .scale({
                   x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
                   y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
                   centerX: '0%',
                   centerY: '50%'
                 })
-                .animation(Motion.bloomHeaderScaleAnim(3 + this.buckets.length, this.motionMode))
+                .animation(this.entered
+                  ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('stor:foot', 648 + this.buckets.length * 88), this.motionMode)
+                  : null)
             }
             .width('100%')
             .constraintSize({ maxWidth: this.wideScreen ? 680 : 520 })

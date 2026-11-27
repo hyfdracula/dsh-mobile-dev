@@ -3,7 +3,7 @@ import { AppCtx } from '../common/AppCtx';
 import { Haptics } from '../common/Haptics';
 import { Machines } from '../common/Machines';
 import { Mat } from '../common/Mat';
-import { Motion, MOTION_VIVID } from '../common/Motion';
+import { BloomWaveTracker, Motion, MOTION_VIVID } from '../common/Motion';
 import { Pairing } from '../common/Pairing';
 import { PickerOption, PopupPicker } from '../common/PopupPicker';
 import { Toast } from '../common/Toast';
@@ -72,6 +72,7 @@ export struct ConnectPanel {
   @State private renameErr: string = '';
   @State private entered: boolean = true;
   private enterTimer: number = -1;
+  private wave: BloomWaveTracker = new BloomWaveTracker();
 
   aboutToAppear(): void {
     if (Motion.isFlagship(this.motionMode)) {
@@ -79,7 +80,7 @@ export struct ConnectPanel {
       this.enterTimer = setTimeout(() => {
         this.enterTimer = -1;
         this.entered = true;
-      }, 16);
+      }, 24);
     } else {
       this.entered = true;
     }
@@ -151,22 +152,29 @@ export struct ConnectPanel {
   }
 
   @Builder
-  sectionTitle(text: string, topMargin: number, bloomIdx: number) {
+  sectionTitle(text: string, topMargin: number, waveKey: string, fallbackDistVp: number) {
     Text(text)
       .fontSize(Tokens.fsCaption)
       .fontColor(Tokens.dim2)
       .letterSpacing(1.4)
       .margin({ left: 6, top: topMargin, bottom: 8 })
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record(waveKey, area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomHeaderOpacityAnim(bloomIdx, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomHeaderOpacityAnimByDist(this.wave.distanceOf(waveKey, fallbackDistVp), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_HEADER_SCALE_START,
         centerX: '0%',
         centerY: '50%'
       })
-      .animation(Motion.bloomHeaderScaleAnim(bloomIdx, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf(waveKey, fallbackDistVp), this.motionMode)
+        : null)
   }
 
   @Builder
@@ -443,20 +451,27 @@ export struct ConnectPanel {
     .clip(true)
     .alignItems(HorizontalAlign.Start)
     .margin({ top: 6, bottom: 6 })
+    .onAreaChange((_old: Area, area: Area) => {
+      this.wave.record('conn:status', area);
+    })
     .animation(null)
     .opacity(this.entered ? 1 : 0)
-    .animation(Motion.bloomOpacityAnim(0, this.motionMode))
+    .animation(this.entered
+      ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:status', 0), this.motionMode)
+      : null)
     .scale({
       x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
       y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
       centerX: '50%',
       centerY: '50%'
     })
-    .animation(Motion.bloomScaleAnim(0, this.motionMode))
+    .animation(this.entered
+      ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:status', 0), this.motionMode)
+      : null)
   }
 
   @Builder
-  guideEntryCard(title: string, sub: string, tag: string, kind: string, idx: number) {
+  guideEntryCard(title: string, sub: string, tag: string, kind: string, waveKey: string, fallbackDistVp: number) {
     Row() {
       Column() {
         Text(title)
@@ -500,16 +515,23 @@ export struct ConnectPanel {
     .borderRadius(Tokens.rRow)
     .clip(true)
     .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
+    .onAreaChange((_old: Area, area: Area) => {
+      this.wave.record(waveKey, area);
+    })
     .animation(null)
     .opacity(this.entered ? 1 : 0)
-    .animation(Motion.bloomOpacityAnim(idx, this.motionMode))
+    .animation(this.entered
+      ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf(waveKey, fallbackDistVp), this.motionMode)
+      : null)
     .scale({
       x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
       y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
       centerX: '50%',
       centerY: '50%'
     })
-    .animation(Motion.bloomScaleAnim(idx, this.motionMode))
+    .animation(this.entered
+      ? Motion.bloomScaleAnimByDist(this.wave.distanceOf(waveKey, fallbackDistVp), this.motionMode)
+      : null)
     .onClick(() => {
       Haptics.tap();
       this.onOpenGuide(kind);
@@ -522,7 +544,7 @@ export struct ConnectPanel {
       this.linkStatusCard()
 
       // 1. 多电脑管理
-      this.sectionTitle('电脑', 10, 1)
+      this.sectionTitle('电脑', 10, 'hdr:machines', 80)
       Column() {
         MachineList({
           onPick: (id: string) => {
@@ -541,16 +563,23 @@ export struct ConnectPanel {
         })
       }
       .width('100%')
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('conn:machines', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomOpacityAnim(1, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:machines', 140), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         centerX: '50%',
         centerY: '50%'
       })
-      .animation(Motion.bloomScaleAnim(1, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:machines', 140), this.motionMode)
+        : null)
       .bindSheet($$this.renameOn, this.renameMachineSheet(),
         Mat.sheetOpts(this.hdsOn, SheetSize.FIT_CONTENT, () => {
           this.renameOn = false;
@@ -563,23 +592,30 @@ export struct ConnectPanel {
       }
       .width('100%')
       .margin({ top: 2, bottom: 4 })
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('conn:chips', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomOpacityAnim(2, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:chips', 220), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         centerX: '50%',
         centerY: '50%'
       })
-      .animation(Motion.bloomScaleAnim(2, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:chips', 220), this.motionMode)
+        : null)
       .bindSheet($$this.addOn, this.addMachineSheet(),
         Mat.sheetOpts(this.hdsOn, SheetSize.FIT_CONTENT, () => {
           this.addOn = false;
         }, true, true))
 
       // 3. 网络策略（独立单条卡片）
-      this.sectionTitle('网络策略', 16, 3)
+      this.sectionTitle('网络策略', 16, 'hdr:net', 284)
       Row() {
         Row() {
           Text('连接优先策略')
@@ -612,19 +648,26 @@ export struct ConnectPanel {
       .shadow(Mat.rowShadow(this.hdsOn))
       .borderRadius(Tokens.rRow)
       .clip(true)
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('conn:net', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomOpacityAnim(3, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:net', 330), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         centerX: '50%',
         centerY: '50%'
       })
-      .animation(Motion.bloomScaleAnim(3, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:net', 330), this.motionMode)
+        : null)
 
       // 4. 连接地址与外网（表单复合卡）
-      this.sectionTitle('连接地址与外网', 16, 4)
+      this.sectionTitle('连接地址与外网', 16, 'hdr:form', 404)
       Column() {
         ConnectForm({
           base: $editBase,
@@ -644,26 +687,33 @@ export struct ConnectPanel {
         })
       }
       .width('100%')
+      .onAreaChange((_old: Area, area: Area) => {
+        this.wave.record('conn:form', area);
+      })
       .animation(null)
       .opacity(this.entered ? 1 : 0)
-      .animation(Motion.bloomOpacityAnim(4, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:form', 520), this.motionMode)
+        : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
         centerX: '50%',
         centerY: '50%'
       })
-      .animation(Motion.bloomScaleAnim(4, this.motionMode))
+      .animation(this.entered
+        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:form', 520), this.motionMode)
+        : null)
 
       // 5-6. 外网访问配置（逐条独立卡片）
-      this.sectionTitle('外网访问配置', 16, 5)
+      this.sectionTitle('外网访问配置', 16, 'hdr:guide', 660)
       Column({ space: 9 }) {
-        this.guideEntryCard('让 AI 帮你配', '复制完整指令给 Codex / Claude 等 AI 自动完成', '自动方案', 'ai', 5)
-        this.guideEntryCard('外网访问配置向导', '按 7 步手动命令配置 Cloudflare 安全隧道', '手动向导', 'tunnel', 6)
+        this.guideEntryCard('让 AI 帮你配', '复制完整指令给 Codex / Claude 等 AI 自动完成', '自动方案', 'ai', 'guide:ai', 710)
+        this.guideEntryCard('外网访问配置向导', '按 7 步手动命令配置 Cloudflare 安全隧道', '手动向导', 'tunnel', 'guide:tunnel', 782)
       }
       .width('100%')
 
-      // 7-12. 当前设备概况与断开/移除（内部逐条独立卡片）
+      // 7-12. 当前设备概况与断开/移除（内部逐条独立卡片，共享同一空间波纹追踪器）
       DeviceCard({
         name: this.machineName,
         base: this.currentBase,
@@ -671,6 +721,7 @@ export struct ConnectPanel {
         sessions: this.sessionsCount,
         startIdx: 7,
         entered: this.entered,
+        wave: this.wave,
         onReconnect: (): void => {
           this.onReconnect();
         },

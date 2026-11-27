@@ -114,7 +114,7 @@ export struct TrajectoryCard {
             .fontSize(15)
             .fontColor(Tokens.dim2)
             .rotate({ angle: this.expanded ? 90 : 0 })
-            .animation({ duration: Motion.move, curve: Motion.std })
+            .animation(Motion.baseElastic())
             .margin({ left: 6 })
         }
       }
