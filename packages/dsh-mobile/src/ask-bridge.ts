@@ -18,14 +18,25 @@ export interface LiveAsk {
   createdAt: number
   synthetic: boolean
   resolve: (answer: unknown) => void
-  delegate: () => void
+  delegate: (reason?: string) => void
+}
+
+export interface LiveAskSummary {
+  callId: string
+  sessionId: string
+  questionCount: number
+  firstHeader: string
+  firstPrompt: string
+  createdAt: number
 }
 
 export interface AskBridge {
   liveAsks: ReadonlyMap<string, LiveAsk>
   liveAsking: () => Set<string>
+  listLive: () => LiveAskSummary[]
   pendingAsks: (listed: unknown, sessionId: string) => AskState
   answer: (sessionId: string, callId: string, payload: unknown) => { ok: true; synthetic: boolean } | { ok: false }
+  delegateOne: (callId: string, reason?: string) => boolean
   delegateAll: (reason?: string) => number
 }
 
@@ -109,7 +120,7 @@ export function createAskBridge(
               void record(logFile, `ask answered session=${sessionId} call=${callId}`)
               resolve(answer)
             },
-            delegate: () => handOver('ask delegate'),
+            delegate: (reason = 'ask delegate') => handOver(reason),
           }
           liveAsks.set(callId, entry)
           if (onNewAsk !== undefined && askSessionId !== '*') {
@@ -133,6 +144,23 @@ export function createAskBridge(
     for (const ask of liveAsks.values()) {
       if (ask.sessionId !== '*') out.add(ask.sessionId)
     }
+    return out
+  }
+
+  const listLive = (): LiveAskSummary[] => {
+    const out: LiveAskSummary[] = []
+    for (const ask of liveAsks.values()) {
+      const first = ask.questions[0]
+      out.push({
+        callId: ask.callId,
+        sessionId: ask.sessionId,
+        questionCount: ask.questions.length,
+        firstHeader: first?.header ?? '',
+        firstPrompt: first?.prompt ?? '',
+        createdAt: ask.createdAt,
+      })
+    }
+    out.sort((a, b) => a.createdAt - b.createdAt)
     return out
   }
 
@@ -171,6 +199,13 @@ export function createAskBridge(
     return { ok: true, synthetic }
   }
 
+  const delegateOne = (callId: string, reason = 'desktop-takeover'): boolean => {
+    const live = liveAsks.get(callId)
+    if (live === undefined) return false
+    live.delegate(reason)
+    return true
+  }
+
   const delegateAll = (reason = 'delegate-all'): number => {
     const items = [...liveAsks.values()]
     if (items.length > 0) {
@@ -178,7 +213,7 @@ export function createAskBridge(
     }
     for (const item of items) {
       try {
-        item.delegate()
+        item.delegate(reason)
       } catch {
         // ignore individual delegate error
       }
@@ -186,5 +221,5 @@ export function createAskBridge(
     return items.length
   }
 
-  return { liveAsks, liveAsking, pendingAsks, answer, delegateAll }
+  return { liveAsks, liveAsking, listLive, pendingAsks, answer, delegateOne, delegateAll }
 }

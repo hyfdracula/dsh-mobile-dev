@@ -49,12 +49,51 @@ export struct SessionHeaderBar {
   @StorageLink('linkMode') linkMode: string = 'lan';
   @StorageLink('linkEncrypted') linkEncrypted: boolean = false;
   @StorageLink('wideScreen') wideScreen: boolean = false;
+  @StorageLink('shellTab') @Watch('onShellTabChange') shellTab: number = 0;
 
+  @State private hdrEntered: boolean = true;
   @State private searchGrow: number = 1;
   @State private searchGlyphTrigger: number = -1;
   @State private wsMenuOn: boolean = false;
   @State private viewOn: boolean = false;
   @State private devOn: boolean = false;
+  private hdrTimer: number = -1;
+  private lastTab: number = 0;
+
+  aboutToAppear(): void {
+    this.lastTab = this.shellTab;
+    this.playHeaderEnter(24);
+  }
+
+  aboutToDisappear(): void {
+    if (this.hdrTimer >= 0) {
+      clearTimeout(this.hdrTimer);
+      this.hdrTimer = -1;
+    }
+  }
+
+  private playHeaderEnter(waitMs: number): void {
+    if (this.hdrTimer >= 0) {
+      clearTimeout(this.hdrTimer);
+      this.hdrTimer = -1;
+    }
+    if (!Motion.isFlagship(this.motionMode)) {
+      this.hdrEntered = true;
+      return;
+    }
+    this.hdrEntered = false;
+    this.hdrTimer = setTimeout(() => {
+      this.hdrTimer = -1;
+      this.hdrEntered = true;
+    }, waitMs);
+  }
+
+  private onShellTabChange(): void {
+    if (this.shellTab === 0 && this.lastTab !== 0 && !this.searching) {
+      this.playHeaderEnter(16);
+    }
+    this.lastTab = this.shellTab;
+  }
 
   private immersiveOn(): boolean {
     return this.hdsOn && Mat.isImmersiveReady();
@@ -395,6 +434,11 @@ export struct SessionHeaderBar {
               Haptics.tap();
               this.wsMenuOn = !this.wsMenuOn;
             })
+            .animation(null)
+            .opacity(this.hdrEntered ? 1 : 0)
+            .animation(Motion.headerPopOpacityAnim(170, this.motionMode, 200))
+            .translate({ x: this.hdrEntered ? 0 : -96 })
+            .animation(Motion.headerPopScaleAnim(170, this.motionMode))
             .bindPopup(this.wsMenuOn, Mat.popupOpts(
               this.hdsOn,
               (): void => { this.wsPopup(); },
@@ -430,6 +474,11 @@ export struct SessionHeaderBar {
               Haptics.tap();
               this.devOn = !this.devOn;
             })
+            .animation(null)
+            .opacity(this.hdrEntered ? 1 : 0)
+            .animation(Motion.headerPopOpacityAnim(115, this.motionMode, 210))
+            .translate({ x: this.hdrEntered ? 0 : -180 })
+            .animation(Motion.headerPopScaleAnim(115, this.motionMode))
             .bindPopup(this.devOn, Mat.popupOpts(
               this.hdsOn,
               (): void => { this.devPopup(); },
@@ -463,6 +512,11 @@ export struct SessionHeaderBar {
               Haptics.tap();
               this.viewOn = !this.viewOn;
             })
+            .animation(null)
+            .opacity(this.hdrEntered ? 1 : 0)
+            .animation(Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_RIGHT_INNER, this.motionMode, 220))
+            .translate({ x: this.hdrEntered ? 0 : Motion.HEADER_SLIDE_RIGHT_INNER_X })
+            .animation(Motion.headerPopScaleAnim(Motion.HEADER_DELAY_RIGHT_INNER, this.motionMode))
             .bindPopup(this.viewOn, Mat.popupOpts(
               this.hdsOn,
               (): void => { this.viewPopupBody(); },
@@ -501,6 +555,11 @@ export struct SessionHeaderBar {
               Haptics.tap();
               this.openSearch();
             })
+            .animation(null)
+            .opacity(this.hdrEntered ? 1 : 0)
+            .animation(Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_RIGHT_OUTER, this.motionMode, 220))
+            .translate({ x: this.hdrEntered ? 0 : Motion.HEADER_SLIDE_RIGHT_OUTER_X })
+            .animation(Motion.headerPopScaleAnim(Motion.HEADER_DELAY_RIGHT_OUTER, this.motionMode))
           }
           .width('100%')
           .height(50)

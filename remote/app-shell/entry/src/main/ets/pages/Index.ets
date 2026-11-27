@@ -235,8 +235,10 @@ struct Index {
 
   aboutToAppear(): void {
     AppStorage.setOrCreate('settingsSub', '');
-    this.applyThemeNow();
-    void this.loadCfg();
+    if (!this.loadCfgSync()) {
+      this.applyThemeNow();
+      void this.loadCfg();
+    }
   }
 
   aboutToDisappear(): void {
@@ -292,25 +294,179 @@ struct Index {
     applyTheme(this.themeMode, this.systemDark());
   }
 
+  private applyResolvedPrefs(
+    privacyRaw: string,
+    wmc: string,
+    wmp: string,
+    mm: string,
+    bIn: string,
+    tIn: string,
+    secLoaded: string,
+    th: string,
+    fw: string,
+    al: string,
+    hp: string,
+    hd: string,
+    ic: string,
+    nd: string,
+    nb: string,
+    nst: string,
+    es: string,
+    ch: string,
+    ts: string,
+    lan: string,
+    nm: string
+  ): void {
+    this.privacyAccepted = privacyRaw === '1';
+    AppStorage.setOrCreate('wcMobileCompat', wmc !== '0');
+    AppStorage.setOrCreate('wcAutoDismissPromo', wmp === '1');
+    AppStorage.setOrCreate('motionMode', Motion.normalize(mm));
+
+    let b: string = bIn;
+    const tOldBase: string = b;
+    let t: string = secLoaded !== '' ? secLoaded : tIn;
+
+    AppStorage.setOrCreate('appIconStyle', AppIcon.normalize(ic));
+    void AppIcon.init();
+    AppStorage.setOrCreate('notifyDone', nd !== '0');
+    AppStorage.setOrCreate('notifyBgOnly', nb !== '0');
+    AppStorage.setOrCreate('notifyShowTitle', nst !== '0');
+    AppStorage.setOrCreate('enterSend', es !== '0');
+    AppStorage.setOrCreate('compactHistory', ch === '1');
+    const tsN: number = Number(ts);
+    AppStorage.setOrCreate('textScale', tsN > 0 ? tsN : 1);
+    AppStorage.setOrCreate('sendMode', 'queue');
+    this.haptics = hp === '1';
+    Haptics.enabled = this.haptics;
+    this.hdsOn = hd !== '0';
+    AppStorage.setOrCreate('hdsOn', this.hdsOn);
+    // 兼容旧版 forceWan / autoLan 偏好，统一收敛为 netMode
+    const legacyForceWan: boolean = fw === '1';
+    const legacyAutoLan: boolean = al === '' ? !legacyForceWan : al === '1';
+    this.netMode = nm !== '' ? nm : (legacyForceWan ? 'wan' : (legacyAutoLan ? 'auto' : 'wan'));
+
+    let lanSaved: string = lan;
+    if (b === '' && lanSaved === '' && DEFAULT_BASE !== '') {
+      b = DEFAULT_BASE;
+    }
+    if (isLanUrl(b)) {
+      lanSaved = lanSaved !== '' ? lanSaved : b;
+      b = DEFAULT_BASE !== '' ? DEFAULT_BASE : '';
+      console.info('DSH_CFG migrate lan-in-base -> ' + lanSaved);
+    }
+    if (b === '' && lanSaved !== '') {
+      b = lanSaved;
+      console.info('DSH_CFG base from lan -> ' + b);
+    }
+    const cur = Machines.active();
+    if (cur !== null) {
+      b = cur.wan;
+      let mt: string = Secret.loadFor(cur.id);
+      if (mt === '' && cur.token !== undefined && cur.token !== '') {
+        mt = cur.token;
+      }
+      if (mt === '' && Machines.list().length === 1 && t !== '' && (b === tOldBase || cur.wan === tOldBase)) {
+        mt = t;
+        Secret.saveFor(cur.id, mt);
+      }
+      t = mt;
+      lanSaved = cur.lan.length > 0 ? cur.lan[0] : '';
+      console.info('DSH_MACH restore ' + cur.name + ' ' + cur.wan);
+    } else if (b !== '' && t !== '') {
+      Machines.upsert(b, t, lanSaved !== '' ? [lanSaved] : [], '', true);
+    }
+    if (b !== '' && t !== '') {
+      this.wanBase = b;
+      this.token = t;
+      const curHostId: string = cur !== null && cur.hostId !== undefined ? cur.hostId : '';
+      const curE2eePub: string = cur !== null && cur.e2eePub !== undefined ? cur.e2eePub : '';
+      this.api.rebase(
+        b,
+        t,
+        lanSaved,
+        cur !== null ? cur.lan : (lanSaved !== '' ? [lanSaved] : []),
+        curHostId,
+        curE2eePub
+      );
+      this.applyNetMode();
+      PushBridge.bindApi(this.api);
+      this.machineName = Machines.displayName();
+      Unread.refresh();
+      console.info('DSH_CFG loaded base=' + b + ' netMode=' + this.netMode + ' lan=' + (lanSaved !== '' ? lanSaved : '-'));
+      if (this.privacyAccepted) {
+        void this.syncHostMeta();
+        void PushBridge.syncToGateway(this.api);
+      }
+    }
+    this.themeMode = th;
+    this.applyThemeNow();
+    if (this.privacyAccepted) {
+      Net.start();
+      PushBridge.activateAfterPrivacy();
+      if (this.token !== '' && this.wanBase !== '') {
+        this.startPresence();
+      }
+    }
+    LinkLog.record('APP', 'cfgLoaded motion=' + Motion.normalize(mm) + ' hds=' + (this.hdsOn ? '1' : '0') +
+      ' netMode=' + this.netMode + ' hosts=' + String(Machines.list().length));
+  }
+
+  /**
+   * 同步首帧读取本地配置与主题，避免开屏页先以错误底色/居中错位闪现后再切入主页。
+   */
+  private loadCfgSync(): boolean {
+    try {
+      const p: preferences.Preferences = preferences.getPreferencesSync(AppCtx.ability(), { name: PREF_STORE });
+      const pa: string = p.getSync('privacyAccepted', '0') as string;
+      const wmc: string = p.getSync('wcMobileCompat', '1') as string;
+      const wmp: string = p.getSync('wcAutoDismissPromo', '0') as string;
+      const mm: string = p.getSync('motionMode', MOTION_VIVID) as string;
+      const b: string = p.getSync('base', DEFAULT_BASE) as string;
+      const t: string = p.getSync('token', DEFAULT_TOKEN) as string;
+      const sec: string = Secret.load();
+      if (sec !== '' && (p.getSync('token', '') as string) !== '') {
+        p.putSync('token', '');
+        void p.flush();
+      } else if (sec === '' && t !== '' && t !== DEFAULT_TOKEN) {
+        if (Secret.save(t)) {
+          p.putSync('token', '');
+          void p.flush();
+        }
+      }
+      const th: string = p.getSync('theme', THEME_AUTO) as string;
+      const fw: string = p.getSync('forceWan', '0') as string;
+      const al: string = p.getSync('autoLan', '') as string;
+      const hp: string = p.getSync('haptics', '1') as string;
+      const hd: string = p.getSync('hdsOn', '1') as string;
+      const ic: string = p.getSync('appIconStyle', ICON_DARK) as string;
+      const nd: string = p.getSync('notifyDone', '1') as string;
+      const nb: string = p.getSync('notifyBgOnly', '1') as string;
+      const nst: string = p.getSync('notifyShowTitle', '1') as string;
+      const es: string = p.getSync('enterSend', '1') as string;
+      const ch: string = p.getSync('compactHistory', '0') as string;
+      const ts: string = p.getSync('textScale', '1') as string;
+      const lan: string = p.getSync('lan', '') as string;
+      const nm: string = p.getSync('netMode', '') as string;
+      this.applyResolvedPrefs(pa, wmc, wmp, mm, b, t, sec, th, fw, al, hp, hd, ic, nd, nb, nst, es, ch, ts, lan, nm);
+      this.cfgLoaded = true;
+      return true;
+    } catch (e) {
+      console.info('DSH_CFG sync skipped, fallback async :: ' + (e as Error).message);
+      return false;
+    }
+  }
+
   private async loadCfg(): Promise<void> {
     try {
       const p = await preferences.getPreferences(AppCtx.ability(), PREF_STORE);
       const pa = await p.get('privacyAccepted', '0') as string;
-      this.privacyAccepted = pa === '1';
       const wmc = await p.get('wcMobileCompat', '1') as string;
       const wmp = await p.get('wcAutoDismissPromo', '0') as string;
       const mm = await p.get('motionMode', MOTION_VIVID) as string;
-      AppStorage.setOrCreate('wcMobileCompat', wmc !== '0');
-      AppStorage.setOrCreate('wcAutoDismissPromo', wmp === '1');
-      AppStorage.setOrCreate('motionMode', Motion.normalize(mm));
-
-      let b = await p.get('base', DEFAULT_BASE) as string;
-      const tOldBase: string = b;
-      let t = await p.get('token', DEFAULT_TOKEN) as string;
-      // 令牌优先从资产库读；旧版本只写过 preferences，这里读出来顺手迁进资产库。
+      const b = await p.get('base', DEFAULT_BASE) as string;
+      const t = await p.get('token', DEFAULT_TOKEN) as string;
       const sec: string = Secret.load();
       if (sec !== '') {
-        t = sec;
         if (await p.get('token', '') !== '') {
           await p.put('token', '');
           await p.flush();
@@ -333,93 +489,9 @@ struct Index {
       const es = await p.get('enterSend', '1') as string;
       const ch = await p.get('compactHistory', '0') as string;
       const ts = await p.get('textScale', '1') as string;
-      AppStorage.setOrCreate('appIconStyle', AppIcon.normalize(ic));
-      void AppIcon.init();
-      AppStorage.setOrCreate('notifyDone', nd !== '0');
-      AppStorage.setOrCreate('notifyBgOnly', nb !== '0');
-      AppStorage.setOrCreate('notifyShowTitle', nst !== '0');
-      AppStorage.setOrCreate('enterSend', es !== '0');
-      AppStorage.setOrCreate('compactHistory', ch === '1');
-      const tsN: number = Number(ts);
-      AppStorage.setOrCreate('textScale', tsN > 0 ? tsN : 1);
       const lan = await p.get('lan', '') as string;
-      AppStorage.setOrCreate('sendMode', 'queue');
-      this.haptics = hp === '1';
-      Haptics.enabled = this.haptics;
-      this.hdsOn = hd !== '0';
-      AppStorage.setOrCreate('hdsOn', this.hdsOn);
-      // 兼容旧版 forceWan / autoLan 偏好，统一收敛为 netMode
       const nm = await p.get('netMode', '') as string;
-      const legacyForceWan: boolean = fw === '1';
-      const legacyAutoLan: boolean = al === '' ? !legacyForceWan : al === '1';
-      this.netMode = nm !== '' ? nm : (legacyForceWan ? 'wan' : (legacyAutoLan ? 'auto' : 'wan'));
-
-      let lanSaved: string = lan;
-      if (b === '' && lanSaved === '' && DEFAULT_BASE !== '') {
-        b = DEFAULT_BASE;
-      }
-      if (isLanUrl(b)) {
-        lanSaved = lanSaved !== '' ? lanSaved : b;
-        b = DEFAULT_BASE !== '' ? DEFAULT_BASE : '';
-        console.info('DSH_CFG migrate lan-in-base -> ' + lanSaved);
-      }
-      if (b === '' && lanSaved !== '') {
-        b = lanSaved;
-        console.info('DSH_CFG base from lan -> ' + b);
-      }
-      const cur = Machines.active();
-      if (cur !== null) {
-        b = cur.wan;
-        let mt: string = Secret.loadFor(cur.id);
-        if (mt === '' && cur.token !== undefined && cur.token !== '') {
-          mt = cur.token;
-        }
-        if (mt === '' && Machines.list().length === 1 && t !== '' && (b === tOldBase || cur.wan === tOldBase)) {
-          mt = t;
-          Secret.saveFor(cur.id, mt);
-        }
-        t = mt;
-        lanSaved = cur.lan.length > 0 ? cur.lan[0] : '';
-        console.info('DSH_MACH restore ' + cur.name + ' ' + cur.wan);
-      } else if (b !== '' && t !== '') {
-        Machines.upsert(b, t, lanSaved !== '' ? [lanSaved] : [], '', true);
-      }
-      if (b !== '' && t !== '') {
-        this.wanBase = b;
-        this.token = t;
-        const curHostId: string = cur !== null && cur.hostId !== undefined ? cur.hostId : '';
-        const curE2eePub: string = cur !== null && cur.e2eePub !== undefined ? cur.e2eePub : '';
-        this.api.rebase(
-          b,
-          t,
-          lanSaved,
-          cur !== null ? cur.lan : (lanSaved !== '' ? [lanSaved] : []),
-          curHostId,
-          curE2eePub
-        );
-        this.applyNetMode();
-        PushBridge.bindApi(this.api);
-        this.machineName = Machines.displayName();
-        Unread.refresh();
-        console.info('DSH_CFG loaded base=' + b + ' netMode=' + this.netMode + ' lan=' + (lanSaved !== '' ? lanSaved : '-'));
-        if (this.privacyAccepted) {
-          void this.syncHostMeta();
-          void PushBridge.syncToGateway(this.api);
-        }
-      }
-      if (th !== this.themeMode) {
-        this.themeMode = th;
-        this.applyThemeNow();
-      }
-      if (this.privacyAccepted) {
-        Net.start();
-        PushBridge.activateAfterPrivacy();
-        if (this.token !== '' && this.wanBase !== '') {
-          this.startPresence();
-        }
-      }
-      LinkLog.record('APP', 'cfgLoaded motion=' + Motion.normalize(mm) + ' hds=' + (this.hdsOn ? '1' : '0') +
-        ' netMode=' + this.netMode + ' hosts=' + String(Machines.list().length));
+      this.applyResolvedPrefs(pa, wmc, wmp, mm, b, t, sec, th, fw, al, hp, hd, ic, nd, nb, nst, es, ch, ts, lan, nm);
     } catch (e) {
       console.error('DSH_CFG load failed :: ' + (e as Error).message);
     } finally {
@@ -725,23 +797,17 @@ struct Index {
 
   @Builder
   splashView() {
-    Column({ space: 12 }) {
+    Column() {
       Image(Tokens.isDark ? $r('app.media.start_window_icon_dark') : $r('app.media.start_window_icon_light'))
-        .width(84)
-        .height(84)
+        .width(96)
+        .height(96)
         .objectFit(ImageFit.Contain)
-      Text('Agent远程控制台')
-        .fontSize(20)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(Tokens.fg)
-      Text('正在准备本地工作区…')
-        .fontSize(Tokens.fsCaption)
-        .fontColor(Tokens.dim2)
     }
     .width('100%')
     .height('100%')
     .justifyContent(FlexAlign.Center)
     .backgroundColor(this.themeBg)
+    .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Motion.std }))
   }
 
   @Builder

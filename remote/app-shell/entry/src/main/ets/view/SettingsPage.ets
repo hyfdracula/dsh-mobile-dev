@@ -101,6 +101,7 @@ export struct SettingsPage {
   @StorageLink('appIconStyle') appIconStyle: string = ICON_DARK;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
   @StorageLink('sheetOpen') sheetOpen: boolean = false;
+  @StorageLink('shellTab') @Watch('onShellTabChange') shellTab: number = 0;
 
   @State private pairEntry: string = '';
   @State private dataRefreshTick: number = 0;
@@ -111,6 +112,7 @@ export struct SettingsPage {
   @State private textScaleUi: number = 1;
   @State private rootEntered: boolean = true;
   private rootEnterTimer: number = -1;
+  private lastTab: number = 0;
 
   // 仅用于「隐私政策 / 用户协议 / 开源许可 / 外网向导（AI 与隧道）」的景深悬浮阅读浮卡
   @State private readingRoute: string = '';
@@ -314,15 +316,8 @@ export struct SettingsPage {
     this.notifyShowTitle = nst !== undefined ? nst : true;
     this.editBase = this.wanBase;
     this.editToken = this.token0;
-    if (Motion.isFlagship(this.motionMode)) {
-      this.rootEntered = false;
-      this.rootEnterTimer = setTimeout(() => {
-        this.rootEnterTimer = -1;
-        this.rootEntered = true;
-      }, 16);
-    } else {
-      this.rootEntered = true;
-    }
+    this.lastTab = this.shellTab;
+    this.playRootEnter();
     void this.load();
     if (this.token0 !== '' && this.wanBase !== '' && Api.cachedBackends().length === 0) {
       void this.api.backends(false).catch(() => {});
@@ -333,6 +328,29 @@ export struct SettingsPage {
         this.lan = lanNow;
       }
     }, 2000);
+  }
+
+  private playRootEnter(): void {
+    if (this.rootEnterTimer >= 0) {
+      clearTimeout(this.rootEnterTimer);
+      this.rootEnterTimer = -1;
+    }
+    if (Motion.isFlagship(this.motionMode)) {
+      this.rootEntered = false;
+      this.rootEnterTimer = setTimeout(() => {
+        this.rootEnterTimer = -1;
+        this.rootEntered = true;
+      }, 16);
+    } else {
+      this.rootEntered = true;
+    }
+  }
+
+  private onShellTabChange(): void {
+    if (this.shellTab === 1 && this.lastTab !== 1 && this.sub === '' && !this.readingMounted) {
+      this.playRootEnter();
+    }
+    this.lastTab = this.shellTab;
   }
 
   aboutToDisappear(): void {
@@ -614,7 +632,15 @@ export struct SettingsPage {
   @Builder
   rootHeader() {
     Row() {
-      Text('设置').fontSize(Tokens.fsDisplay).fontWeight(FontWeight.Bold).fontColor(Tokens.fg)
+      Text('设置')
+        .fontSize(Tokens.fsDisplay)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(Tokens.fg)
+        .animation(null)
+        .opacity(this.rootEntered ? 1 : 0)
+        .animation(Motion.headerPopOpacityAnim(Motion.HEADER_DELAY_SUB_TITLE, this.motionMode, 220))
+        .translate({ x: this.rootEntered ? 0 : Motion.HEADER_SLIDE_SUB_TITLE_X })
+        .animation(Motion.headerTitleSlideAnim(Motion.HEADER_DELAY_SUB_TITLE, this.motionMode))
       Blank()
     }
     .width('100%').height(52).padding({ left: 16, right: 16 })

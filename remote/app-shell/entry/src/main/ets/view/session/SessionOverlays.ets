@@ -336,6 +336,26 @@ export struct SessionLoadingBox {
   @Prop loadSlow: boolean = false;
   onRetry: () => void = () => {};
   @StorageLink('topInset') topInset: number = 40;
+  @State private visible: boolean = false;
+  private showTimer: number = -1;
+
+  aboutToAppear(): void {
+    if (this.loadSlow) {
+      this.visible = true;
+      return;
+    }
+    this.showTimer = setTimeout(() => {
+      this.showTimer = -1;
+      this.visible = true;
+    }, 180);
+  }
+
+  aboutToDisappear(): void {
+    if (this.showTimer >= 0) {
+      clearTimeout(this.showTimer);
+      this.showTimer = -1;
+    }
+  }
 
   build() {
     Column({ space: 10 }) {
@@ -358,5 +378,7 @@ export struct SessionLoadingBox {
     }
     .width('100%').justifyContent(FlexAlign.Center)
     .padding({ top: this.topInset + 112, left: 24, right: 24 })
+    .opacity(this.visible || this.loadSlow ? 1 : 0)
+    .animation({ duration: 180, curve: Motion.std })
   }
 }

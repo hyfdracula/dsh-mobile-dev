@@ -149,6 +149,10 @@ export struct PairPage {
     this.hint = '已取消本次连接，可修改参数后重试';
   }
 
+  private isValidHostUrl(norm: string): boolean {
+    return /^https?:\/\/([a-z0-9_-]+(\.[a-z0-9_-]+)*|\[[0-9a-f:]+\])(:\d{1,5})?(\/[^\s]*)?$/i.test(norm);
+  }
+
   private scheduleProbe(rawAddr: string): void {
     if (this.probeTimer >= 0) {
       clearTimeout(this.probeTimer);
@@ -162,7 +166,7 @@ export struct PairPage {
       return;
     }
     const norm: string = Pairing.normalizeBase(clean);
-    if (!/^https?:\/\/[^\s/:]+(:\d+)?$/i.test(norm)) {
+    if (!this.isValidHostUrl(norm)) {
       this.previewInfo = null;
       return;
     }
@@ -173,7 +177,7 @@ export struct PairPage {
   }
 
   private async probeHost(normBase: string): Promise<void> {
-    if (normBase === '') {
+    if (normBase === '' || !this.isValidHostUrl(normBase)) {
       return;
     }
     this.probing = true;
@@ -314,15 +318,21 @@ export struct PairPage {
     const rawBase: string = this.manualBase.trim();
     const rawToken: string = this.manualToken.trim();
     if (rawBase === '') {
+      this.stageActive = false;
+      this.stageErr = '';
       this.err = '请填写电脑连接地址。';
       return;
     }
     const norm: string = Pairing.normalizeBase(rawBase);
-    if (!/^https?:\/\/[^\s/]+/i.test(norm)) {
+    if (!this.isValidHostUrl(norm)) {
+      this.stageActive = false;
+      this.stageErr = '';
       this.err = '地址格式无效，例如 192.168.1.10:8901 或 https://example.com';
       return;
     }
     if (rawToken === '') {
+      this.stageActive = false;
+      this.stageErr = '';
       this.err = '请填写访问令牌。';
       return;
     }
@@ -344,6 +354,13 @@ export struct PairPage {
     this.stageIdx = 1;
     this.stageDetail = '正在校验令牌与主机指纹 · ' + normBase;
     this.startTimer();
+
+    await new Promise<void>((r: () => void) => setTimeout(r, 32));
+    if (seq !== this.claimSeq) {
+      this.stopTimer();
+      this.busy = false;
+      return;
+    }
 
     const client: http.HttpRequest = http.createHttp();
     try {

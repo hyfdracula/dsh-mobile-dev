@@ -88,12 +88,14 @@ export default class EntryAbility extends UIAbility {
     try {
       const win: window.Window = windowStage.getMainWindowSync();
       AppCtx.bindWindow(win);
+      const sysDark: boolean = AppStorage.get<boolean>('sysDark') === true;
       try {
         await win.setWindowLayoutFullScreen(true);
       } catch (e) {
         hilog.error(0x0000, TAG, 'layoutFullScreen failed: %{public}s', JSON.stringify(e));
       }
       SafeArea.attach(win);
+      SafeArea.syncSystemBar(sysDark, sysDark ? '#0A0C10' : '#E9EDF4');
       Adaptive.attach(win);
       win.setWindowSystemBarEnable(['status']).catch((e: BusinessError) => {
         hilog.error(0x0000, TAG, 'barEnable failed: %{public}s', JSON.stringify(e));

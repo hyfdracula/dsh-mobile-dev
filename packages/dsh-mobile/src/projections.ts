@@ -142,7 +142,7 @@ export function agentsOf(values: Record<string, unknown> | undefined): AgentSumm
 /** 归一化宿主提问列表。 */
 export function normalizeQuestions(raw: unknown): AskQuestion[] {
   const list = Array.isArray(raw) ? (raw as Array<Record<string, unknown>>) : []
-  return list.map((q) => {
+  return list.map((q, idx) => {
     const optsRaw = Array.isArray(q.options) ? (q.options as Array<Record<string, unknown>>) : []
     const options: AskOption[] = optsRaw
       .map((o) => ({
@@ -150,8 +150,10 @@ export function normalizeQuestions(raw: unknown): AskQuestion[] {
         description: o.description === undefined ? '' : String(o.description),
       }))
       .filter((o) => o.label !== '')
+    const rawId = String(q.id ?? '').trim()
+    const id = rawId !== '' ? rawId : `q_${String(idx + 1)}`
     const one: AskQuestion = {
-      id: String(q.id ?? ''),
+      id,
       prompt: String(q.question ?? q.prompt ?? ''),
       options,
       multiSelect: q.multiSelect === true,

@@ -3,6 +3,7 @@
  */
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { LiveAskSummary } from './ask-bridge.ts'
 import { parsePreviewPorts, validatePublicUrl } from './http-util.ts'
 import { dshHome, type AnswerMode, type PairedDeviceRecord } from './state.ts'
 
@@ -17,6 +18,8 @@ export interface PanelPrefs {
 
 export interface PanelCtx {
   pairState(): Record<string, unknown>
+  pendingAsks(): LiveAskSummary[]
+  takeoverAsk(callId?: string, switchToDesktop?: boolean): { delegated: number; pending: LiveAskSummary[] }
   rotatePair(): void
   writePrefs(next: PanelPrefs): void
   revokeDevice(deviceId: string, revoked: boolean): { ok: true; devices: PairedDeviceRecord[] } | { ok: false; error: string }
@@ -115,7 +118,7 @@ export const createPanel = (ctx: PanelCtx): PanelBundle => {
     const base = String(snapshot.base ?? '')
     const alts = Array.isArray(snapshot.alts) ? (snapshot.alts as string[]) : []
     const payload = base.length > 0 ? ctx.pairPayload(base, String(snapshot.code ?? ''), alts) : ''
-    return { ...snapshot, payload }
+    return { ...snapshot, payload, pendingAsks: ctx.pendingAsks() }
   }
 
   const panelConfig = async (request: Request): Promise<Response> => {
@@ -286,8 +289,37 @@ export const createPanel = (ctx: PanelCtx): PanelBundle => {
     return panelJson(200, panelSnapshot())
   }
 
+  const panelAsksState = (): Response => {
+    const snapshot = ctx.pairState()
+    return panelJson(200, {
+      pending: ctx.pendingAsks(),
+      answerMode: snapshot.answerMode === 'desktop' ? 'desktop' : 'phone',
+      phoneOnline: snapshot.phoneOnline === true,
+    })
+  }
+
+  const panelAsksTakeover = async (request: Request): Promise<Response> => {
+    const parsedBody = await panelBody(request)
+    if (!parsedBody.ok) return panelJson(400, { error: parsedBody.error })
+    const body = parsedBody.data
+    const callId = typeof body.callId === 'string' && body.callId.trim().length > 0 ? body.callId.trim() : undefined
+    const switchToDesktop = body.switchToDesktop === true
+    const result = ctx.takeoverAsk(callId, switchToDesktop)
+    await ctx.record(
+      `200 PANEL asks-takeover delegated=${String(result.delegated)} switchDesktop=${String(switchToDesktop)}`,
+    )
+    return panelJson(200, {
+      ok: true,
+      delegated: result.delegated,
+      pending: result.pending,
+      state: panelSnapshot(),
+    })
+  }
+
   const routes: readonly Record<string, unknown>[] = [
     { path: `${PANEL_PREFIX}/state`, methods: ['GET'], requestBody: 'buffered', fetch: async () => panelJson(200, panelSnapshot()) },
+    { path: `${PANEL_PREFIX}/asks`, methods: ['GET'], requestBody: 'buffered', fetch: async () => panelAsksState() },
+    { path: `${PANEL_PREFIX}/asks/takeover`, methods: ['POST'], requestBody: 'buffered', fetch: async (request: Request) => panelAsksTakeover(request) },
     {
       path: `${PANEL_PREFIX}/newcode`,
       methods: ['POST'],

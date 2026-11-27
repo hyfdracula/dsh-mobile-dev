@@ -17,6 +17,15 @@ interface PairedDevice {
   revoked?: boolean
 }
 
+interface PendingAskItem {
+  callId: string
+  sessionId: string
+  questionCount: number
+  firstHeader: string
+  firstPrompt: string
+  createdAt: number
+}
+
 interface PanelState {
   ok: boolean
   host: string
@@ -24,6 +33,7 @@ interface PanelState {
   e2ee?: boolean
   e2eePub?: string
   devices?: PairedDevice[]
+  pendingAsks?: PendingAskItem[]
   version: string
   port: number
   code: string
@@ -455,6 +465,28 @@ export function MobileSection(): ReactNode {
     }
   }, [])
 
+  const takeoverOnDesktop = useCallback(async (): Promise<void> => {
+    setBusy('takeover')
+    try {
+      const res = await fetch(`${ROUTE}/asks/takeover`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'content-type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({}),
+      })
+      if (!res.ok) throw await extractHttpError(res)
+      const payload = (await res.json()) as { state?: PanelState }
+      if (payload.state) setState(payload.state)
+      else await load(false)
+      setError('')
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason))
+    } finally {
+      setBusy('')
+    }
+  }, [load])
+
   const copy = useCallback(async (text: string, label: string): Promise<void> => {
     try {
       await navigator.clipboard.writeText(text)
@@ -556,6 +588,18 @@ export function MobileSection(): ReactNode {
           <Chip text={online ? '手机在线' : '等待配对'} tone={online ? 'ok' : 'idle'} />
         </div>
       </Card>
+
+      {Array.isArray(state?.pendingAsks) && state.pendingAsks.length > 0
+        ? (
+          <Card hero>
+            <SectionHead
+              title={`当前有 ${String(state.pendingAsks.length)} 组提问等待手机回答`}
+              subtitle={state.pendingAsks[0]?.firstPrompt || state.pendingAsks[0]?.firstHeader || '可立即交还桌面会话框回答，无需切换到手机'}
+              right={<Btn text={busy === 'takeover' ? '交还中...' : '立即在电脑上接管'} primary disabled={busy === 'takeover'} onClick={() => { void takeoverOnDesktop() }} />}
+            />
+          </Card>
+        )
+        : null}
 
       {error.length > 0
         ? (

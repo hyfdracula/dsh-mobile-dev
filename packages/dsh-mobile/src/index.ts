@@ -812,6 +812,20 @@ export function apply(ctx: any, rawConfig?: Config): void {
 
   const panel = createPanel({
     pairState: () => pairing.snapshot(),
+    pendingAsks: () => askBridge.listLive(),
+    takeoverAsk: (callId, switchToDesktop) => {
+      if (switchToDesktop === true) {
+        writeState({ answerMode: 'desktop' })
+        const delegated = askBridge.delegateAll('panel-takeover-desktop')
+        return { delegated, pending: askBridge.listLive() }
+      }
+      if (callId !== undefined && callId !== '') {
+        const delegated = askBridge.delegateOne(callId, 'panel-takeover') ? 1 : 0
+        return { delegated, pending: askBridge.listLive() }
+      }
+      const delegated = askBridge.delegateAll('panel-takeover-all')
+      return { delegated, pending: askBridge.listLive() }
+    },
     rotatePair: () => {
       pairing.rotatePair(true)
     },

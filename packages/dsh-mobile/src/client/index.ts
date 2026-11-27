@@ -4,6 +4,7 @@
  */
 import { MobileSection } from './MobileSection.tsx'
 import { FeedbackSection } from './FeedbackSection.tsx'
+import { AskTakeoverOverlay } from './AskTakeoverOverlay.tsx'
 
 export const inject = ['slots']
 
@@ -16,6 +17,11 @@ export function apply(ctx: any): void {
     order: 36,
     label: () => 'Agent Mobile',
   }, MobileSection as never))
+
+  ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+    name: 'shell.overlay',
+    id: 'dsh-mobile-ask-takeover',
+  }, AskTakeoverOverlay as never))
 
   const registerFeedback = (): void => {
     ctx.slots.inject('settings.section', () => ctx.slots.register({
