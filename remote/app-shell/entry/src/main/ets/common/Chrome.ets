@@ -106,7 +106,7 @@ export struct PageHeader {
       this.hdrTimer = setTimeout(() => {
         this.hdrTimer = -1;
         this.hdrEntered = true;
-      }, 16);
+      }, 24);
     } else {
       this.hdrEntered = true;
     }
@@ -132,14 +132,15 @@ export struct PageHeader {
         })
         .animation(null)
         .opacity(this.hdrEntered ? 1 : 0)
-        .animation(Motion.headerPopOpacityAnim(170, this.motionMode))
+        .animation(Motion.headerPopOpacityAnim(105, this.motionMode))
+        .translate({ x: this.hdrEntered ? 0 : Motion.HEADER_SLIDE_BACK_X })
         .scale({
           x: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
           y: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
-          centerX: '50%',
+          centerX: '0%',
           centerY: '50%'
         })
-        .animation(Motion.headerPopScaleAnim(170, this.motionMode))
+        .animation(Motion.headerPopScaleAnim(105, this.motionMode))
       }
       Column() {
         Text(this.title)
@@ -165,7 +166,13 @@ export struct PageHeader {
       .animation(null)
       .opacity(this.hdrEntered ? 1 : 0)
       .animation(Motion.headerPopOpacityAnim(55, this.motionMode))
-      .translate({ x: this.hdrEntered ? 0 : 14 })
+      .translate({ x: this.hdrEntered ? 0 : Motion.HEADER_SLIDE_TITLE_X })
+      .scale({
+        x: this.hdrEntered ? 1 : Motion.HEADER_TITLE_SCALE_START,
+        y: this.hdrEntered ? 1 : Motion.HEADER_TITLE_SCALE_START,
+        centerX: '0%',
+        centerY: '50%'
+      })
       .animation(Motion.headerTitleSlideAnim(55, this.motionMode))
       if (this.rightKind === 'glyph') {
         GlassIconButton({
@@ -178,14 +185,15 @@ export struct PageHeader {
         })
         .animation(null)
         .opacity(this.hdrEntered ? 1 : 0)
-        .animation(Motion.headerPopOpacityAnim(120, this.motionMode))
+        .animation(Motion.headerPopOpacityAnim(this.hasRight2 ? 150 : 120, this.motionMode))
+        .translate({ x: this.hdrEntered ? 0 : Motion.HEADER_SLIDE_RIGHT_X })
         .scale({
           x: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
           y: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
-          centerX: '50%',
+          centerX: '0%',
           centerY: '50%'
         })
-        .animation(Motion.headerPopScaleAnim(120, this.motionMode))
+        .animation(Motion.headerPopScaleAnim(this.hasRight2 ? 150 : 120, this.motionMode))
       } else if (this.rightKind === 'icon') {
         GlassIconButton({
           icon: this.rightIcon,
@@ -197,14 +205,15 @@ export struct PageHeader {
         })
         .animation(null)
         .opacity(this.hdrEntered ? 1 : 0)
-        .animation(Motion.headerPopOpacityAnim(120, this.motionMode))
+        .animation(Motion.headerPopOpacityAnim(this.hasRight2 ? 150 : 120, this.motionMode))
+        .translate({ x: this.hdrEntered ? 0 : Motion.HEADER_SLIDE_RIGHT_X })
         .scale({
           x: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
           y: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
-          centerX: '50%',
+          centerX: '0%',
           centerY: '50%'
         })
-        .animation(Motion.headerPopScaleAnim(120, this.motionMode))
+        .animation(Motion.headerPopScaleAnim(this.hasRight2 ? 150 : 120, this.motionMode))
       } else if (this.rightKind === 'label') {
         Text(this.rightLabel)
           .fontSize(Tokens.fsBody)
@@ -219,14 +228,15 @@ export struct PageHeader {
           })
           .animation(null)
           .opacity(this.hdrEntered ? 1 : 0)
-          .animation(Motion.headerPopOpacityAnim(120, this.motionMode))
+          .animation(Motion.headerPopOpacityAnim(this.hasRight2 ? 150 : 120, this.motionMode))
+          .translate({ x: this.hdrEntered ? 0 : Motion.HEADER_SLIDE_RIGHT_X })
           .scale({
             x: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
             y: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
-            centerX: '50%',
+            centerX: '0%',
             centerY: '50%'
           })
-          .animation(Motion.headerPopScaleAnim(120, this.motionMode))
+          .animation(Motion.headerPopScaleAnim(this.hasRight2 ? 150 : 120, this.motionMode))
       }
       if (this.hasRight2) {
         GlassIconButton({
@@ -240,14 +250,15 @@ export struct PageHeader {
         .margin({ left: 8 })
         .animation(null)
         .opacity(this.hdrEntered ? 1 : 0)
-        .animation(Motion.headerPopOpacityAnim(155, this.motionMode))
+        .animation(Motion.headerPopOpacityAnim(115, this.motionMode))
+        .translate({ x: this.hdrEntered ? 0 : Motion.HEADER_SLIDE_RIGHT_OUTER_X })
         .scale({
           x: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
           y: this.hdrEntered ? 1 : Motion.HEADER_BTN_SCALE_START,
-          centerX: '50%',
+          centerX: '0%',
           centerY: '50%'
         })
-        .animation(Motion.headerPopScaleAnim(155, this.motionMode))
+        .animation(Motion.headerPopScaleAnim(115, this.motionMode))
       }
     }
     .width('100%')

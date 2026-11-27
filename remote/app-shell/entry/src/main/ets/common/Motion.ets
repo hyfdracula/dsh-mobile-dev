@@ -18,10 +18,17 @@ export class Motion {
 
   static readonly BLOOM_SCALE_START: number = 0.45;
   static readonly BLOOM_HEADER_SCALE_START: number = 0.90;
-  static readonly HEADER_BTN_SCALE_START: number = 0.35;
+  static readonly HEADER_BTN_SCALE_START: number = 0.84;
+  static readonly HEADER_TITLE_SCALE_START: number = 0.94;
+  static readonly HEADER_SLIDE_BACK_X: number = -48;
+  static readonly HEADER_SLIDE_TITLE_X: number = -36;
+  static readonly HEADER_SLIDE_RIGHT_X: number = -44;
+  static readonly HEADER_SLIDE_RIGHT_OUTER_X: number = -54;
 
   static readonly std = curves.cubicBezierCurve(0.2, 0.72, 0.32, 1);
   static readonly growCurve = curves.cubicBezierCurve(0.16, 0.90, 0.28, 1.0);
+  /** 统一弹性生长与顶栏左->右推出物理曲线（约 420ms 柔和弹性顿停、约 550ms 稳态落定） */
+  static readonly unifiedElastic = curves.springMotion(0.54, 0.76);
   static readonly spring = curves.springCurve(0.42, 0.62, 200, 12);
 
   /** 基础物理弹簧曲线：自然阻尼与速度继承 */
@@ -129,59 +136,65 @@ export class Motion {
     );
   }
 
-  /** 首屏列表卡片阶梯错峰入场（仅前 8 项生效，后续滚动复用零延迟、零掉帧） */
+  /** 首屏列表卡片阶梯错峰入场（仅前 18 项生效，后续滚动复用零延迟、零掉帧） */
   static staggerCard(idx: number, _mode: string): TransitionEffect {
-    if (idx < 0 || idx >= 8) {
+    if (idx < 0 || idx >= 18) {
       return TransitionEffect.IDENTITY;
     }
-    const wait: number = idx * 24;
+    const wait: number = Motion.bloomDelay(idx, 50);
     return TransitionEffect.asymmetric(
-      TransitionEffect.OPACITY.animation({ duration: 200, curve: Motion.std, delay: wait })
-        .combine(TransitionEffect.translate({ y: 14 }).animation({ curve: Motion.springPhysics, delay: wait }))
-        .combine(TransitionEffect.scale({ x: 0.98, y: 0.98 }).animation({ curve: Motion.springPhysics, delay: wait })),
+      TransitionEffect.OPACITY.animation({ duration: 240, curve: Motion.std, delay: wait })
+        .combine(TransitionEffect.translate({ y: 12 }).animation({ curve: Motion.unifiedElastic, delay: wait }))
+        .combine(TransitionEffect.scale({ x: Motion.BLOOM_SCALE_START, y: Motion.BLOOM_SCALE_START })
+          .animation({ curve: Motion.unifiedElastic, delay: wait })),
       TransitionEffect.IDENTITY
     );
   }
 
   /** 卡片瀑布绽放统一错峰延时计算 */
-  static bloomDelay(idx: number, baseDelay: number = 40): number {
-    const clamped: number = idx < 0 ? 0 : (idx > 12 ? 12 : idx);
-    return baseDelay + clamped * 26;
+  static bloomDelay(idx: number, baseDelay: number = 55): number {
+    const clamped: number = idx < 0 ? 0 : (idx > 16 ? 16 : idx);
+    return baseDelay + clamped * 38;
   }
 
-  /** 卡片从小到大长大显隐动画参数（透明度更快到达，与缩放错峰叠加出倒金字塔感） */
-  static bloomOpacityAnim(idx: number, mode: string, baseDelay: number = 40): AnimateParam | undefined {
-    if (!Motion.isFlagship(mode) || idx < 0 || idx >= 16) {
+  /** 计算瀑布绽放动画完全落定所需的总时长，供延迟合流刷新避免半途重构闪烁 */
+  static bloomTotalMs(count: number, baseDelay: number = 55): number {
+    const lastIdx: number = count <= 1 ? 0 : (count - 1 > 16 ? 16 : count - 1);
+    return Motion.bloomDelay(lastIdx, baseDelay) + 580;
+  }
+
+  /** 卡片从小到大长大显隐动画参数（透明度更快到达，与统一弹性曲线叠加出倒金字塔感） */
+  static bloomOpacityAnim(idx: number, mode: string, baseDelay: number = 55): AnimateParam | undefined {
+    if (!Motion.isFlagship(mode) || idx < 0 || idx >= 18) {
       return undefined;
     }
     const opts: AnimateParam = {
-      duration: 155,
+      duration: 240,
       delay: Motion.bloomDelay(idx, baseDelay),
       curve: Motion.std
     };
     return opts;
   }
 
-  /** 卡片从小到大长大缩放/微升动画参数（0.45 -> 1.0，顺滑减速零多余回弹） */
-  static bloomScaleAnim(idx: number, mode: string, baseDelay: number = 40): AnimateParam | undefined {
-    if (!Motion.isFlagship(mode) || idx < 0 || idx >= 16) {
+  /** 卡片从小到大长大缩放/微升动画参数（0.45 -> 1.0，与顶栏共享 unifiedElastic 物理弹簧曲线） */
+  static bloomScaleAnim(idx: number, mode: string, baseDelay: number = 55): AnimateParam | undefined {
+    if (!Motion.isFlagship(mode) || idx < 0 || idx >= 18) {
       return undefined;
     }
     const opts: AnimateParam = {
-      duration: 310,
       delay: Motion.bloomDelay(idx, baseDelay),
-      curve: Motion.growCurve
+      curve: Motion.unifiedElastic
     };
     return opts;
   }
 
   /** 分组小标题显隐动画参数 */
-  static bloomHeaderOpacityAnim(idx: number, mode: string, baseDelay: number = 40): AnimateParam | undefined {
-    if (!Motion.isFlagship(mode) || idx < 0 || idx >= 16) {
+  static bloomHeaderOpacityAnim(idx: number, mode: string, baseDelay: number = 55): AnimateParam | undefined {
+    if (!Motion.isFlagship(mode) || idx < 0 || idx >= 18) {
       return undefined;
     }
     const opts: AnimateParam = {
-      duration: 150,
+      duration: 220,
       delay: Motion.bloomDelay(idx, baseDelay),
       curve: Motion.std
     };
@@ -189,59 +202,58 @@ export class Motion {
   }
 
   /** 分组小标题缩放/轻推入场动画参数 */
-  static bloomHeaderScaleAnim(idx: number, mode: string, baseDelay: number = 40): AnimateParam | undefined {
-    if (!Motion.isFlagship(mode) || idx < 0 || idx >= 16) {
+  static bloomHeaderScaleAnim(idx: number, mode: string, baseDelay: number = 55): AnimateParam | undefined {
+    if (!Motion.isFlagship(mode) || idx < 0 || idx >= 18) {
       return undefined;
     }
     const opts: AnimateParam = {
-      duration: 240,
       delay: Motion.bloomDelay(idx, baseDelay),
-      curve: Motion.growCurve
+      curve: Motion.unifiedElastic
     };
     return opts;
   }
 
-  /** 顶栏圆钮弹出透明度动画参数 */
+  /** 顶栏控件左->右弹性推出透明度动画参数 */
   static headerPopOpacityAnim(delayMs: number, mode: string): AnimateParam | undefined {
     if (!Motion.isFlagship(mode)) {
       return undefined;
     }
-    const opts: AnimateParam = { duration: 145, delay: delayMs, curve: Motion.std };
+    const opts: AnimateParam = { duration: 220, delay: delayMs, curve: Motion.std };
     return opts;
   }
 
-  /** 顶栏圆钮轻弹缩放动画参数（0.35 -> 1.0） */
+  /** 顶栏控件左->右弹性推出物理弹簧参数（与卡片共用 unifiedElastic） */
   static headerPopScaleAnim(delayMs: number, mode: string): AnimateParam | undefined {
     if (!Motion.isFlagship(mode)) {
       return undefined;
     }
-    const opts: AnimateParam = { delay: delayMs, curve: curves.springMotion(0.28, 0.78) };
+    const opts: AnimateParam = { delay: delayMs, curve: Motion.unifiedElastic };
     return opts;
   }
 
-  /** 顶栏标题横移渐变入场动画参数 */
+  /** 顶栏标题左->右弹性滑入动画参数（与卡片共用 unifiedElastic） */
   static headerTitleSlideAnim(delayMs: number, mode: string): AnimateParam | undefined {
     if (!Motion.isFlagship(mode)) {
       return undefined;
     }
-    const opts: AnimateParam = { duration: 210, delay: delayMs, curve: Motion.growCurve };
+    const opts: AnimateParam = { delay: delayMs, curve: Motion.unifiedElastic };
     return opts;
   }
 
   /**
    * 由上到下逐卡景深绽放（供仍依赖 TransitionEffect 的辅助场景复用）：
-   * 卡片从 0.45 倍居中缩放入场 + 微幅上抬 + 淡入，每张卡错峰 26ms。
+   * 卡片从 0.45 倍居中缩放入场 + 微幅上抬 + 淡入，每张卡错峰 38ms，共用 unifiedElastic。
    */
-  static bloomCard(idx: number, mode: string, baseDelay: number = 40): TransitionEffect {
-    if (!Motion.isFlagship(mode) || idx < 0 || idx >= 16) {
+  static bloomCard(idx: number, mode: string, baseDelay: number = 55): TransitionEffect {
+    if (!Motion.isFlagship(mode) || idx < 0 || idx >= 18) {
       return TransitionEffect.IDENTITY;
     }
     const wait: number = Motion.bloomDelay(idx, baseDelay);
     return TransitionEffect.asymmetric(
-      TransitionEffect.OPACITY.animation({ duration: 155, curve: Motion.std, delay: wait })
-        .combine(TransitionEffect.translate({ y: 6 }).animation({ duration: 310, curve: Motion.growCurve, delay: wait }))
+      TransitionEffect.OPACITY.animation({ duration: 240, curve: Motion.std, delay: wait })
+        .combine(TransitionEffect.translate({ y: 6 }).animation({ curve: Motion.unifiedElastic, delay: wait }))
         .combine(TransitionEffect.scale({ x: Motion.BLOOM_SCALE_START, y: Motion.BLOOM_SCALE_START })
-          .animation({ duration: 310, curve: Motion.growCurve, delay: wait })),
+          .animation({ curve: Motion.unifiedElastic, delay: wait })),
       TransitionEffect.IDENTITY
     );
   }

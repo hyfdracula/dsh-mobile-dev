@@ -15,8 +15,7 @@
       }
     ],
     "deviceTypes": [
-      "phone",
-      "tablet"
+      "phone"
     ],
     "requestPermissions": [
       {

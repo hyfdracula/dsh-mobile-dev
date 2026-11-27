@@ -137,7 +137,7 @@ export struct SettingsPage {
   @State private notifyDone: boolean = true;
   @State private notifyBgOnly: boolean = true;
   @State private notifyShowTitle: boolean = true;
-  @State private verText: string = 'Agent Mobile';
+  @State private verText: string = 'Agent远程控制台';
   @State private answerMode: string = 'phone';
   @State private answerBusy: boolean = false;
   @State private devCount: number = -1;
@@ -498,9 +498,9 @@ export struct SettingsPage {
   private readVersion(): void {
     try {
       const info = bundleManager.getBundleInfoForSelfSync(bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
-      this.verText = 'Agent Mobile v' + info.versionName;
+      this.verText = 'Agent远程控制台 v' + info.versionName;
     } catch (e) {
-      this.verText = 'Agent Mobile';
+      this.verText = 'Agent远程控制台';
     }
   }
 

@@ -2,15 +2,15 @@
   "string": [
     {
       "name": "module_desc",
-      "value": "Agent Mobile entry module"
+      "value": "Agent远程控制台 entry module"
     },
     {
       "name": "EntryAbility_desc",
-      "value": "Agent Mobile"
+      "value": "Agent远程控制台"
     },
     {
       "name": "EntryAbility_label",
-      "value": "Agent Mobile"
+      "value": "Agent远程控制台"
     }
   ]
 }

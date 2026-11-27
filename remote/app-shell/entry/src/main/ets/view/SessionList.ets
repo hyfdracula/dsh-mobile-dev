@@ -101,12 +101,18 @@ export struct SessionList {
   @State private wsSheetTab: string = 'pick';
   @State @Watch('syncSheet') private headerSheetOn: boolean = false;
 
+  @State private listEntered: boolean = false;
   private scroller: Scroller = new Scroller();
   private loadStart: number = 0;
   private slowTimer: number = -1;
   private loadGen: number = 0;
   private rowSig: string = '';
   private poll: number = 0;
+  private revealDone: boolean = false;
+  private revealFinishAt: number = 0;
+  private revealTimer: number = -1;
+  private previewFlushTimer: number = -1;
+  private backendsFlushTimer: number = -1;
 
   aboutToAppear(): void {
     const prefs: ListViewPrefs = readListViewPrefs();
@@ -118,6 +124,7 @@ export struct SessionList {
     if (this.api.cachedSessionsUpdatedAt() > 0 && age < 8000) {
       this.applyFetchedRows(this.api.cachedSessions());
       this.loading = false;
+      this.triggerInitialReveal();
     } else {
       void this.load(true);
     }
@@ -146,6 +153,18 @@ export struct SessionList {
     if (this.slowTimer !== -1) {
       clearTimeout(this.slowTimer);
       this.slowTimer = -1;
+    }
+    if (this.revealTimer !== -1) {
+      clearTimeout(this.revealTimer);
+      this.revealTimer = -1;
+    }
+    if (this.previewFlushTimer !== -1) {
+      clearTimeout(this.previewFlushTimer);
+      this.previewFlushTimer = -1;
+    }
+    if (this.backendsFlushTimer !== -1) {
+      clearTimeout(this.backendsFlushTimer);
+      this.backendsFlushTimer = -1;
     }
     AppStorage.setOrCreate('sheetOpen', false);
   }
@@ -189,6 +208,7 @@ export struct SessionList {
       this.loadSlow = false;
     }
     this.applyFetchedRows(this.api.cachedSessions());
+    this.triggerInitialReveal();
   }
 
   private onMarksVer(): void {
@@ -224,6 +244,78 @@ export struct SessionList {
     Haptics.tap();
     Unread.clearAll();
     Toast.ok('已全部标为已读');
+  }
+
+  private triggerInitialReveal(): void {
+    if (this.revealDone || this.loading) {
+      return;
+    }
+    this.revealDone = true;
+    if (this.rowCount === 0 || !Motion.isFlagship(this.motionMode)) {
+      this.listEntered = true;
+      this.revealFinishAt = 0;
+      return;
+    }
+    const visN: number = this.rowCount > 14 ? 14 : this.rowCount;
+    this.revealFinishAt = Date.now() + Motion.bloomTotalMs(visN, 50);
+    if (this.revealTimer !== -1) {
+      clearTimeout(this.revealTimer);
+    }
+    this.revealTimer = setTimeout(() => {
+      this.revealTimer = -1;
+      this.listEntered = true;
+    }, 24);
+  }
+
+  private scheduleRebuildAfterReveal(): void {
+    const remain: number = this.revealFinishAt - Date.now();
+    if (remain <= 0) {
+      this.rebuildModels();
+      return;
+    }
+    if (this.previewFlushTimer !== -1) {
+      clearTimeout(this.previewFlushTimer);
+    }
+    this.previewFlushTimer = setTimeout(() => {
+      this.previewFlushTimer = -1;
+      this.rebuildModels();
+    }, remain + 24);
+  }
+
+  private async prefetchInitialPreviews(fetched: SessionRow[]): Promise<void> {
+    const ids: string[] = [];
+    for (let i = 0; i < fetched.length && ids.length < 24; i++) {
+      const r: SessionRow = fetched[i];
+      if (r.archived !== true && !this.previewTextMap.has(r.id) && ids.indexOf(r.id) < 0) {
+        ids.push(r.id);
+      }
+    }
+    if (ids.length === 0) {
+      return;
+    }
+    let timer: number = -1;
+    const timeoutPromise: Promise<PreviewRow[]> = new Promise<PreviewRow[]>((resolve) => {
+      timer = setTimeout(() => {
+        timer = -1;
+        resolve([]);
+      }, 380);
+    });
+    const fetchPromise: Promise<PreviewRow[]> = this.api.previews(ids).catch((): PreviewRow[] => []);
+    try {
+      const got: PreviewRow[] = await Promise.race([fetchPromise, timeoutPromise]);
+      for (let i = 0; i < got.length; i++) {
+        const clean: string = plainPreview(got[i].preview);
+        const cnt: number = got[i].count === undefined ? 0 : got[i].count;
+        this.previewTextMap.set(got[i].id, clean);
+        this.previewCountMap.set(got[i].id, cnt);
+      }
+    } catch (e) {
+    } finally {
+      if (timer !== -1) {
+        clearTimeout(timer);
+        timer = -1;
+      }
+    }
   }
 
   private applyFetchedRows(fetched: SessionRow[]): void {
@@ -267,7 +359,7 @@ export struct SessionList {
     }
   }
 
-  private async load(forceNetwork: boolean = true): Promise<void> {
+  private async load(forceNetwork: boolean = true, clearSig: boolean = false): Promise<void> {
     if (!forceNetwork) {
       const age: number = Date.now() - this.api.cachedSessionsUpdatedAt();
       if (this.api.cachedSessionsUpdatedAt() > 0 && age < 6000) {
@@ -276,6 +368,7 @@ export struct SessionList {
         this.applyFetchedRows(this.api.cachedSessions());
         this.loading = false;
         this.loadSlow = false;
+        this.triggerInitialReveal();
         return;
       }
     }
@@ -298,9 +391,17 @@ export struct SessionList {
       if (gen !== this.loadGen) {
         return;
       }
+      if (this.loading) {
+        await this.prefetchInitialPreviews(fetched);
+        if (gen !== this.loadGen) {
+          return;
+        }
+      }
       this.api.cacheSessions(fetched);
       this.timedOut = false;
-      this.rowSig = '';
+      if (clearSig) {
+        this.rowSig = '';
+      }
       this.applyFetchedRows(fetched);
     } catch (e) {
       if (gen !== this.loadGen) {
@@ -315,6 +416,7 @@ export struct SessionList {
           clearTimeout(this.slowTimer);
           this.slowTimer = -1;
         }
+        this.triggerInitialReveal();
       }
     }
   }
@@ -344,7 +446,7 @@ export struct SessionList {
         }
       }
       if (changed) {
-        this.rebuildModels();
+        this.scheduleRebuildAfterReveal();
       }
     } catch (e) {
     }
@@ -355,17 +457,32 @@ export struct SessionList {
     void this.load(true);
   }
 
+  private applyBackendsList(list: BackendInfo[]): void {
+    this.backends = list;
+    if (this.backendFilter !== 'all') {
+      const stillOn: boolean = list.some((b: BackendInfo): boolean => b.id === this.backendFilter && b.enabled);
+      if (!stillOn) {
+        this.backendFilter = 'all';
+        this.rebuildModels();
+      }
+    }
+  }
+
   private async loadBackends(): Promise<void> {
     try {
       const list: BackendInfo[] = await this.api.backends(false);
-      this.backends = list;
-      if (this.backendFilter !== 'all') {
-        const stillOn: boolean = list.some((b: BackendInfo): boolean => b.id === this.backendFilter && b.enabled);
-        if (!stillOn) {
-          this.backendFilter = 'all';
-          this.rebuildModels();
+      const remain: number = this.revealFinishAt - Date.now();
+      if (this.backends.length === 0 && remain > 0) {
+        if (this.backendsFlushTimer !== -1) {
+          clearTimeout(this.backendsFlushTimer);
         }
+        this.backendsFlushTimer = setTimeout(() => {
+          this.backendsFlushTimer = -1;
+          this.applyBackendsList(list);
+        }, remain + 24);
+        return;
       }
+      this.applyBackendsList(list);
     } catch (e) {
       // 旧网关无 /api/backends 时静默保持仅 DSH 模式
     }
@@ -635,7 +752,7 @@ export struct SessionList {
     } else if (this.timedOut) {
       this.timedOut = false;
       this.loading = true;
-      void this.load(true);
+      void this.load(true, true);
     } else if (this.archivedView) {
       this.setArchivedMode(false);
     } else if (this.rows.length > 0 && this.backendFilter !== 'all') {
@@ -763,7 +880,7 @@ export struct SessionList {
               onRetry: () => {
                 this.loading = true;
                 this.loadSlow = false;
-                void this.load(true);
+                void this.load(true, true);
               }
             })
           }
@@ -780,7 +897,7 @@ export struct SessionList {
               action: '重试',
               onAction: () => {
                 this.loading = true;
-                void this.load(true);
+                void this.load(true, true);
               }
             })
           }
@@ -967,6 +1084,17 @@ export struct SessionList {
                         }
                       })
                     }
+                    .animation(null)
+                    .opacity(this.listEntered || idx >= 18 ? 1 : 0)
+                    .animation(Motion.bloomHeaderOpacityAnim(idx, this.motionMode, 50))
+                    .scale({
+                      x: this.listEntered || idx >= 18 ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+                      y: this.listEntered || idx >= 18 ? 1 : Motion.BLOOM_HEADER_SCALE_START,
+                      centerX: '0%',
+                      centerY: '50%'
+                    })
+                    .translate({ y: this.listEntered || idx >= 18 ? 0 : 8 })
+                    .animation(Motion.bloomHeaderScaleAnim(idx, this.motionMode, 50))
                   } else {
                     ListItem() {
                       SessionTile({
@@ -996,7 +1124,17 @@ export struct SessionList {
                         onFork: () => { void this.doFork(m.row); }
                       })
                     }
-                    .transition(Motion.staggerCard(idx, this.motionMode))
+                    .animation(null)
+                    .opacity(this.listEntered || idx >= 18 ? 1 : 0)
+                    .animation(Motion.bloomOpacityAnim(idx, this.motionMode, 50))
+                    .scale({
+                      x: this.listEntered || idx >= 18 ? 1 : Motion.BLOOM_SCALE_START,
+                      y: this.listEntered || idx >= 18 ? 1 : Motion.BLOOM_SCALE_START,
+                      centerX: '50%',
+                      centerY: '50%'
+                    })
+                    .translate({ y: this.listEntered || idx >= 18 ? 0 : 12 })
+                    .animation(Motion.bloomScaleAnim(idx, this.motionMode, 50))
                     .swipeAction(this.capsForRow(m.row).archivePin
                       ? {
                           end: {
@@ -1030,7 +1168,7 @@ export struct SessionList {
           .onStateChange((st: RefreshStatus) => { this.pullState = st; })
           .onRefreshing(() => {
             this.refreshing = true;
-            this.load(true).finally(() => {
+            this.load(true, true).finally(() => {
               this.refreshing = false;
               this.pullState = RefreshStatus.Inactive;
             });
