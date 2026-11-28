@@ -655,9 +655,8 @@ export struct SettingsPage {
       CardIcon({
         imageRes: this.navIconRes(r.id),
         useImage: true,
-        tone: this.navIconTone(r.id),
-        badgeSize: 34,
-        glyphSize: 18,
+        badgeSize: 24,
+        glyphSize: 22,
         entered: this.rootEntered,
         distanceVp: this.rootWave.distanceOf('row:' + r.id, fallbackDistVp),
         baseDelay: 12
@@ -693,7 +692,7 @@ export struct SettingsPage {
       }
     }
     .width('100%')
-    .padding({ left: 14, right: 14, top: 13, bottom: 13 })
+    .padding({ left: 16, right: 16, top: 13, bottom: 13 })
     .alignItems(VerticalAlign.Center)
     .backgroundColor(Mat.cardBg(this.hdsOn))
     .border(Mat.cardBorder(this.hdsOn))
@@ -737,13 +736,6 @@ export struct SettingsPage {
         .animation(this.rootEntered
           ? Motion.iconFlyOpacityAnimByDist(this.rootWave.distanceOf('banner', 0), this.motionMode, 12)
           : null)
-        .translate({
-          x: this.rootEntered ? 0 : Motion.ICON_FLY_OFFSET_X,
-          y: this.rootEntered ? 0 : Motion.ICON_FLY_OFFSET_Y
-        })
-        .animation(this.rootEntered
-          ? Motion.iconFlyTransformAnimByDist(this.rootWave.distanceOf('banner', 0), this.motionMode, 12)
-          : null)
         .scale({
           x: this.rootEntered ? 1 : Motion.ICON_FLY_SCALE_START,
           y: this.rootEntered ? 1 : Motion.ICON_FLY_SCALE_START,
@@ -751,7 +743,7 @@ export struct SettingsPage {
           centerY: '50%'
         })
         .animation(this.rootEntered
-          ? Motion.iconFlyTransformAnimByDist(this.rootWave.distanceOf('banner', 0), this.motionMode, 12)
+          ? Motion.iconFlyScaleAnimByDist(this.rootWave.distanceOf('banner', 0), this.motionMode, 12)
           : null)
         .rotate({
           angle: this.rootEntered ? 0 : Motion.ICON_FLY_ROTATE_START,
@@ -759,7 +751,7 @@ export struct SettingsPage {
           centerY: '50%'
         })
         .animation(this.rootEntered
-          ? Motion.iconFlyTransformAnimByDist(this.rootWave.distanceOf('banner', 0), this.motionMode, 12)
+          ? Motion.iconFlyRotateAnimByDist(this.rootWave.distanceOf('banner', 0), this.motionMode, 12)
           : null)
       Column() {
         Row({ space: 6 }) {

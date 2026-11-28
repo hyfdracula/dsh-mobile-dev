@@ -207,7 +207,7 @@ export struct AgentPanel {
         : null)
 
       this.entryCard('电脑端智能体引擎', this.enginesSummary(), 'c:engines', 46,
-        $r('sys.symbol.gearshape'), 'blue', () => {
+        $r('sys.symbol.gearshape_fill'), 'blue', () => {
           this.onOpenEngines();
         })
 
@@ -237,7 +237,7 @@ export struct AgentPanel {
 
       Row() {
         CardIcon({
-          symbol: $r('sys.symbol.message_on_message'),
+          symbol: $r('sys.symbol.message_on_message_fill'),
           tone: 'green',
           entered: this.entered,
           distanceVp: this.wave.distanceOf('c:answer', 152)
@@ -337,7 +337,7 @@ export struct AgentPanel {
             this.onOpenExtras('plugins');
           })
         this.entryCard('自动化任务', '管理电脑端定时任务与后台计划', 'c:sched', 412,
-          $r('sys.symbol.clock'), 'teal', () => {
+          $r('sys.symbol.clock_fill'), 'teal', () => {
             this.onOpenExtras('schedules');
           })
         this.entryCard('电脑完整网页控制台', '免密打开电脑端完整面板，处理高级设置', 'c:console', 486,

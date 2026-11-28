@@ -207,7 +207,7 @@ export struct DataStoragePanel {
       // 0. 存储空间
       Row() {
         CardIcon({
-          symbol: $r('sys.symbol.externaldrive'),
+          symbol: $r('sys.symbol.externaldrive_fill'),
           tone: 'blue',
           entered: this.entered,
           distanceVp: this.wave.distanceOf('card:storage', 54)
@@ -292,8 +292,8 @@ export struct DataStoragePanel {
 
       Column({ space: 9 }) {
         this.dataRowCard('草稿', this.draftN, 'draft', 'data:draft', 176, $r('sys.symbol.square_and_pencil'), 'amber')
-        this.dataRowCard('待发送（重启兜底）', this.outN, 'outbox', 'data:outbox', 242, $r('sys.symbol.paperplane'), 'violet')
-        this.dataRowCard('阅读标记', this.markN, 'marks', 'data:marks', 308, $r('sys.symbol.checkmark_circle'), 'green')
+        this.dataRowCard('待发送（重启兜底）', this.outN, 'outbox', 'data:outbox', 242, $r('sys.symbol.paperplane_fill'), 'blue')
+        this.dataRowCard('阅读标记', this.markN, 'marks', 'data:marks', 308, $r('sys.symbol.checkmark_circle_fill'), 'blue')
       }
       .width('100%')
 

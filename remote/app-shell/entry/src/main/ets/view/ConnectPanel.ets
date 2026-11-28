@@ -489,9 +489,6 @@ export struct ConnectPanel {
     Row({ space: 12 }) {
       CardIcon({
         symbol: $r('sys.symbol.wifi'),
-        tone: this.linkLoading ? 'neutral' : (this.connected ? 'green' : 'danger'),
-        badgeSize: 38,
-        glyphSize: 19,
         entered: this.entered,
         distanceVp: this.wave.distanceOf('conn:status', 0)
       })
@@ -533,7 +530,7 @@ export struct ConnectPanel {
       .alignItems(HorizontalAlign.Start)
     }
     .width('100%')
-    .padding({ left: 14, right: 14, top: 12, bottom: 12 })
+    .padding({ left: 16, right: 16, top: 13, bottom: 13 })
     .backgroundColor(Mat.cardBg(this.hdsOn))
     .border(Mat.cardBorder(this.hdsOn))
     .shadow(Mat.rowShadow(this.hdsOn))
@@ -755,8 +752,7 @@ export struct ConnectPanel {
       Column({ space: 10 }) {
         Row({ space: 12 }) {
           CardIcon({
-            symbol: $r('sys.symbol.key_shield'),
-            tone: 'amber',
+            symbol: $r('sys.symbol.key_shield_fill'),
             entered: this.entered,
             distanceVp: this.wave.distanceOf('conn:remotePair', 274)
           })
@@ -965,7 +961,7 @@ export struct ConnectPanel {
           })
         }
         .width('100%')
-        .padding({ left: 14, right: 14, top: 12, bottom: 12 })
+        .padding({ left: 16, right: 16, top: 12, bottom: 12 })
         .alignItems(VerticalAlign.Center)
         .backgroundColor(Mat.cardBg(this.hdsOn))
         .border(Mat.cardBorder(this.hdsOn))
@@ -1027,7 +1023,7 @@ export struct ConnectPanel {
           }
         }
         .width('100%')
-        .padding({ left: 14, right: 14, top: 13, bottom: 13 })
+        .padding({ left: 16, right: 16, top: 13, bottom: 13 })
         .alignItems(VerticalAlign.Center)
         .backgroundColor(Mat.cardBg(this.hdsOn))
         .border(Mat.cardBorder(this.hdsOn))
@@ -1065,7 +1061,7 @@ export struct ConnectPanel {
         this.guideEntryCard('让 AI 帮你配', '复制完整指令给 Codex / Claude 等 AI 自动完成', '自动方案', 'ai', 'guide:ai', 586,
           $r('sys.symbol.wand_and_stars'), 'violet')
         this.guideEntryCard('外网访问配置向导', '按 7 步手动命令配置 Cloudflare 安全隧道', '手动向导', 'tunnel', 'guide:tunnel', 658,
-          $r('sys.symbol.cloud'), 'teal')
+          $r('sys.symbol.cloud_fill'), 'blue')
       }
       .width('100%')
 

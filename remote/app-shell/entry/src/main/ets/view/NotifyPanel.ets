@@ -283,9 +283,6 @@ export struct NotifyPanel {
         Row({ space: 12 }) {
           CardIcon({
             symbol: $r('sys.symbol.bell_fill'),
-            tone: this.allowed ? 'green' : 'amber',
-            badgeSize: 36,
-            glyphSize: 18,
             entered: this.entered,
             distanceVp: this.wave.distanceOf('notify:perm', 0)
           })
@@ -384,7 +381,7 @@ export struct NotifyPanel {
             hint: '一轮回答完成或有提问待确认时发送本地通知',
             value: this.done,
             showIcon: true,
-            iconSymbol: $r('sys.symbol.bell'),
+            iconSymbol: $r('sys.symbol.bell_fill'),
             iconTone: 'blue',
             entered: this.entered,
             distanceVp: this.wave.distanceOf('notify:done', 148),
@@ -425,7 +422,7 @@ export struct NotifyPanel {
             value: this.bgOnly,
             switchEnabled: this.done,
             showIcon: true,
-            iconSymbol: $r('sys.symbol.bell_slash'),
+            iconSymbol: $r('sys.symbol.bell_slash_fill'),
             iconTone: 'violet',
             entered: this.entered,
             distanceVp: this.wave.distanceOf('notify:bgOnly', 228),
@@ -528,7 +525,7 @@ export struct NotifyPanel {
       Column({ space: 10 }) {
         Row({ space: 10 }) {
           CardIcon({
-            symbol: $r('sys.symbol.cloud'),
+            symbol: $r('sys.symbol.cloud_fill'),
             tone: this.pushBadgeReady() ? 'green' : 'blue',
             entered: this.entered,
             distanceVp: this.wave.distanceOf('notify:push', 480)
@@ -652,7 +649,7 @@ export struct NotifyPanel {
         // 5. 测试本地通知
         Row() {
           CardIcon({
-            symbol: $r('sys.symbol.paperplane'),
+            symbol: $r('sys.symbol.paperplane_fill'),
             tone: 'teal',
             entered: this.entered,
             distanceVp: this.wave.distanceOf('notify:test', 652)
@@ -713,7 +710,7 @@ export struct NotifyPanel {
         // 6. 清除未读与桌面角标
         Row() {
           CardIcon({
-            symbol: $r('sys.symbol.xmark_circle'),
+            symbol: $r('sys.symbol.xmark_circle_fill'),
             tone: 'danger',
             entered: this.entered,
             distanceVp: this.wave.distanceOf('notify:unread', 730)

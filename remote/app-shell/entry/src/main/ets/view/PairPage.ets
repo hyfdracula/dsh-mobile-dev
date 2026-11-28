@@ -519,13 +519,6 @@ export struct PairPage {
           .animation(this.entered
             ? Motion.iconFlyOpacityAnimByDist(this.wave.distanceOf('conn:hero', 96), this.motionMode)
             : null)
-          .translate({
-            x: this.entered ? 0 : Motion.ICON_FLY_OFFSET_X,
-            y: this.entered ? 0 : Motion.ICON_FLY_OFFSET_Y
-          })
-          .animation(this.entered
-            ? Motion.iconFlyTransformAnimByDist(this.wave.distanceOf('conn:hero', 96), this.motionMode)
-            : null)
           .scale({
             x: this.entered ? 1 : Motion.ICON_FLY_SCALE_START,
             y: this.entered ? 1 : Motion.ICON_FLY_SCALE_START,
@@ -533,7 +526,7 @@ export struct PairPage {
             centerY: '50%'
           })
           .animation(this.entered
-            ? Motion.iconFlyTransformAnimByDist(this.wave.distanceOf('conn:hero', 96), this.motionMode)
+            ? Motion.iconFlyScaleAnimByDist(this.wave.distanceOf('conn:hero', 96), this.motionMode)
             : null)
           .rotate({
             angle: this.entered ? 0 : Motion.ICON_FLY_ROTATE_START,
@@ -541,7 +534,7 @@ export struct PairPage {
             centerY: '50%'
           })
           .animation(this.entered
-            ? Motion.iconFlyTransformAnimByDist(this.wave.distanceOf('conn:hero', 96), this.motionMode)
+            ? Motion.iconFlyRotateAnimByDist(this.wave.distanceOf('conn:hero', 96), this.motionMode)
             : null)
         Column({ space: 3 }) {
           Text('方式一：扫一扫二维码')
@@ -597,10 +590,9 @@ export struct PairPage {
     Column({ space: 12 }) {
       Row({ space: 12 }) {
         CardIcon({
-          symbol: $r('sys.symbol.key_shield'),
-          tone: 'amber',
-          badgeSize: 42,
-          glyphSize: 21,
+          symbol: $r('sys.symbol.key_shield_fill'),
+          badgeSize: 32,
+          glyphSize: 28,
           entered: this.entered,
           distanceVp: this.wave.distanceOf('conn:mode', 280)
         })

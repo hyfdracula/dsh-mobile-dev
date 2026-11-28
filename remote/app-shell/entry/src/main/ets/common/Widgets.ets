@@ -1,6 +1,7 @@
 import { CardIcon } from './CardIcon';
 import { Haptics } from './Haptics';
 import { Mat } from './Mat';
+import { Motion } from './Motion';
 import { Tokens } from './Tokens';
 
 /**
@@ -17,6 +18,7 @@ export struct RowSwitch {
   @Prop iconTone: string = 'blue';
   @Prop entered: boolean = true;
   @Prop distanceVp: number = 0;
+  @Prop baseDelay: number = Motion.BLOOM_SUB_BASE_DELAY;
   onChanged: (v: boolean) => void = () => {};
   @StorageLink('themeDark') themeDark: boolean = true;
 
@@ -27,7 +29,8 @@ export struct RowSwitch {
           symbol: this.iconSymbol,
           tone: this.iconTone,
           entered: this.entered,
-          distanceVp: this.distanceVp
+          distanceVp: this.distanceVp,
+          baseDelay: this.baseDelay
         })
         .margin({ right: 12 })
       }

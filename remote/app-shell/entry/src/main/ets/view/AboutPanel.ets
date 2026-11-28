@@ -220,18 +220,18 @@ export struct AboutPanel {
       Column({ space: 9 }) {
         if (isFeedbackEnabled()) {
           this.actionCard('反馈与支持', '提交问题、导出诊断日志与查看进度', 'act:fb', 32 + this.diagBaseIdx() * 58 + 56,
-            $r('sys.symbol.ellipsis_message'), 'blue', () => {
+            $r('sys.symbol.ellipsis_message_fill'), 'blue', () => {
               this.onFeedback();
             })
         }
 
         this.actionCard('隐私政策', '说明本地存储、权限范围与加密机制', 'act:privacy', 32 + this.legalStartIdx() * 68 + 56,
-          $r('sys.symbol.lock_shield'), 'green', () => {
+          $r('sys.symbol.lock_shield_fill'), 'blue', () => {
             this.onLegal('privacy');
           })
 
         this.actionCard('用户协议', '使用约定与免责说明', 'act:terms', 32 + (this.legalStartIdx() + 1) * 68 + 56,
-          $r('sys.symbol.doc_text'), 'amber', () => {
+          $r('sys.symbol.doc_text_fill'), 'blue', () => {
             this.onLegal('terms');
           })
 

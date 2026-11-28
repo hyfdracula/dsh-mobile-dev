@@ -208,7 +208,7 @@ export struct AppearancePanel {
         // 0. 主题
         Row() {
           CardIcon({
-            symbol: $r('sys.symbol.moon'),
+            symbol: $r('sys.symbol.moon_fill'),
             tone: 'violet',
             entered: this.entered,
             distanceVp: this.wave.distanceOf('card:theme', 52)
@@ -258,7 +258,7 @@ export struct AppearancePanel {
         // 1. 沉浸光感
         Row() {
           CardIcon({
-            symbol: $r('sys.symbol.sun_max'),
+            symbol: $r('sys.symbol.sun_max_fill'),
             tone: 'amber',
             entered: this.entered,
             distanceVp: this.wave.distanceOf('card:hds', 124)
@@ -496,7 +496,7 @@ export struct AppearancePanel {
         // 5. 触感反馈
         Row() {
           CardIcon({
-            symbol: $r('sys.symbol.hand_tap'),
+            symbol: $r('sys.symbol.hand_tap_fill'),
             tone: 'amber',
             entered: this.entered,
             distanceVp: this.wave.distanceOf('card:haptics', 556)
@@ -549,7 +549,7 @@ export struct AppearancePanel {
         // 6. 回车发送
         Row() {
           CardIcon({
-            symbol: $r('sys.symbol.paperplane'),
+            symbol: $r('sys.symbol.paperplane_fill'),
             tone: 'blue',
             entered: this.entered,
             distanceVp: this.wave.distanceOf('card:enter', 624)

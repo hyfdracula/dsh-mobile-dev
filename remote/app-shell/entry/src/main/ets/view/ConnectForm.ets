@@ -254,9 +254,6 @@ export struct ConnectAddressPanel {
       Row({ space: 12 }) {
         CardIcon({
           symbol: $r('sys.symbol.link'),
-          tone: 'violet',
-          badgeSize: 36,
-          glyphSize: 18,
           entered: this.entered,
           distanceVp: this.wave.distanceOf('addr:tip', 0)
         })
@@ -274,13 +271,13 @@ export struct ConnectAddressPanel {
         .layoutWeight(1)
       }
       .width('100%')
-      .padding(14)
+      .padding({ left: 16, right: 16, top: 14, bottom: 14 })
       .backgroundColor(Mat.cardBg(this.hdsOn))
       .border(Mat.cardBorder(this.hdsOn))
       .shadow(Mat.rowShadow(this.hdsOn))
       .borderRadius(Tokens.rRow)
       .clip(true)
-      .alignItems(VerticalAlign.Top)
+      .alignItems(VerticalAlign.Center)
       .onAreaChange((_old: Area, area: Area) => {
         this.wave.record('addr:tip', area);
       })

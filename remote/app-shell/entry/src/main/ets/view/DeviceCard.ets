@@ -168,8 +168,7 @@ export struct DeviceCard {
 
         Row() {
           CardIcon({
-            symbol: $r('sys.symbol.trash'),
-            tone: 'danger',
+            symbol: $r('sys.symbol.trash_fill'),
             entered: this.entered,
             distanceVp: this.wave.distanceOf('dev:remove', (this.startIdx + 6) * 78)
           })
