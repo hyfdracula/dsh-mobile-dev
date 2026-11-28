@@ -408,14 +408,17 @@ export function freshPairCode(): string {
   return String(randomInt(0, 1_000_000)).padStart(6, '0')
 }
 
-/** 生成二维码承载的 `dshmobile://pair?...` 深链，公网隧道优先排在首个备选。 */
+/** 生成二维码承载的 `dshmobile://pair?...` 深链，公网域名隧道优先排在首个备选。 */
 export function pairPayload(base: string, code: string, alts: readonly string[] = []): string {
   const list = alts.filter((one) => one.length > 0 && one !== base)
   const tunnel = list.find((one) => {
     if (/^https:\/\//i.test(one)) return true
     if (/^http:\/\//i.test(one)) {
       try {
-        return !isLocalHostHeader(new URL(one).host)
+        const parsed = new URL(one)
+        const host = parsed.hostname
+        const isIp = /^\d+\.\d+\.\d+\.\d+$/.test(host) || host.includes(':')
+        return !isIp && !isLocalHostHeader(parsed.host)
       } catch {
         return false
       }

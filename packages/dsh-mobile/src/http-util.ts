@@ -18,7 +18,18 @@ export class HttpError extends Error {
   }
 }
 
-/** 枚举本机所有非回环 IPv4 与全局可达 IPv6 地址。 */
+/** 判断是否为 Clash/Mihomo 等 TUN 虚拟网卡（198.18.0.0/15）或 APIPA 链路本地地址（169.254.0.0/16）。 */
+function isVirtualOrLinkLocalV4(address: string): boolean {
+  const parts = address.split('.').map((p) => Number.parseInt(p, 10))
+  if (parts.length !== 4 || parts.some((p) => !Number.isFinite(p))) return false
+  const a = parts[0] as number
+  const b = parts[1] as number
+  if (a === 198 && (b === 18 || b === 19)) return true
+  if (a === 169 && b === 254) return true
+  return false
+}
+
+/** 枚举本机所有非回环 IPv4（过滤 TUN 虚拟网卡与链路本地地址）与全局可达 IPv6 地址。 */
 export function lanAddresses(): string[] {
   const out: string[] = []
   const nets = networkInterfaces()
@@ -29,6 +40,7 @@ export function lanAddresses(): string[] {
       const v4 = entry.family === 'IPv4'
       const v6 = entry.family === 'IPv6'
       if (v4) {
+        if (isVirtualOrLinkLocalV4(entry.address)) continue
         out.push(entry.address)
         continue
       }

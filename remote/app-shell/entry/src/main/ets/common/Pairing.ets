@@ -259,7 +259,7 @@ export class Pairing {
     );
   }
 
-  /** 用 6 位码换令牌。码错会带着剩余次数回来，方便直接显示。 */
+  /** 用 6 位码换令牌。仅在网关明确返回 JSON 业务拒答（401/403/429）时抛 PairError 终止回退；530/5xx/非 JSON 均抛普通 Error 以便继续尝试其余候选地址。 */
   static async claim(base: string, code: string): Promise<PairClaim> {
     const body: CodeBody = { code: code.trim() };
     const r = await Pairing.req(Pairing.normalizeBase(base), '/api/pair/claim', 'POST', JSON.stringify(body));
@@ -267,7 +267,10 @@ export class Pairing {
     try {
       o = JSON.parse(r.body) as PairClaim;
     } catch (e) {
-      throw new PairError(r.status, '无法解析电脑返回（HTTP ' + r.status + '），隧道或端口可能未就绪');
+      if (r.status === 530 || r.status === 502 || r.status === 503 || r.status === 504) {
+        throw new Error('公网隧道暂时离线（HTTP ' + String(r.status) + '），请确认电脑端隧道运行中或稍后重试');
+      }
+      throw new Error('无法解析该入口返回（HTTP ' + String(r.status) + '），隧道或端口可能未就绪');
     }
     if (r.status >= 200 && r.status < 300 && o.ok === true) {
       o.usedBase = Pairing.normalizeBase(base);
@@ -283,6 +286,9 @@ export class Pairing {
     if (r.status === 429) {
       throw new PairError(r.status, '试错太多次，等 5 分钟再试');
     }
+    if (r.status >= 500 || r.status === 404) {
+      throw new Error('该入口暂时不可用（HTTP ' + String(r.status) + '）');
+    }
     throw new PairError(r.status, '配对失败（HTTP ' + r.status + '）');
   }
 
@@ -295,7 +301,10 @@ export class Pairing {
     try {
       o = JSON.parse(r.body) as RemotePairStartResp;
     } catch (e) {
-      throw new PairError(r.status, '无法解析电脑返回（HTTP ' + String(r.status) + '），请确认电脑端网关已更新至最新版');
+      if (r.status === 530 || r.status === 502 || r.status === 503 || r.status === 504) {
+        throw new PairError(r.status, '公网隧道暂时离线（HTTP ' + String(r.status) + '），请确认电脑端 Cloudflare 隧道正在运行并稍后重试');
+      }
+      throw new PairError(r.status, '无法解析电脑返回（HTTP ' + String(r.status) + '），请确认地址正确且电脑网关已更新');
     }
     if (r.status >= 200 && r.status < 300 && o.ok === true && o.requestId !== '' && o.secret !== '') {
       return o;

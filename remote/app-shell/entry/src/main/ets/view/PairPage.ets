@@ -326,6 +326,12 @@ export struct PairPage {
       this.stageIdx = e instanceof PairError ? 2 : 1;
       this.stageErr = msg;
       this.err = msg;
+      setTimeout(() => {
+        try {
+          this.scroller.scrollEdge(Edge.Bottom);
+        } catch (errScroll) {
+        }
+      }, 60);
     } finally {
       if (seq === this.claimSeq) {
         this.stopTimer();
@@ -445,6 +451,12 @@ export struct PairPage {
       this.stageIdx = e instanceof PairError ? 2 : 1;
       this.stageErr = msg;
       this.err = msg;
+      setTimeout(() => {
+        try {
+          this.scroller.scrollEdge(Edge.Bottom);
+        } catch (errScroll) {
+        }
+      }, 60);
     } finally {
       client.destroy();
       if (seq === this.claimSeq) {
@@ -943,6 +955,7 @@ export struct PairPage {
             .fontSize(Tokens.fsBody)
             .fontColor(Tokens.fg)
             .placeholderColor(Tokens.dim2)
+            .cancelButton({ style: CancelButtonStyle.INPUT })
             .height(44)
             .layoutWeight(1)
             .backgroundColor(Tokens.surface2)
@@ -1073,6 +1086,7 @@ export struct PairPage {
               .fontSize(Tokens.fsBody)
               .fontColor(Tokens.fg)
               .placeholderColor(Tokens.dim2)
+              .cancelButton({ style: CancelButtonStyle.INPUT })
               .height(42)
               .layoutWeight(1)
               .backgroundColor(Tokens.surface)
@@ -1296,7 +1310,7 @@ export struct PairPage {
         }
 
         Row({ space: 8 }) {
-          if (this.tab === 'code' && this.lastBases.length > 0 && this.lastCode.length === 6) {
+          if (this.lastBases.length > 0 && this.lastCode.length === 6) {
             Text('重试')
               .fontSize(Tokens.fsFoot)
               .fontColor(Tokens.accent)
