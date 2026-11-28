@@ -26,6 +26,15 @@ interface PendingAskItem {
   createdAt: number
 }
 
+interface PendingPairRequestItem {
+  id: string
+  verifyCode: string
+  deviceName: string
+  source: 'lan' | 'remote'
+  createdAt: number
+  expiresAt: number
+}
+
 interface PanelState {
   ok: boolean
   host: string
@@ -34,6 +43,8 @@ interface PanelState {
   e2eePub?: string
   devices?: PairedDevice[]
   pendingAsks?: PendingAskItem[]
+  pendingPairRequests?: PendingPairRequestItem[]
+  remotePayload?: string
   version: string
   port: number
   code: string
@@ -487,6 +498,28 @@ export function MobileSection(): ReactNode {
     }
   }, [load])
 
+  const decidePairRequest = useCallback(async (id: string, approve: boolean): Promise<void> => {
+    setBusy(`pair:${id}`)
+    try {
+      const res = await fetch(`${ROUTE}/pair-requests/decide`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'content-type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({ id, approve }),
+      })
+      if (!res.ok) throw await extractHttpError(res)
+      const payload = (await res.json()) as { state?: PanelState }
+      if (payload.state) setState(payload.state)
+      else await load(false)
+      setError('')
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason))
+    } finally {
+      setBusy('')
+    }
+  }, [load])
+
   const copy = useCallback(async (text: string, label: string): Promise<void> => {
     try {
       await navigator.clipboard.writeText(text)
@@ -588,6 +621,73 @@ export function MobileSection(): ReactNode {
           <Chip text={online ? '手机在线' : '等待配对'} tone={online ? 'ok' : 'idle'} />
         </div>
       </Card>
+
+      {Array.isArray(state?.pendingPairRequests) && state.pendingPairRequests.length > 0
+        ? (
+          <Card hero>
+            <SectionHead
+              title={`收到 ${String(state.pendingPairRequests.length)} 条远程配对申请`}
+              subtitle="请核对新手机屏幕上显示的 4 位核对码，确认是本人设备后再点击批准"
+            />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {state.pendingPairRequests.map((req) => (
+                <div
+                  key={req.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    flexWrap: 'wrap',
+                    padding: '10px 12px',
+                    borderRadius: 12,
+                    border: `1px solid ${C.accentBorder}`,
+                    background: C.cardSoft,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                    <span
+                      style={{
+                        fontFamily: C.mono,
+                        fontSize: 20,
+                        fontWeight: 700,
+                        letterSpacing: 3,
+                        color: C.accent,
+                        background: C.accentSoft,
+                        borderRadius: 10,
+                        padding: '4px 10px',
+                      }}
+                    >
+                      {req.verifyCode}
+                    </span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.fg, overflowWrap: 'anywhere' }}>
+                        {req.deviceName}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: C.fgFaint }}>
+                        {req.source === 'remote' ? '公网远程申请' : '局域网申请'} · 剩余 {countdown(Math.floor((req.expiresAt - now) / 1000))}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Btn
+                      text="拒绝"
+                      disabled={busy === `pair:${req.id}`}
+                      onClick={() => { void decidePairRequest(req.id, false) }}
+                    />
+                    <Btn
+                      text={busy === `pair:${req.id}` ? '处理中...' : '批准配对'}
+                      primary
+                      disabled={busy === `pair:${req.id}`}
+                      onClick={() => { void decidePairRequest(req.id, true) }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )
+        : null}
 
       {Array.isArray(state?.pendingAsks) && state.pendingAsks.length > 0
         ? (
@@ -765,6 +865,25 @@ export function MobileSection(): ReactNode {
                   >
                     {copied === 'addr' ? '已复制：' : ''}{primaryAddress}
                   </button>
+                </div>
+              )
+              : null}
+
+            {((state?.remotePayload && state.remotePayload.length > 0) || (state?.payload && state.payload.length > 0))
+              ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <Btn
+                    text={copied === 'invite' ? '已复制远程配对口令' : '复制远程配对口令'}
+                    onClick={() => {
+                      const link = (state?.remotePayload && state.remotePayload.length > 0)
+                        ? state.remotePayload
+                        : (state?.payload ?? '')
+                      if (link.length > 0) void copy(link, 'invite')
+                    }}
+                  />
+                  <span style={{ fontSize: 11.5, color: C.fgFaint }}>
+                    不含长期令牌 · 手机粘贴口令即可一键配对
+                  </span>
                 </div>
               )
               : null}

@@ -48,9 +48,46 @@ export interface PairLink {
   alts: string[];
 }
 
+export interface RemotePairStartResp {
+  ok: boolean;
+  requestId: string;
+  secret: string;
+  verifyCode: string;
+  host: string;
+  hostId?: string;
+  e2eePub?: string;
+  expiresAt: number;
+  error?: string;
+}
+
+export interface RemotePairPollResp {
+  ok: boolean;
+  status: string;
+  expiresAt?: number;
+  token?: string;
+  base?: string;
+  host?: string;
+  hostId?: string;
+  e2eePub?: string;
+  e2ee?: boolean;
+  version?: string;
+  port?: number;
+  lan?: string[];
+  error?: string;
+}
+
 interface RawResp {
   status: number;
   body: string;
+}
+
+interface RemoteReqBody {
+  deviceName: string;
+}
+
+interface RemotePollBody {
+  requestId: string;
+  secret: string;
 }
 
 /**
@@ -86,11 +123,17 @@ export class Pairing {
     return b;
   }
 
-  /** 解析 dshmobile://pair?b=<地址>&c=<码>。 */
+  /** 解析 dshmobile://pair?b=<地址>&c=<码>（支持从分享口令文本中自动提取）。 */
   static parseLink(text: string): PairLink | null {
-    const s = text.trim();
-    if (s.indexOf('dshmobile://pair') !== 0) {
+    const raw = text.trim();
+    const start = raw.indexOf('dshmobile://pair?');
+    if (start < 0) {
       return null;
+    }
+    let s = raw.substring(start);
+    const spaceIdx = s.search(/\s/);
+    if (spaceIdx > 0) {
+      s = s.substring(0, spaceIdx);
     }
     const q = s.indexOf('?');
     if (q < 0) {
@@ -241,5 +284,48 @@ export class Pairing {
       throw new PairError(r.status, '试错太多次，等 5 分钟再试');
     }
     throw new PairError(r.status, '配对失败（HTTP ' + r.status + '）');
+  }
+
+  /** 向电脑端发起远程配对申请：返回 4 位人工核对码及轮询凭据。 */
+  static async requestRemotePair(base: string, deviceName: string): Promise<RemotePairStartResp> {
+    const norm: string = Pairing.normalizeBase(base);
+    const body: RemoteReqBody = { deviceName: deviceName };
+    const r: RawResp = await Pairing.req(norm, '/api/pair/remote/request', 'POST', JSON.stringify(body));
+    let o: RemotePairStartResp;
+    try {
+      o = JSON.parse(r.body) as RemotePairStartResp;
+    } catch (e) {
+      throw new PairError(r.status, '无法解析电脑返回（HTTP ' + String(r.status) + '），请确认电脑端网关已更新至最新版');
+    }
+    if (r.status >= 200 && r.status < 300 && o.ok === true && o.requestId !== '' && o.secret !== '') {
+      return o;
+    }
+    if (r.status === 404) {
+      throw new PairError(r.status, '电脑端网关版本较旧，暂不支持远程申请审批，请更新电脑端插件或使用配对口令/6 位码');
+    }
+    const errMsg: string = o.error !== undefined && o.error !== ''
+      ? o.error
+      : ('远程配对申请被拒绝（HTTP ' + String(r.status) + '）');
+    throw new PairError(r.status, errMsg);
+  }
+
+  /** 轮询远程配对审批结果；批准后单次返回令牌与端到端加密公钥。 */
+  static async pollRemotePair(base: string, requestId: string, secret: string): Promise<RemotePairPollResp> {
+    const norm: string = Pairing.normalizeBase(base);
+    const body: RemotePollBody = { requestId: requestId, secret: secret };
+    const r: RawResp = await Pairing.req(norm, '/api/pair/remote/poll', 'POST', JSON.stringify(body));
+    let o: RemotePairPollResp;
+    try {
+      o = JSON.parse(r.body) as RemotePairPollResp;
+    } catch (e) {
+      throw new Error('响应格式异常（HTTP ' + String(r.status) + '）');
+    }
+    if (r.status === 404 || o.status === 'expired') {
+      throw new PairError(404, o.error !== undefined && o.error !== '' ? o.error : '远程配对申请已过期，请重新发起');
+    }
+    if (o.status === 'rejected') {
+      throw new PairError(403, o.error !== undefined && o.error !== '' ? o.error : '对方拒绝了本次远程配对申请');
+    }
+    return o;
   }
 }

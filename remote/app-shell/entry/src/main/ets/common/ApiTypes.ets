@@ -524,6 +524,45 @@ export interface PushTestResp {
   message?: string;
 }
 
+export interface PairInviteResp {
+  ok?: boolean;
+  payload?: string;
+  code?: string;
+  expiresAt?: number;
+  base?: string;
+  alts?: string[];
+  host?: string;
+  allowRemote?: boolean;
+  publicUrl?: string;
+  error?: string;
+}
+
+export interface RemotePairPendingItem {
+  id: string;
+  verifyCode: string;
+  deviceName: string;
+  source: string;
+  createdAt: number;
+  expiresAt: number;
+}
+
+export interface RemotePairListResp {
+  ok?: boolean;
+  requests?: RemotePairPendingItem[];
+}
+
+export interface RemotePairDecideBody {
+  id: string;
+  approve: boolean;
+}
+
+export interface RemotePairDecideResp {
+  ok?: boolean;
+  status?: string;
+  requests?: RemotePairPendingItem[];
+  error?: string;
+}
+
 export interface InfoResp {
   ok: boolean;
   version: string;

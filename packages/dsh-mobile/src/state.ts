@@ -25,6 +25,10 @@ export const PAIR_FAIL_LIMIT = 8
 export const PAIR_LOCK_MS = 5 * 60 * 1000
 export const PHONE_ONLINE_MS = 10 * 60 * 1000
 export const PRESENCE_TTL_MS = 15 * 1000
+export const REMOTE_PAIR_TTL_MS = 3 * 60 * 1000
+const REMOTE_PAIR_MAX_PENDING = 16
+const REMOTE_PAIR_PEER_LIMIT = 5
+const REMOTE_PAIR_WINDOW_MS = 5 * 60 * 1000
 const PAIR_FAIL_MAP_CAP = 256
 const PAIR_FAIL_EXPIRE_MS = 10 * 60 * 1000
 const MAX_LOG_BYTES = 5 * 1024 * 1024
@@ -460,15 +464,48 @@ export interface PairFailEntry {
   updatedAt: number
 }
 
+export type RemotePairStatus = 'pending' | 'approved' | 'rejected'
+
+export interface RemotePairRequestSummary {
+  id: string
+  verifyCode: string
+  deviceName: string
+  source: 'lan' | 'remote'
+  createdAt: number
+  expiresAt: number
+}
+
+export interface RemotePairRequestRecord extends RemotePairRequestSummary {
+  secret: string
+  peer: string
+  status: RemotePairStatus
+  claimed: boolean
+}
+
+export interface RemoteInviteResult {
+  ok: boolean
+  payload: string
+  code: string
+  expiresAt: number
+  base: string
+  alts: string[]
+  host: string
+  allowRemote: boolean
+  publicUrl: string
+}
+
 /**
  * 配对状态与防爆破控制器：
  * 1) `pairFails` 有界（上限 256 + 10 分钟过期清理）；
  * 2) 每个 6 位配对码自身记录 `fails`，累计错满 8 次立即作废并自动旋转新码；
- * 3) 远程隧道经 127.0.0.1 转发时优先按转发头识别来源，避免把本机回环整体锁死。
+ * 3) 远程隧道经 127.0.0.1 转发时优先按转发头识别来源，避免把本机回环整体锁死；
+ * 4) 远程配对审批队列（`remoteRequests`）有界限流，4 位核对码人工确认后单次领取令牌。
  */
 export class PairingRuntime {
   private pairCode: PairCode | null = null
   private readonly pairFails = new Map<string, PairFailEntry>()
+  private readonly remoteRequests = new Map<string, RemotePairRequestRecord>()
+  private readonly remotePeerTimes = new Map<string, number[]>()
   phoneSeenAt = 0
 
   private readonly port: number
@@ -587,6 +624,148 @@ export class PairingRuntime {
     return { ok: false, left: rotated ? 0 : Math.min(codeLeft, peerLeft), rotated }
   }
 
+  private pruneRemoteRequests(now = Date.now()): void {
+    for (const [id, rec] of this.remoteRequests) {
+      if (rec.expiresAt <= now || rec.claimed) {
+        this.remoteRequests.delete(id)
+      }
+    }
+    while (this.remoteRequests.size > REMOTE_PAIR_MAX_PENDING) {
+      const oldest = this.remoteRequests.keys().next().value
+      if (oldest === undefined) break
+      this.remoteRequests.delete(oldest)
+    }
+    for (const [peer, times] of this.remotePeerTimes) {
+      const kept = times.filter((t) => now - t < REMOTE_PAIR_WINDOW_MS)
+      if (kept.length === 0) this.remotePeerTimes.delete(peer)
+      else this.remotePeerTimes.set(peer, kept)
+    }
+  }
+
+  /** 新设备发起远程配对申请：按 peer 限流，生成 4 位人工核对码与单次轮询秘钥。 */
+  createRemoteRequest(
+    peer: string,
+    rawDeviceName: string,
+    local: boolean,
+  ): { ok: true; request: RemotePairRequestRecord } | { ok: false; retryAfterSec: number } {
+    const now = Date.now()
+    this.pruneRemoteRequests(now)
+    const times = this.remotePeerTimes.get(peer) ?? []
+    if (times.length >= REMOTE_PAIR_PEER_LIMIT) {
+      const oldest = times[0] ?? now
+      const retryAfterSec = Math.max(5, Math.ceil((REMOTE_PAIR_WINDOW_MS - (now - oldest)) / 1000))
+      return { ok: false, retryAfterSec }
+    }
+    times.push(now)
+    this.remotePeerTimes.set(peer, times)
+
+    const cleanName = rawDeviceName.replace(/[\r\n\t]+/g, ' ').trim().slice(0, 48)
+    const rec: RemotePairRequestRecord = {
+      id: randomBytes(12).toString('hex'),
+      secret: randomBytes(16).toString('hex'),
+      verifyCode: String(randomInt(0, 10000)).padStart(4, '0'),
+      deviceName: cleanName.length > 0 ? cleanName : '鸿蒙设备',
+      source: local ? 'lan' : 'remote',
+      peer,
+      status: 'pending',
+      createdAt: now,
+      expiresAt: now + REMOTE_PAIR_TTL_MS,
+      claimed: false,
+    }
+    this.remoteRequests.set(rec.id, rec)
+    this.pruneRemoteRequests(now)
+    void record(this.logFile, `remote pair request id=${rec.id.slice(0, 8)} source=${rec.source} dev=${rec.deviceName}`)
+    return { ok: true, request: rec }
+  }
+
+  /** 列出全部待审批的远程配对申请（不含轮询 secret，按最新排序）。 */
+  listPendingRemoteRequests(): RemotePairRequestSummary[] {
+    this.pruneRemoteRequests()
+    const list: RemotePairRequestSummary[] = []
+    for (const rec of this.remoteRequests.values()) {
+      if (rec.status === 'pending' && !rec.claimed) {
+        list.push({
+          id: rec.id,
+          verifyCode: rec.verifyCode,
+          deviceName: rec.deviceName,
+          source: rec.source,
+          createdAt: rec.createdAt,
+          expiresAt: rec.expiresAt,
+        })
+      }
+    }
+    list.sort((a, b) => b.createdAt - a.createdAt)
+    return list
+  }
+
+  /** 电脑端或已配对手机审批一条远程配对申请。 */
+  decideRemoteRequest(
+    id: string,
+    approve: boolean,
+  ): { ok: true; status: RemotePairStatus } | { ok: false; error: string } {
+    const now = Date.now()
+    this.pruneRemoteRequests(now)
+    const rec = this.remoteRequests.get(id)
+    if (rec === undefined || rec.claimed) {
+      return { ok: false, error: '该配对申请已过期或已处理' }
+    }
+    if (rec.status !== 'pending') {
+      return { ok: false, error: '该配对申请已处理完成' }
+    }
+    rec.status = approve ? 'approved' : 'rejected'
+    rec.expiresAt = Math.max(rec.expiresAt, now + 60_000)
+    void record(this.logFile, `remote pair ${rec.status} id=${rec.id.slice(0, 8)} dev=${rec.deviceName}`)
+    return { ok: true, status: rec.status }
+  }
+
+  /** 新设备凭 requestId + secret 轮询审批状态；批准后仅允许单次领取。 */
+  pollRemoteRequest(
+    id: string,
+    secret: string,
+  ): { status: 'expired' } | { status: 'pending'; expiresAt: number } | { status: 'rejected' } | { status: 'approved' } {
+    const now = Date.now()
+    this.pruneRemoteRequests(now)
+    const rec = this.remoteRequests.get(id)
+    if (rec === undefined || rec.claimed || secret.length === 0 || !tokenMatches(secret, rec.secret)) {
+      return { status: 'expired' }
+    }
+    if (rec.status === 'pending') {
+      return { status: 'pending', expiresAt: rec.expiresAt }
+    }
+    if (rec.status === 'rejected') {
+      rec.claimed = true
+      this.remoteRequests.delete(id)
+      return { status: 'rejected' }
+    }
+    rec.claimed = true
+    this.remoteRequests.delete(id)
+    this.phoneSeenAt = now
+    void record(this.logFile, `remote pair claimed id=${id.slice(0, 8)} dev=${rec.deviceName}`)
+    return { status: 'approved' }
+  }
+
+  /** 生成适合远程分发的一次性配对口令（若已开启公网访问则公网地址置首位，局域网列为备选）。 */
+  buildRemoteInvitePayload(rotate = false): RemoteInviteResult {
+    const prefs = pairPrefs()
+    const pending = rotate ? this.rotatePair(false) : this.ensurePair()
+    const lan = prefs.allowLan ? lanBases(this.port) : []
+    const tunnelUrl = prefs.allowRemote ? prefs.publicUrl : ''
+    const base = tunnelUrl.length > 0 ? tunnelUrl : (lan[0] ?? '')
+    const alts = [...lan, tunnelUrl].filter((one) => one.length > 0 && one !== base)
+    const payload = base.length > 0 ? pairPayload(base, pending.code, alts) : ''
+    return {
+      ok: payload.length > 0,
+      payload,
+      code: pending.code,
+      expiresAt: pending.expiresAt,
+      base,
+      alts,
+      host: hostname(),
+      allowRemote: prefs.allowRemote,
+      publicUrl: prefs.publicUrl,
+    }
+  }
+
   /** 构造桌面设置面板与 `/api/pair/state` 共享的状态快照（不含明文 token）。 */
   snapshot(): Record<string, unknown> {
     const prefs = pairPrefs()
@@ -598,6 +777,7 @@ export class PairingRuntime {
     const v4rest = restLan.filter((one) => !one.includes('['))
     const v6rest = restLan.filter((one) => one.includes('['))
     const alts = [tunnelUrl, ...v4rest, ...v6rest].filter((one) => one.length > 0 && one !== primary)
+    const remoteInvite = this.buildRemoteInvitePayload(false)
     return {
       ok: true,
       host: hostname(),
@@ -605,6 +785,8 @@ export class PairingRuntime {
       e2ee: true,
       e2eePub: resolveE2eeKeypair().pub,
       devices: pairedDevices(),
+      pendingPairRequests: this.listPendingRemoteRequests(),
+      remotePayload: remoteInvite.payload,
       version: VERSION,
       port: this.port,
       code: pending.code,

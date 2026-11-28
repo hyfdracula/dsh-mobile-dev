@@ -1,3 +1,4 @@
+import { deviceInfo } from '@kit.BasicServicesKit';
 import { scanBarcode } from '@kit.ScanKit';
 import http from '@ohos.net.http';
 import { Api } from '../common/Api';
@@ -9,7 +10,7 @@ import { copyText } from '../common/Clipboard';
 import { Haptics } from '../common/Haptics';
 import { Mat } from '../common/Mat';
 import { BloomWaveTracker, Motion, MOTION_VIVID } from '../common/Motion';
-import { PairClaim, PairError, PairInfo, Pairing, PairLink } from '../common/Pairing';
+import { PairClaim, PairError, PairInfo, Pairing, PairLink, RemotePairPollResp, RemotePairStartResp } from '../common/Pairing';
 import { Tokens } from '../common/Tokens';
 import { ConnectionStageCard, SheetHeader } from '../common/Widgets';
 
@@ -33,8 +34,8 @@ interface ManualInfoResp {
 
 /**
  * 原创两屏配对向导：
- * - connect（快速连接）：扫码配对主卡 + [6位配对码 | 手动地址与令牌] 分段切换 + 主机实时预览 + 排查抽屉；
- * - prepare（电脑端准备）：三步极简引导与一键复制网关安装命令。
+ * - prepare（第 1 步 · 电脑端准备）：三步极简引导、一键复制网关安装命令与顶部直达入口；
+ * - connect（第 2 步 · 连接电脑）：扫码配对主卡 + [远程申请 | 口令 / 6位码 | 手动令牌] 分段切换 + 主机实时预览 + 排查抽屉。
  */
 @Component
 export struct PairPage {
@@ -58,10 +59,11 @@ export struct PairPage {
   @StorageLink('appIconStyle') appIconStyle: string = ICON_DARK;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
 
-  @State private tab: string = 'code';
+  @State private tab: string = 'remote';
   @State private entered: boolean = true;
   @State private code: string = '';
   @State private addr: string = '';
+  @State private inviteText: string = '';
   @State private manualBase: string = '';
   @State private manualToken: string = '';
   @State private manualName: string = '';
@@ -70,6 +72,17 @@ export struct PairPage {
   @State private err: string = '';
   @State private okMsg: string = '';
   @State private hint: string = '';
+
+  @State private remoteReqId: string = '';
+  @State private remoteSecret: string = '';
+  @State private remoteVerifyCode: string = '';
+  @State private remoteHost: string = '';
+  @State private remoteBase: string = '';
+  @State private remoteHostId: string = '';
+  @State private remoteE2eePub: string = '';
+  @State private remoteExpiresAt: number = 0;
+  @State private remoteLeftSec: number = 0;
+  @State private remoteBusy: boolean = false;
 
   @State private stageActive: boolean = false;
   @State private stageIdx: number = 0;
@@ -85,6 +98,10 @@ export struct PairPage {
   @State private helpSheet: boolean = false;
 
   private claimSeq: number = 0;
+  private remoteSeq: number = 0;
+  private remotePollTimer: number = -1;
+  private remoteTickTimer: number = -1;
+  private remotePollInFlight: boolean = false;
   private probeTimer: number = -1;
   private elapsedTimer: number = -1;
   private enterTimer: number = -1;
@@ -116,6 +133,8 @@ export struct PairPage {
 
   aboutToDisappear(): void {
     this.stopTimer();
+    this.remoteSeq++;
+    this.stopRemoteTimers();
     if (this.probeTimer >= 0) {
       clearTimeout(this.probeTimer);
       this.probeTimer = -1;
@@ -465,7 +484,214 @@ export struct PairPage {
         return;
       }
       this.stageActive = false;
-      this.err = '无法调起扫码：' + (msg !== '' ? msg : '请直接使用下方 6 位配对码连接');
+      this.err = '无法调起扫码：' + (msg !== '' ? msg : '请直接使用下方远程配对或 6 位配对码连接');
+    }
+  }
+
+  private deviceLabel(): string {
+    try {
+      const market: string = deviceInfo.marketName !== undefined ? deviceInfo.marketName.trim() : '';
+      if (market !== '') {
+        return market;
+      }
+      const model: string = deviceInfo.productModel !== undefined ? deviceInfo.productModel.trim() : '';
+      if (model !== '') {
+        return model;
+      }
+    } catch (e) {
+    }
+    return '鸿蒙设备';
+  }
+
+  private tryApplyInviteLink(raw: string): boolean {
+    const link: PairLink | null = Pairing.parseLink(raw);
+    if (link === null) {
+      return false;
+    }
+    this.inviteText = '';
+    this.err = '';
+    this.stageErr = '';
+    this.hint = '已识别一次性配对口令 · ' + link.base;
+    Haptics.confirm();
+    const bases: string[] = [link.base];
+    for (let i = 0; i < link.alts.length; i++) {
+      if (bases.indexOf(link.alts[i]) < 0) {
+        bases.push(link.alts[i]);
+      }
+    }
+    this.confirmIfInsecureWan(bases, () => {
+      void this.runClaim(bases, link.code);
+    });
+    return true;
+  }
+
+  private stopRemoteTimers(): void {
+    if (this.remotePollTimer >= 0) {
+      clearInterval(this.remotePollTimer);
+      this.remotePollTimer = -1;
+    }
+    if (this.remoteTickTimer >= 0) {
+      clearInterval(this.remoteTickTimer);
+      this.remoteTickTimer = -1;
+    }
+  }
+
+  private cancelRemoteRequest(msg: string = ''): void {
+    this.remoteSeq++;
+    this.stopRemoteTimers();
+    this.remotePollInFlight = false;
+    this.remoteBusy = false;
+    this.remoteReqId = '';
+    this.remoteSecret = '';
+    this.remoteVerifyCode = '';
+    this.remoteHost = '';
+    this.remoteBase = '';
+    this.remoteHostId = '';
+    this.remoteE2eePub = '';
+    this.remoteExpiresAt = 0;
+    this.remoteLeftSec = 0;
+    if (msg !== '') {
+      this.hint = msg;
+    }
+  }
+
+  private spacedVerifyCode(): string {
+    const s: string = this.remoteVerifyCode;
+    let out: string = '';
+    for (let i = 0; i < s.length; i++) {
+      if (i > 0) {
+        out += '  ';
+      }
+      out += s.charAt(i);
+    }
+    return out;
+  }
+
+  private startRemoteRequest(): void {
+    const raw: string = this.addr.trim();
+    if (raw === '') {
+      this.err = '请先输入电脑公网地址或局域网 IP:端口。';
+      return;
+    }
+    if (raw.indexOf('dshmobile://pair?') >= 0 && this.tryApplyInviteLink(raw)) {
+      return;
+    }
+    const norm: string = Pairing.normalizeBase(raw);
+    if (!this.isValidHostUrl(norm)) {
+      this.err = '地址格式无效，例如 https://dsh.example.com 或 192.168.1.10:8901';
+      return;
+    }
+    this.confirmIfInsecureWan([norm], () => {
+      void this.runRemoteRequest(norm);
+    });
+  }
+
+  private async runRemoteRequest(normBase: string): Promise<void> {
+    if (this.busy || this.remoteBusy) {
+      return;
+    }
+    const seq: number = ++this.remoteSeq;
+    this.stopRemoteTimers();
+    this.remotePollInFlight = false;
+    this.remoteBusy = true;
+    this.err = '';
+    this.okMsg = '';
+    this.hint = '';
+    this.stageActive = false;
+    this.stageErr = '';
+    try {
+      const res: RemotePairStartResp = await Pairing.requestRemotePair(normBase, this.deviceLabel());
+      if (seq !== this.remoteSeq) {
+        return;
+      }
+      this.remoteReqId = res.requestId;
+      this.remoteSecret = res.secret;
+      this.remoteVerifyCode = res.verifyCode;
+      this.remoteHost = res.host !== '' ? res.host : normBase;
+      this.remoteBase = normBase;
+      this.remoteHostId = res.hostId !== undefined ? res.hostId : '';
+      this.remoteE2eePub = res.e2eePub !== undefined ? res.e2eePub : '';
+      this.remoteExpiresAt = res.expiresAt;
+      this.remoteLeftSec = Math.max(1, Math.ceil((res.expiresAt - Date.now()) / 1000));
+      this.remoteBusy = false;
+      Haptics.confirm();
+
+      this.remoteTickTimer = setInterval(() => {
+        if (seq !== this.remoteSeq || this.remoteReqId === '') {
+          this.stopRemoteTimers();
+          return;
+        }
+        const left: number = Math.max(0, Math.ceil((this.remoteExpiresAt - Date.now()) / 1000));
+        this.remoteLeftSec = left;
+        if (left <= 0) {
+          this.cancelRemoteRequest('');
+          this.err = '远程配对申请已过期，请重新发起。';
+        }
+      }, 1000);
+
+      this.remotePollTimer = setInterval(() => {
+        void this.pollRemoteOnce(seq);
+      }, 1500);
+    } catch (e) {
+      if (seq !== this.remoteSeq) {
+        return;
+      }
+      this.remoteBusy = false;
+      const msg: string = (e as Error).message !== undefined && (e as Error).message !== ''
+        ? (e as Error).message
+        : '无法发起远程配对申请，请检查电脑地址与网关版本';
+      this.err = msg;
+      Haptics.error();
+    }
+  }
+
+  private async pollRemoteOnce(seq: number): Promise<void> {
+    if (seq !== this.remoteSeq || this.remoteReqId === '' || this.remotePollInFlight) {
+      return;
+    }
+    this.remotePollInFlight = true;
+    try {
+      const r: RemotePairPollResp = await Pairing.pollRemotePair(this.remoteBase, this.remoteReqId, this.remoteSecret);
+      if (seq !== this.remoteSeq) {
+        return;
+      }
+      if (r.status === 'approved' && r.token !== undefined && r.token !== '') {
+        const used: string = this.remoteBase !== ''
+          ? this.remoteBase
+          : (r.base !== undefined && r.base !== '' ? r.base : '');
+        const hostLabel: string = r.host !== undefined && r.host !== ''
+          ? r.host
+          : (this.remoteHost !== '' ? this.remoteHost : used);
+        const hostId: string = r.hostId !== undefined && r.hostId !== '' ? r.hostId : this.remoteHostId;
+        const e2eePub: string = r.e2eePub !== undefined && r.e2eePub !== '' ? r.e2eePub : this.remoteE2eePub;
+        const lan: string[] = r.lan !== undefined ? r.lan : [];
+        const tok: string = r.token;
+
+        this.cancelRemoteRequest('');
+        this.okMsg = '远程配对已批准 · ' + hostLabel;
+        Haptics.success();
+        await new Promise<void>((resolve: () => void) => setTimeout(resolve, 240));
+        this.onPaired(used, tok, hostLabel, lan, hostId, e2eePub);
+        return;
+      }
+      if (r.status === 'rejected') {
+        this.cancelRemoteRequest('');
+        this.err = '电脑端或已配对设备已拒绝本次配对申请。';
+        Haptics.error();
+        return;
+      }
+      if (r.status === 'expired') {
+        this.cancelRemoteRequest('');
+        this.err = '远程配对申请已过期，请重新发起。';
+        return;
+      }
+      if (r.expiresAt !== undefined && r.expiresAt > 0) {
+        this.remoteExpiresAt = r.expiresAt;
+      }
+    } catch (e) {
+      // 单次轮询网络抖动不中断等待，倒计时到期或用户取消时停止
+    } finally {
+      this.remotePollInFlight = false;
     }
   }
 
@@ -538,7 +764,7 @@ export struct PairPage {
               .fontWeight(FontWeight.Bold)
               .fontColor(Tokens.fg)
           }
-          Text('扫描电脑端面板二维码，自动匹配局域网并开启端到端加密')
+          Text('同 Wi-Fi 可扫码直连；异地支持下方远程配对申请或粘贴一次性口令')
             .fontSize(Tokens.fsFoot)
             .fontColor(Tokens.dim2)
             .lineHeight(17)
@@ -644,8 +870,25 @@ export struct PairPage {
   @Builder
   segmentedTabs() {
     Row({ space: 4 }) {
-      Text('6 位配对码')
-        .fontSize(Tokens.fsBody)
+      Text('远程申请')
+        .fontSize(Tokens.fsFoot)
+        .fontWeight(this.tab === 'remote' ? FontWeight.Medium : FontWeight.Normal)
+        .fontColor(this.tab === 'remote' ? Tokens.fg : Tokens.dim2)
+        .textAlign(TextAlign.Center)
+        .layoutWeight(1)
+        .padding({ top: 9, bottom: 9 })
+        .backgroundColor(this.tab === 'remote' ? Tokens.surface : Color.Transparent)
+        .borderRadius(Tokens.rSm)
+        .onClick(() => {
+          if (this.tab !== 'remote') {
+            Haptics.tap();
+            this.err = '';
+            this.tab = 'remote';
+          }
+        })
+
+      Text('口令 / 6位码')
+        .fontSize(Tokens.fsFoot)
         .fontWeight(this.tab === 'code' ? FontWeight.Medium : FontWeight.Normal)
         .fontColor(this.tab === 'code' ? Tokens.fg : Tokens.dim2)
         .textAlign(TextAlign.Center)
@@ -661,8 +904,8 @@ export struct PairPage {
           }
         })
 
-      Text('手动地址与令牌')
-        .fontSize(Tokens.fsBody)
+      Text('手动令牌')
+        .fontSize(Tokens.fsFoot)
         .fontWeight(this.tab === 'manual' ? FontWeight.Medium : FontWeight.Normal)
         .fontColor(this.tab === 'manual' ? Tokens.fg : Tokens.dim2)
         .textAlign(TextAlign.Center)
@@ -688,9 +931,185 @@ export struct PairPage {
   @Builder
   modeContentCard() {
     Column({ space: 12 }) {
-      if (this.tab === 'code') {
+      if (this.tab === 'remote') {
+        Text('输入电脑公网地址（或局域网 IP:端口）发起远程配对，电脑端或已配对手机批准后自动连通')
+          .fontSize(Tokens.fsFoot)
+          .fontColor(Tokens.dim2)
+          .lineHeight(18)
+          .width('100%')
+
         Row({ space: 8 }) {
-          TextInput({ text: this.addr, placeholder: '电脑地址（IP:端口 或域名）' })
+          TextInput({ text: this.addr, placeholder: 'https://dsh.example.com 或 192.168.1.10:8901' })
+            .fontSize(Tokens.fsBody)
+            .fontColor(Tokens.fg)
+            .placeholderColor(Tokens.dim2)
+            .height(44)
+            .layoutWeight(1)
+            .backgroundColor(Tokens.surface2)
+            .borderRadius(Tokens.rInput)
+            .enabled(this.remoteReqId === '')
+            .onChange((v: string) => {
+              if (v.indexOf('dshmobile://pair?') >= 0 && this.tryApplyInviteLink(v)) {
+                return;
+              }
+              this.addr = v;
+              if (this.err !== '') {
+                this.err = '';
+              }
+              this.scheduleProbe(v);
+            })
+
+          Text('探测')
+            .fontSize(Tokens.fsFoot)
+            .fontColor(Tokens.accent)
+            .padding({ left: 12, right: 12, top: 11, bottom: 11 })
+            .backgroundColor(Tokens.accentSoft)
+            .borderRadius(Tokens.rInput)
+            .opacity(this.remoteReqId === '' ? 1 : 0.45)
+            .onClick(() => {
+              if (this.remoteReqId !== '') {
+                return;
+              }
+              Haptics.tap();
+              void this.probeHost(Pairing.normalizeBase(this.addr));
+            })
+        }
+        .width('100%')
+
+        this.hostPreviewBadge()
+
+        if (this.remoteReqId !== '') {
+          Column({ space: 10 }) {
+            Row({ space: 8 }) {
+              LoadingProgress().width(16).height(16).color(Tokens.accent)
+              Text('等待电脑端或已配对手机批准…')
+                .fontSize(Tokens.fsBody)
+                .fontWeight(FontWeight.Medium)
+                .fontColor(Tokens.fg)
+                .layoutWeight(1)
+              Text(String(this.remoteLeftSec) + 's')
+                .fontSize(Tokens.fsCaption)
+                .fontFamily('monospace')
+                .fontColor(Tokens.accent)
+                .backgroundColor(Tokens.accentSoft)
+                .borderRadius(Tokens.rPill)
+                .padding({ left: 8, right: 8, top: 2, bottom: 2 })
+            }
+            .width('100%')
+            .alignItems(VerticalAlign.Center)
+
+            Column({ space: 4 }) {
+              Text('核对 4 位安全验证码')
+                .fontSize(Tokens.fsCaption)
+                .fontColor(Tokens.dim2)
+              Text(this.spacedVerifyCode())
+                .fontSize(30)
+                .fontWeight(FontWeight.Bold)
+                .fontFamily('monospace')
+                .fontColor(Tokens.accent)
+            }
+            .width('100%')
+            .padding({ top: 12, bottom: 12 })
+            .backgroundColor(Tokens.surface)
+            .borderRadius(Tokens.rMd)
+            .border({ width: 1, color: Tokens.accentGlass })
+            .alignItems(HorizontalAlign.Center)
+
+            Text('目标主机：' + this.remoteHost + '。请在电脑 DSH 面板弹窗或已配对手机的「设置 → 连接与设备」中核对验证码一致后点击「批准配对」。')
+              .fontSize(Tokens.fsCaption)
+              .fontColor(Tokens.dim2)
+              .lineHeight(17)
+              .width('100%')
+
+            Text('取消远程申请')
+              .fontSize(Tokens.fsBody)
+              .fontColor(Tokens.dim)
+              .textAlign(TextAlign.Center)
+              .width('100%')
+              .height(42)
+              .backgroundColor(Tokens.surface)
+              .borderRadius(Tokens.rPill)
+              .border({ width: 1, color: Tokens.lineSoft })
+              .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
+              .onClick(() => {
+                Haptics.soft();
+                this.cancelRemoteRequest('已取消远程配对申请');
+              })
+          }
+          .width('100%')
+          .padding(14)
+          .backgroundColor(Tokens.surface2)
+          .borderRadius(Tokens.rMd)
+          .border({ width: 1, color: Tokens.accentGlass })
+          .alignItems(HorizontalAlign.Start)
+        } else {
+          Text(this.remoteBusy ? '正在提交远程配对申请…' : '发起远程配对申请')
+            .fontSize(Tokens.fsBodyLg)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(!this.remoteBusy && !this.busy && this.addr.trim() !== '' ? Tokens.accentInk : Tokens.dim)
+            .textAlign(TextAlign.Center)
+            .width('100%')
+            .height(46)
+            .backgroundColor(!this.remoteBusy && !this.busy && this.addr.trim() !== '' ? Tokens.accentStrong : Tokens.surface3)
+            .borderRadius(Tokens.rPill)
+            .opacity(!this.remoteBusy && !this.busy && this.addr.trim() !== '' ? 1 : 0.6)
+            .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.98 })
+            .onClick(() => {
+              if (!this.remoteBusy && !this.busy && this.addr.trim() !== '') {
+                this.startRemoteRequest();
+              }
+            })
+        }
+      } else if (this.tab === 'code') {
+        Column({ space: 8 }) {
+          Text('一次性远程配对口令（推荐异地直接粘贴）')
+            .fontSize(Tokens.fsFoot)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(Tokens.fg)
+            .width('100%')
+
+          Row({ space: 8 }) {
+            TextInput({ text: this.inviteText, placeholder: '粘贴 dshmobile://pair?... 口令自动连接' })
+              .fontSize(Tokens.fsBody)
+              .fontColor(Tokens.fg)
+              .placeholderColor(Tokens.dim2)
+              .height(42)
+              .layoutWeight(1)
+              .backgroundColor(Tokens.surface)
+              .borderRadius(Tokens.rInput)
+              .onChange((v: string) => {
+                this.inviteText = v;
+                if (this.err !== '') {
+                  this.err = '';
+                }
+                if (v.indexOf('dshmobile://pair?') >= 0) {
+                  this.tryApplyInviteLink(v);
+                }
+              })
+
+            Text('识别')
+              .fontSize(Tokens.fsFoot)
+              .fontColor(Tokens.accent)
+              .padding({ left: 12, right: 12, top: 10, bottom: 10 })
+              .backgroundColor(Tokens.accentSoft)
+              .borderRadius(Tokens.rInput)
+              .onClick(() => {
+                Haptics.tap();
+                if (!this.tryApplyInviteLink(this.inviteText)) {
+                  this.err = '未识别到有效配对口令，请完整粘贴以 dshmobile://pair? 开头的文本。';
+                }
+              })
+          }
+          .width('100%')
+        }
+        .width('100%')
+        .padding(12)
+        .backgroundColor(Tokens.surface2)
+        .borderRadius(Tokens.rMd)
+        .alignItems(HorizontalAlign.Start)
+
+        Row({ space: 8 }) {
+          TextInput({ text: this.addr, placeholder: '电脑地址（IP:端口 或公网域名）' })
             .fontSize(Tokens.fsBody)
             .fontColor(Tokens.fg)
             .placeholderColor(Tokens.dim2)
@@ -699,6 +1118,9 @@ export struct PairPage {
             .backgroundColor(Tokens.surface2)
             .borderRadius(Tokens.rInput)
             .onChange((v: string) => {
+              if (v.indexOf('dshmobile://pair?') >= 0 && this.tryApplyInviteLink(v)) {
+                return;
+              }
               this.addr = v;
               if (this.err !== '') {
                 this.err = '';
@@ -721,7 +1143,7 @@ export struct PairPage {
 
         this.hostPreviewBadge()
 
-        Text('输入面板显示的 6 位一次性配对码')
+        Text('输入电脑面板显示的 6 位一次性配对码')
           .fontSize(Tokens.fsFoot)
           .fontColor(Tokens.dim2)
           .width('100%')
@@ -885,7 +1307,7 @@ export struct PairPage {
                 void this.runClaim(this.lastBases, this.lastCode);
               })
           }
-          Text(this.tab === 'code' ? '改用手动地址与令牌' : '改用 6 位配对码')
+          Text(this.tab === 'remote' ? '改用配对口令 / 6位码' : (this.tab === 'code' ? '改用远程申请' : '改用远程申请'))
             .fontSize(Tokens.fsFoot)
             .fontColor(Tokens.fg)
             .backgroundColor(Tokens.surface2)
@@ -895,7 +1317,7 @@ export struct PairPage {
               Haptics.tap();
               this.err = '';
               this.stageActive = false;
-              this.tab = this.tab === 'code' ? 'manual' : 'code';
+              this.tab = this.tab === 'remote' ? 'code' : 'remote';
             })
         }
         .width('100%')
@@ -941,11 +1363,11 @@ export struct PairPage {
           .fontSize(Tokens.fsBody)
           .fontColor(Tokens.fg)
           .lineHeight(20)
-        Text('3. 若当前在 4G/5G 外网环境，请先在电脑端配置 HTTPS / Cloudflare 隧道并将公网地址填到面板。')
+        Text('3. 若当前在 4G/5G 外网环境，请确认电脑端已开启公网访问并配置 HTTPS / Cloudflare 隧道，可通过「远程申请」等待电脑或已配对手机审批，或直接粘贴一次性配对口令连接。')
           .fontSize(Tokens.fsBody)
           .fontColor(Tokens.fg)
           .lineHeight(20)
-        Text('4. 若扫码失败或无网络权限，可切换「手动地址与令牌」直接粘贴服务地址与访问令牌验证。')
+        Text('4. 若扫码或远程申请不便使用，也可切到「手动令牌」直接粘贴服务地址与访问令牌验证。')
           .fontSize(Tokens.fsBody)
           .fontColor(Tokens.fg)
           .lineHeight(20)
@@ -1007,7 +1429,7 @@ export struct PairPage {
           .backgroundColor(Tokens.accentSoft)
           .borderRadius(Tokens.rPill)
           .padding({ left: 9, right: 9, top: 3, bottom: 3 })
-        Text('扫码或填入配对码连接')
+        Text('扫码、远程申请或粘贴配对口令连接')
           .fontSize(Tokens.fsCaption)
           .fontColor(Tokens.dim2)
       }
@@ -1166,10 +1588,25 @@ export struct PairPage {
             .backgroundColor(Tokens.accentSoft)
             .borderRadius(Tokens.rPill)
             .padding({ left: 9, right: 9, top: 3, bottom: 3 })
-          Text('先完成电脑端准备，再进入下一步连接')
+          Text('先完成电脑端准备')
             .fontSize(Tokens.fsCaption)
             .fontColor(Tokens.dim2)
+          Blank()
+          Text('直接连接 ›')
+            .fontSize(Tokens.fsCaption)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(Tokens.accent)
+            .backgroundColor(Tokens.accentSoft)
+            .borderRadius(Tokens.rPill)
+            .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+            .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.96 })
+            .onClick(() => {
+              Haptics.tap();
+              this.onGoOtherStep();
+            })
         }
+        .width('100%')
+        .alignItems(VerticalAlign.Center)
         .margin({ bottom: 4 })
 
         Text('在电脑上准备 Agent Mobile 网关')
@@ -1289,8 +1726,8 @@ export struct PairPage {
         : null)
 
       Column() {
-        this.prepareStepCard('3', '外网访问准备（可选）',
-          '同 Wi-Fi 下可直接扫描连接；异地使用建议通过 HTTPS 或 Cloudflare 隧道暴露入口。')
+        this.prepareStepCard('3', '外网与远程配对准备（可选）',
+          '同 Wi-Fi 下可直接扫码连接；配置公网地址或隧道后，支持异地远程配对申请或粘贴一次性配对口令。')
       }
       .width('100%')
       .onAreaChange((_old: Area, area: Area) => {

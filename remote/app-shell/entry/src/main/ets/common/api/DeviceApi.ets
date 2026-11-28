@@ -4,6 +4,7 @@ import {
   AnswerModeResp,
   ApiInfo,
   InfoResp,
+  PairInviteResp,
   PresenceBody,
   PresenceResp,
   PushRegisterBody,
@@ -11,6 +12,10 @@ import {
   PushStatusResp,
   PushTestBody,
   PushTestResp,
+  RemotePairDecideBody,
+  RemotePairDecideResp,
+  RemotePairListResp,
+  RemotePairPendingItem,
   StageCallback,
   WebConsoleGrantRawResp,
   WebConsoleGrantResp
@@ -105,5 +110,27 @@ export class DeviceApi {
       enterUrl: enterUrl,
       expiresIn: r.expiresIn !== undefined ? r.expiresIn : 60
     };
+  }
+
+  /** 已配对设备生成一次性远程配对口令（含公网优先地址与 6 位一次性配对码，不含长期令牌）。 */
+  static async createPairInvite(t: ApiTransport): Promise<PairInviteResp> {
+    return await t.call<PairInviteResp>('/api/pair/invite', 'POST', '{}');
+  }
+
+  /** 拉取电脑端挂起的远程配对申请列表，支持已配对手机远程审批。 */
+  static async listPairRequests(t: ApiTransport): Promise<RemotePairPendingItem[]> {
+    const r: RemotePairListResp = await t.call<RemotePairListResp>('/api/pair/requests', 'GET');
+    return r.requests !== undefined ? r.requests : [];
+  }
+
+  /** 批准或拒绝一条来自新设备的远程配对申请。 */
+  static async decidePairRequest(t: ApiTransport, id: string, approve: boolean): Promise<RemotePairPendingItem[]> {
+    const body: RemotePairDecideBody = { id: id, approve: approve };
+    const r: RemotePairDecideResp = await t.call<RemotePairDecideResp>(
+      '/api/pair/requests/decide',
+      'POST',
+      JSON.stringify(body)
+    );
+    return r.requests !== undefined ? r.requests : [];
   }
 }

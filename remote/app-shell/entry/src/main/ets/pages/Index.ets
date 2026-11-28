@@ -1023,13 +1023,13 @@ struct Index {
               PairPage({
                 api: this.api,
                 defaultBase: '',
-                mode: 'connect',
+                mode: 'prepare',
                 hasBack: false,
                 popHeader: false,
                 onExit: () => {
                 },
                 onGoOtherStep: () => {
-                  this.stack.pushPathByName('pair_prepare', null);
+                  this.stack.pushPathByName('pair_connect', null);
                 },
                 onPaired: (b: string, t: string, host: string, lan: string[], hostId?: string, e2eePub?: string) => {
                   void this.saveCfg(b, t, lan, host, hostId !== undefined ? hostId : '', e2eePub !== undefined ? e2eePub : '');

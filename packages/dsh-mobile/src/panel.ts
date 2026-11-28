@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { LiveAskSummary } from './ask-bridge.ts'
 import { parsePreviewPorts, validatePublicUrl } from './http-util.ts'
-import { dshHome, type AnswerMode, type PairedDeviceRecord } from './state.ts'
+import { dshHome, type AnswerMode, type PairedDeviceRecord, type RemotePairRequestSummary } from './state.ts'
 
 export interface PanelPrefs {
   allowLan: boolean
@@ -19,6 +19,8 @@ export interface PanelPrefs {
 export interface PanelCtx {
   pairState(): Record<string, unknown>
   pendingAsks(): LiveAskSummary[]
+  pendingPairRequests(): RemotePairRequestSummary[]
+  decidePairRequest(id: string, approve: boolean): { ok: true } | { ok: false; error: string }
   takeoverAsk(callId?: string, switchToDesktop?: boolean): { delegated: number; pending: LiveAskSummary[] }
   rotatePair(): void
   writePrefs(next: PanelPrefs): void
@@ -118,7 +120,7 @@ export const createPanel = (ctx: PanelCtx): PanelBundle => {
     const base = String(snapshot.base ?? '')
     const alts = Array.isArray(snapshot.alts) ? (snapshot.alts as string[]) : []
     const payload = base.length > 0 ? ctx.pairPayload(base, String(snapshot.code ?? ''), alts) : ''
-    return { ...snapshot, payload, pendingAsks: ctx.pendingAsks() }
+    return { ...snapshot, payload, pendingAsks: ctx.pendingAsks(), pendingPairRequests: ctx.pendingPairRequests() }
   }
 
   const panelConfig = async (request: Request): Promise<Response> => {
@@ -293,8 +295,29 @@ export const createPanel = (ctx: PanelCtx): PanelBundle => {
     const snapshot = ctx.pairState()
     return panelJson(200, {
       pending: ctx.pendingAsks(),
+      pairRequests: ctx.pendingPairRequests(),
       answerMode: snapshot.answerMode === 'desktop' ? 'desktop' : 'phone',
       phoneOnline: snapshot.phoneOnline === true,
+    })
+  }
+
+  const panelPairRequestDecide = async (request: Request): Promise<Response> => {
+    const parsedBody = await panelBody(request)
+    if (!parsedBody.ok) return panelJson(400, { error: parsedBody.error })
+    const body = parsedBody.data
+    const id = typeof body.id === 'string' ? body.id.trim() : ''
+    if (id === '' || typeof body.approve !== 'boolean') {
+      return panelJson(400, { error: 'id 不能为空且 approve 必须为布尔值' })
+    }
+    const result = ctx.decidePairRequest(id, body.approve)
+    if (!result.ok) {
+      return panelJson(404, { error: result.error })
+    }
+    await ctx.record(`200 PANEL pair-request-decide id=${id.slice(0, 8)} approve=${String(body.approve)}`)
+    return panelJson(200, {
+      ok: true,
+      pairRequests: ctx.pendingPairRequests(),
+      state: panelSnapshot(),
     })
   }
 
@@ -320,6 +343,7 @@ export const createPanel = (ctx: PanelCtx): PanelBundle => {
     { path: `${PANEL_PREFIX}/state`, methods: ['GET'], requestBody: 'buffered', fetch: async () => panelJson(200, panelSnapshot()) },
     { path: `${PANEL_PREFIX}/asks`, methods: ['GET'], requestBody: 'buffered', fetch: async () => panelAsksState() },
     { path: `${PANEL_PREFIX}/asks/takeover`, methods: ['POST'], requestBody: 'buffered', fetch: async (request: Request) => panelAsksTakeover(request) },
+    { path: `${PANEL_PREFIX}/pair-requests/decide`, methods: ['POST'], requestBody: 'buffered', fetch: async (request: Request) => panelPairRequestDecide(request) },
     {
       path: `${PANEL_PREFIX}/newcode`,
       methods: ['POST'],

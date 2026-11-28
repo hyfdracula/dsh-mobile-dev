@@ -47,6 +47,7 @@ import {
   Message,
   MessagesResult,
   ModelRef,
+  PairInviteResp,
   PendingAsk,
   PermRow,
   PermsResp,
@@ -64,6 +65,7 @@ import {
   QueueImage,
   QueueTextBody,
   QueuedItem,
+  RemotePairPendingItem,
   SessionRow,
   SessionStats,
   SlashCommandRow,
@@ -94,6 +96,8 @@ export {
   CommandExecResp,
   ExportSignResp,
   WebConsoleGrantResp,
+  PairInviteResp,
+  RemotePairPendingItem,
   TokenUsage,
   SessionStats,
   ImageRef,
@@ -201,6 +205,18 @@ export class Api extends ApiTransport {
 
   async webConsoleGrant(): Promise<WebConsoleGrantResp> {
     return await DeviceApi.webConsoleGrant(this);
+  }
+
+  async createPairInvite(): Promise<PairInviteResp> {
+    return await DeviceApi.createPairInvite(this);
+  }
+
+  async listPairRequests(): Promise<RemotePairPendingItem[]> {
+    return await DeviceApi.listPairRequests(this);
+  }
+
+  async decidePairRequest(id: string, approve: boolean): Promise<RemotePairPendingItem[]> {
+    return await DeviceApi.decidePairRequest(this, id, approve);
   }
 
   async registerPush(body: PushRegisterBody): Promise<PushRegisterResp> {

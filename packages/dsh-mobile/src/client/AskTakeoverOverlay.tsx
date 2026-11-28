@@ -15,8 +15,18 @@ interface PendingAskItem {
   createdAt: number
 }
 
+interface PendingPairRequestItem {
+  id: string
+  verifyCode: string
+  deviceName: string
+  source: 'lan' | 'remote'
+  createdAt: number
+  expiresAt: number
+}
+
 interface AsksPollResponse {
   pending?: PendingAskItem[]
+  pairRequests?: PendingPairRequestItem[]
   answerMode?: 'phone' | 'desktop'
   phoneOnline?: boolean
 }
@@ -30,6 +40,7 @@ function batchKeyOf(items: readonly PendingAskItem[]): string {
 
 export function AskTakeoverOverlay(): ReactNode {
   const [pending, setPending] = useState<PendingAskItem[]>([])
+  const [pairRequests, setPairRequests] = useState<PendingPairRequestItem[]>([])
   const [dismissedKey, setDismissedKey] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -39,7 +50,9 @@ export function AskTakeoverOverlay(): ReactNode {
       if (!res.ok) return
       const data = (await res.json()) as AsksPollResponse
       const next = Array.isArray(data.pending) ? data.pending : []
+      const nextPairs = Array.isArray(data.pairRequests) ? data.pairRequests : []
       setPending(next)
+      setPairRequests(nextPairs)
       if (next.length === 0) {
         setDismissedKey('')
       }
@@ -101,6 +114,139 @@ export function AskTakeoverOverlay(): ReactNode {
       setBusy(false)
     }
   }, [busy, refresh])
+
+  const decidePair = useCallback(async (id: string, approve: boolean): Promise<void> => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const res = await fetch(`${ROUTE}/pair-requests/decide`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'content-type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({ id, approve }),
+      })
+      if (res.ok) {
+        const data = (await res.json()) as { pairRequests?: PendingPairRequestItem[] }
+        setPairRequests(Array.isArray(data.pairRequests) ? data.pairRequests : [])
+      } else {
+        await refresh()
+      }
+    } catch {
+      // ignore transient network failure
+    } finally {
+      setBusy(false)
+    }
+  }, [busy, refresh])
+
+  const firstPair = pairRequests[0]
+  if (firstPair !== undefined) {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        style={{
+          position: 'fixed',
+          left: '50%',
+          bottom: 92,
+          transform: 'translateX(-50%)',
+          zIndex: 62,
+          pointerEvents: 'auto',
+          width: 'min(540px, calc(100vw - 32px))',
+          boxSizing: 'border-box',
+          borderRadius: 16,
+          border: '1px solid rgba(47, 107, 255, 0.42)',
+          background: 'var(--dsw-alias-surface-card, rgba(22, 25, 32, 0.95))',
+          backdropFilter: 'blur(16px)',
+          boxShadow: '0 12px 32px rgba(0, 0, 0, 0.28)',
+          padding: '12px 14px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+          color: 'var(--dsw-alias-label-primary, #F5F7FA)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#2F6BFF',
+                background: 'rgba(47, 107, 255, 0.14)',
+                borderRadius: 999,
+                padding: '2px 8px',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              远程配对申请
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>
+              {firstPair.deviceName}
+            </span>
+            <span style={{ fontSize: 11.5, color: 'var(--dsw-alias-label-secondary, #9AA4B2)' }}>
+              {firstPair.source === 'remote' ? '经公网' : '局域网'}
+            </span>
+          </div>
+          <span
+            style={{
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+              fontSize: 17,
+              fontWeight: 700,
+              letterSpacing: 3,
+              color: '#2F6BFF',
+              background: 'rgba(47, 107, 255, 0.14)',
+              borderRadius: 8,
+              padding: '2px 9px',
+            }}
+          >
+            {firstPair.verifyCode}
+          </span>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--dsw-alias-label-secondary, #A7B0BE)' }}>
+          请确认新手机显示的 4 位核对码与右上角一致，再点击批准配对。
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => { void decidePair(firstPair.id, false) }}
+            style={{
+              border: '1px solid var(--dsw-alias-border-l2, rgba(127,127,127,0.28))',
+              background: 'var(--dsw-alias-bg-layer-2, rgba(127,127,127,0.12))',
+              color: 'var(--dsw-alias-label-primary, #E5E9F0)',
+              borderRadius: 10,
+              padding: '6px 12px',
+              fontSize: 12,
+              fontWeight: 500,
+              fontFamily: 'inherit',
+              cursor: busy ? 'default' : 'pointer',
+            }}
+          >
+            拒绝
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => { void decidePair(firstPair.id, true) }}
+            style={{
+              border: '1px solid #2F6BFF',
+              background: '#2F6BFF',
+              color: '#FFFFFF',
+              borderRadius: 10,
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: 600,
+              fontFamily: 'inherit',
+              cursor: busy ? 'default' : 'pointer',
+            }}
+          >
+            {busy ? '处理中…' : '批准配对'}
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const currentKey = batchKeyOf(pending)
   if (pending.length === 0 || (dismissedKey !== '' && dismissedKey === currentKey)) {

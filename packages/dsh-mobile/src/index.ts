@@ -460,6 +460,98 @@ export function apply(ctx: any, rawConfig?: Config): void {
       return
     }
 
+    if (path === '/api/pair/remote/request' && method === 'POST') {
+      const prefs = pairPrefs()
+      if (!prefs.allowLan && !prefs.allowRemote) {
+        send(res, 403, { error: '电脑端已关闭允许连接，请先在 DSH 面板打开' })
+        return
+      }
+      const local = isLocalHostHeader(req.headers.host)
+      if (local && !prefs.allowLan) {
+        send(res, 403, { error: '电脑端已关闭局域网配对' })
+        return
+      }
+      if (!local && !prefs.allowRemote) {
+        send(res, 403, { error: '电脑端已关闭公网远程配对，请先打开「公网访问」' })
+        return
+      }
+      const peer = pairing.peerKey(req.socket.remoteAddress, local, req.headers)
+      let body: Record<string, unknown> = {}
+      try {
+        body = await readJson(req)
+      } catch (err) {
+        const status = typeof (err as { status?: unknown })?.status === 'number' ? (err as { status: number }).status : 400
+        send(res, status, { error: status === 413 ? 'body too large' : 'body must be a JSON object' })
+        return
+      }
+      const devName = typeof body.deviceName === 'string' ? body.deviceName : ''
+      const created = pairing.createRemoteRequest(peer, devName, local)
+      if (!created.ok) {
+        send(res, 429, { error: `请求过于频繁，请 ${String(created.retryAfterSec)} 秒后重试`, retryAfterSec: created.retryAfterSec })
+        return
+      }
+      send(res, 200, {
+        ok: true,
+        requestId: created.request.id,
+        secret: created.request.secret,
+        verifyCode: created.request.verifyCode,
+        host: hostname(),
+        hostId,
+        e2eePub,
+        expiresAt: created.request.expiresAt,
+      })
+      return
+    }
+
+    if (path === '/api/pair/remote/poll' && method === 'POST') {
+      const prefs = pairPrefs()
+      let body: Record<string, unknown> = {}
+      try {
+        body = await readJson(req)
+      } catch (err) {
+        const status = typeof (err as { status?: unknown })?.status === 'number' ? (err as { status: number }).status : 400
+        send(res, status, { error: status === 413 ? 'body too large' : 'body must be a JSON object' })
+        return
+      }
+      const requestId = typeof body.requestId === 'string' ? body.requestId.trim() : ''
+      const secret = typeof body.secret === 'string' ? body.secret.trim() : ''
+      const polled = pairing.pollRemoteRequest(requestId, secret)
+      if (polled.status === 'expired') {
+        send(res, 404, { ok: false, status: 'expired', error: '远程配对申请已过期或不存在' })
+        return
+      }
+      if (polled.status === 'pending') {
+        send(res, 200, { ok: true, status: 'pending', expiresAt: polled.expiresAt })
+        return
+      }
+      if (polled.status === 'rejected') {
+        send(res, 200, { ok: true, status: 'rejected', error: '对方拒绝了本次远程配对申请' })
+        return
+      }
+      const headerHost = req.headers.host
+      const forwarded = req.headers['x-forwarded-proto']
+      const scheme = typeof forwarded === 'string' && forwarded.toLowerCase() === 'https' ? 'https' : 'http'
+      const lan = lanBases(port)
+      const base =
+        typeof headerHost === 'string' && headerHost.length > 0
+          ? `${scheme}://${headerHost}`
+          : (prefs.publicUrl || lan[0] || `http://127.0.0.1:${String(port)}`)
+      send(res, 200, {
+        ok: true,
+        status: 'approved',
+        token,
+        base,
+        host: hostname(),
+        hostId,
+        e2eePub,
+        e2ee: true,
+        version: VERSION,
+        port,
+        lan: prefs.allowLan ? lan : [],
+      })
+      return
+    }
+
     // 短签名免长令牌直链通道（图片附件、工作区预览图、SSE 实时流、日志导出、本机开发服预览、网页控制台代理）
     const attSigned = path.startsWith('/api/attachments/') && method === 'GET'
       ? signedOk('att', path.slice('/api/attachments/'.length).toLowerCase(), url)
@@ -678,6 +770,37 @@ export function apply(ctx: any, rawConfig?: Config): void {
         return
       }
 
+      if (path === '/api/pair/invite' && method === 'POST') {
+        const inv = pairing.buildRemoteInvitePayload(true)
+        if (!inv.ok) {
+          send(res, 409, { error: '当前没有可用的连接地址，请先开启局域网或配置公网地址' })
+          return
+        }
+        send(res, 200, inv)
+        return
+      }
+
+      if (path === '/api/pair/requests' && method === 'GET') {
+        send(res, 200, { ok: true, requests: pairing.listPendingRemoteRequests() })
+        return
+      }
+
+      if (path === '/api/pair/requests/decide' && method === 'POST') {
+        const body = await readJson(req)
+        const id = typeof body.id === 'string' ? body.id.trim() : ''
+        if (id === '' || typeof body.approve !== 'boolean') {
+          send(res, 400, { error: 'id 不能为空且 approve 必须为布尔值' })
+          return
+        }
+        const resDecide = pairing.decideRemoteRequest(id, body.approve)
+        if (!resDecide.ok) {
+          send(res, 404, { error: resDecide.error })
+          return
+        }
+        send(res, 200, { ok: true, status: resDecide.status, requests: pairing.listPendingRemoteRequests() })
+        return
+      }
+
       if (path === '/api/pair/config' && method === 'POST') {
         const body = await readJson(req)
         const current = pairPrefs()
@@ -813,6 +936,11 @@ export function apply(ctx: any, rawConfig?: Config): void {
   const panel = createPanel({
     pairState: () => pairing.snapshot(),
     pendingAsks: () => askBridge.listLive(),
+    pendingPairRequests: () => pairing.listPendingRemoteRequests(),
+    decidePairRequest: (id, approve) => {
+      const r = pairing.decideRemoteRequest(id, approve)
+      return r.ok ? { ok: true } : { ok: false, error: r.error }
+    },
     takeoverAsk: (callId, switchToDesktop) => {
       if (switchToDesktop === true) {
         writeState({ answerMode: 'desktop' })
