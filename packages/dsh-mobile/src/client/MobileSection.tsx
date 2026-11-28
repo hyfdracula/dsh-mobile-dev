@@ -1,7 +1,7 @@
 /**
  * Agent Mobile 桌面设置面板：
- * 首屏聚焦配对工作区（二维码 + 6 位一次性配对码 + 入口复制），
- * 下方分栏承接网络接入策略、端到端加密设备授权、协作权限与网关概览。
+ * 首屏聚焦配对工作区（左侧扫码二维码 + 右侧一键复制连接令牌，与手机端「扫一扫 / 粘贴连接令牌」1:1 对齐），
+ * 下方分栏承接连接通道设置、已连接手机与协作权限管理。
  * @module agent-mobile-gateway/client/MobileSection
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
@@ -550,10 +550,11 @@ export function MobileSection(): ReactNode {
   }, [state, secondsLeft, load])
 
   const currentAnswerMode: AnswerMode = state?.answerMode === 'desktop' ? 'desktop' : 'phone'
-  const codeChars = (state?.code && state.code.length === 6 ? state.code : '------').split('')
-  const primaryAddress = state?.base && state.base.length > 0
-    ? state.base
-    : (state?.lan && state.lan.length > 0 ? String(state.lan[0]) : '')
+  const connectToken = (state?.remotePayload && state.remotePayload.length > 0)
+    ? state.remotePayload
+    : (state?.payload ?? '')
+  const hasLanReady = state !== null && state.allowLan && state.lan.length > 0
+  const hasWanReady = state !== null && state.allowRemote && state.publicUrl.trim().length > 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
@@ -611,14 +612,14 @@ export function MobileSection(): ReactNode {
             <div style={{ minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 15, fontWeight: 700, color: C.fg }}>Agent Mobile</span>
-                {state?.e2ee ? <Chip text="Noise_IK 加密" tone="accent" /> : null}
+                {state?.e2ee ? <Chip text="端到端加密" tone="accent" /> : null}
               </div>
               <div style={{ fontSize: 12, color: C.fgFaint, marginTop: 2, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
-                本机：{state?.host ?? '-'} · 端口 {state ? String(state.port) : '-'}
+                电脑：{state?.host ?? '-'} · 服务端口 {state ? String(state.port) : '-'}
               </div>
             </div>
           </div>
-          <Chip text={online ? '手机在线' : '等待配对'} tone={online ? 'ok' : 'idle'} />
+          <Chip text={online ? '手机在线' : '等待连接'} tone={online ? 'ok' : 'idle'} />
         </div>
       </Card>
 
@@ -743,167 +744,141 @@ export function MobileSection(): ReactNode {
         )
         : null}
 
-      {/* 首屏焦点：扫码 + 6 位数字配对 Hero 区 */}
+      {/* 首屏焦点：方式一（扫一扫二维码）+ 方式二（一键复制连接令牌），与手机端 1:1 对齐 */}
       <Card hero>
         <SectionHead
           title="连接手机 App"
-          subtitle="在手机上打开 Agent Mobile 扫一扫，或点击下方「复制连接令牌」发到手机粘贴连接（局域网与外网通用）"
-          right={<Btn text={busy === 'code' ? '更新中...' : '换一个新码'} primary disabled={busy === 'code'} onClick={() => { void rotate() }} />}
+          subtitle="在手机打开 Agent Mobile，扫码或粘贴右侧连接令牌即可连通，不区分局域网与外网"
+          right={<Btn text={busy === 'code' ? '刷新中...' : '刷新二维码和令牌'} disabled={busy === 'code'} onClick={() => { void rotate() }} />}
         />
 
-        <div style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap', minWidth: 0 }}>
-          {/* 左：二维码展示框 */}
-          <div style={{
-            width: 196,
-            minHeight: 196,
-            borderRadius: 14,
-            border: `1px solid ${C.border}`,
-            background: qrSrc.length > 0 && !qrFailed ? C.qrPlate : C.cardSoft,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 10,
-            boxSizing: 'border-box',
-            flexShrink: 0,
-          }}
-          >
-            {qrSrc.length > 0 && !qrFailed
-              ? (
-                <img
-                  alt="Agent Mobile 配对二维码"
-                  src={qrSrc}
-                  width={176}
-                  height={176}
-                  onError={() => { setQrFailed(true) }}
-                  style={{ display: 'block', width: 176, height: 176 }}
-                />
-              )
-              : (
-                <div style={{ fontSize: 12, color: C.fgFaint, textAlign: 'center', lineHeight: 1.5, padding: 8 }}>
-                  {qrSrc.length === 0
-                    ? '请先在下方开启「局域网直连」或填写公网地址以生成二维码'
-                    : '二维码生成失败，请使用右侧 6 位数字配对码'}
-                </div>
-              )}
+        <div style={{ display: 'flex', gap: 20, alignItems: 'stretch', flexWrap: 'wrap', minWidth: 0 }}>
+          {/* 左：方式一 扫一扫二维码 */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <div style={{
+              width: 196,
+              minHeight: 196,
+              borderRadius: 14,
+              border: `1px solid ${C.border}`,
+              background: qrSrc.length > 0 && !qrFailed ? C.qrPlate : C.cardSoft,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 10,
+              boxSizing: 'border-box',
+            }}
+            >
+              {qrSrc.length > 0 && !qrFailed
+                ? (
+                  <img
+                    alt="Agent Mobile 配对二维码"
+                    src={qrSrc}
+                    width={176}
+                    height={176}
+                    onError={() => { setQrFailed(true) }}
+                    style={{ display: 'block', width: 176, height: 176 }}
+                  />
+                )
+                : (
+                  <div style={{ fontSize: 12, color: C.fgFaint, textAlign: 'center', lineHeight: 1.5, padding: 8 }}>
+                    {qrSrc.length === 0
+                      ? '请先在下方开启「同 Wi-Fi 局域网直连」或填写外网访问地址'
+                      : '二维码加载失败，请使用右侧「复制连接令牌」连接'}
+                  </div>
+                )}
+            </div>
+            <span style={{ fontSize: 12, color: C.fgDim, fontWeight: 500 }}>
+              方式一：手机扫一扫二维码
+            </span>
           </div>
 
-          {/* 右：6 位配对码格 + 倒计时 + 入口复制 */}
-          <div style={{ flex: '1 1 220px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-              <span style={{ fontSize: 12.5, fontWeight: 500, color: C.fgDim }}>6 位一次性配对码</span>
-              <span style={{
-                fontSize: 12,
-                fontWeight: 500,
-                color: copied === 'code' ? C.ok : secondsLeft > 60 ? C.fgFaint : C.bad,
-              }}
-              >
-                {copied === 'code' ? '已复制配对码' : `有效期 ${countdown(secondsLeft)}`}
-              </span>
-            </div>
-
-            <button
-              type="button"
-              disabled={!state?.code}
-              onClick={() => { if (state?.code) void copy(state.code, 'code') }}
-              title="点击复制 6 位配对码"
-              style={{
-                border: `1px solid ${C.border}`,
-                background: C.cardSoft,
-                borderRadius: 12,
-                padding: '10px 8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                cursor: state?.code ? 'pointer' : 'default',
-                opacity: state?.code ? 1 : 0.5,
-              }}
-            >
-              {codeChars.map((ch, idx) => (
-                <span
-                  key={idx}
-                  style={{
-                    width: 28,
-                    height: 36,
-                    borderRadius: 8,
-                    background: C.card,
-                    border: `1px solid ${C.border}`,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontFamily: C.mono,
-                    fontSize: 20,
-                    fontWeight: 700,
-                    color: C.fg,
-                  }}
+          {/* 右：方式二 一键复制连接令牌 */}
+          <div style={{ flex: '1 1 240px', minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13.5, fontWeight: 600, color: C.fg }}>方式二：复制连接令牌</span>
+                <span style={{
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: copied === 'invite' ? C.ok : secondsLeft > 60 ? C.fgFaint : C.bad,
+                }}
                 >
-                  {ch}
+                  {copied === 'invite' ? '已复制到剪贴板' : `有效期 ${countdown(secondsLeft)}`}
                 </span>
-              ))}
-            </button>
+              </div>
 
-            {primaryAddress.length > 0
-              ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ fontSize: 11.5, color: C.fgFaint }}>当前配对入口（点击复制）</div>
+              <div style={{ fontSize: 12.5, color: C.fgDim, lineHeight: 1.55 }}>
+                不方便扫码时（例如人不在电脑旁），复制下方连接令牌发给手机，在手机 App 里粘贴即可自动连上。
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                {hasLanReady ? <Chip text="局域网通道已就绪" tone="ok" /> : null}
+                {hasWanReady ? <Chip text="外网通道已就绪" tone="accent" /> : null}
+                {!hasLanReady && !hasWanReady ? <Chip text="未启用可用通道" tone="bad" /> : null}
+              </div>
+
+              {connectToken.length > 0
+                ? (
                   <button
                     type="button"
-                    onClick={() => { void copy(primaryAddress, 'addr') }}
+                    onClick={() => { void copy(connectToken, 'invite') }}
+                    title="点击复制完整连接令牌"
                     style={{
                       border: `1px solid ${C.border}`,
                       background: C.cardSoft,
-                      color: C.fg,
-                      borderRadius: 9,
-                      padding: '6px 10px',
+                      color: C.fgDim,
+                      borderRadius: 10,
+                      padding: '9px 12px',
                       fontSize: 12,
                       fontFamily: C.mono,
                       textAlign: 'left',
                       cursor: 'pointer',
-                      overflowWrap: 'anywhere',
-                      wordBreak: 'break-word',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      width: '100%',
+                      boxSizing: 'border-box',
                     }}
                   >
-                    {copied === 'addr' ? '已复制：' : ''}{primaryAddress}
+                    {connectToken}
                   </button>
-                </div>
-              )
-              : null}
+                )
+                : null}
 
-            {((state?.remotePayload && state.remotePayload.length > 0) || (state?.payload && state.payload.length > 0))
-              ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <Btn
-                    text={copied === 'invite' ? '已复制连接令牌' : '复制连接令牌'}
-                    onClick={() => {
-                      const link = (state?.remotePayload && state.remotePayload.length > 0)
-                        ? state.remotePayload
-                        : (state?.payload ?? '')
-                      if (link.length > 0) void copy(link, 'invite')
-                    }}
-                  />
-                  <span style={{ fontSize: 11.5, color: C.fgFaint }}>
-                    一次性有效且不含长期密钥 · 手机粘贴即可自动连接（局域网/外网通用）
-                  </span>
-                </div>
-              )
-              : null}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <Btn
+                  text={copied === 'invite' ? '已复制连接令牌' : '复制连接令牌'}
+                  primary
+                  disabled={connectToken.length === 0}
+                  onClick={() => {
+                    if (connectToken.length > 0) void copy(connectToken, 'invite')
+                  }}
+                />
+                <span style={{ fontSize: 11.5, color: C.fgFaint }}>
+                  不含长期密钥 · 单次有效
+                </span>
+              </div>
+            </div>
 
-            <div style={{ fontSize: 11.5, color: C.fgFaint, lineHeight: 1.45 }}>
-              配对成功或连续输错 8 次将自动更换新码；多台手机可分别扫码各自持独立密钥对。
+            <div style={{ fontSize: 11.5, color: C.fgFaint, lineHeight: 1.5 }}>
+              配对成功后会自动刷新令牌，保障连接安全；多台手机可分别扫码或复制令牌独立连接。
             </div>
           </div>
         </div>
       </Card>
 
-      {/* 分组 1：网络与可达性 */}
+      {/* 分组 1：连接通道设置 */}
       <Card>
-        <SectionHead title="网络与接入策略" subtitle="控制同 Wi-Fi 直连与公网隧道回连入口" />
+        <SectionHead
+          title="连接通道设置"
+          subtitle="二维码和连接令牌会自动附带以下已开启的通道，手机端无需区分局域网或外网"
+        />
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '6px 0', minWidth: 0 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 500, color: C.fg }}>局域网直连</div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: C.fg }}>同 Wi-Fi 局域网直连</div>
             <div style={{ fontSize: 12, color: C.fgFaint, overflowWrap: 'anywhere' }}>
-              同一 Wi-Fi 下手机低延迟直连本机，自动附带全部本机局域网候选地址
+              手机和电脑连在同一 Wi-Fi 时自动走局域网高速直连（需系统防火墙放行 {state ? String(state.port) : '8901'} 端口）
             </div>
           </div>
           <Toggle
@@ -915,9 +890,9 @@ export function MobileSection(): ReactNode {
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '6px 0', minWidth: 0 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 500, color: C.fg }}>公网访问</div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: C.fg }}>外网访问通道</div>
             <div style={{ fontSize: 12, color: C.fgFaint, overflowWrap: 'anywhere' }}>
-              外出切换蜂窝网络时经你的反向代理或隧道地址访问（建议 HTTPS + 端到端加密）
+              外出用 4G/5G 流量或异地使用时，通过下方公网隧道地址自动连回电脑（建议使用 HTTPS）
             </div>
           </div>
           <Toggle
@@ -929,7 +904,8 @@ export function MobileSection(): ReactNode {
 
         {state !== null && state.allowLan && state.lan.length > 0
           ? (
-            <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 11.5, color: C.fgFaint, marginRight: 2 }}>本机局域网地址：</span>
               {state.lan.slice(0, 4).map((addr) => (
                 <button
                   key={addr}
@@ -957,7 +933,7 @@ export function MobileSection(): ReactNode {
           ? (
             <div style={{ marginTop: 10, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-                <span style={{ fontSize: 12, color: C.fgFaint }}>公网隧道地址（需含 https:// 或 http://）</span>
+                <span style={{ fontSize: 12, color: C.fgFaint }}>外网访问地址（例如 Cloudflare 隧道域名，需含 https://）</span>
                 {urlDirty ? <span style={{ fontSize: 11, color: C.accent }}>有未保存修改</span> : null}
               </div>
               <div style={{ display: 'flex', gap: 8, minWidth: 0 }}>
@@ -999,12 +975,12 @@ export function MobileSection(): ReactNode {
           : null}
       </Card>
 
-      {/* 分组 2：已配对设备与端到端加密 */}
+      {/* 分组 2：已连接的手机 */}
       <Card>
         <SectionHead
-          title="已配对设备与密钥指纹"
-          subtitle="基于 Noise_IK_25519_ChaChaPoly_SHA256 验证对端身份"
-          right={<Chip text={state?.e2ee ? 'E2EE 已就绪' : '标准鉴权'} tone={state?.e2ee ? 'ok' : 'idle'} />}
+          title="已连接的手机"
+          subtitle="所有对话与文件传输均默认启用端到端加密，可随时撤销不再使用的设备"
+          right={<Chip text={state?.e2ee ? '端到端加密已开启' : '标准鉴权'} tone={state?.e2ee ? 'ok' : 'idle'} />}
         />
 
         {state?.e2eePub
@@ -1080,14 +1056,14 @@ export function MobileSection(): ReactNode {
           )
           : (
             <div style={{ fontSize: 12, color: C.fgFaint, lineHeight: 1.5 }}>
-              暂无已配对手机。完成首次扫码与加密握手后，设备名称与公钥指纹会自动登记于此。
+              还没有已连接的手机。用上方二维码或「复制连接令牌」完成首次配对后，设备会自动登记在这里。
             </div>
           )}
       </Card>
 
-      {/* 分组 3：协作与安全权限 */}
+      {/* 分组 3：协作与权限管理 */}
       <Card>
-        <SectionHead title="协作与远程控制边界" subtitle="统一调度提问答题归属、远程终端和本地预览代理" />
+        <SectionHead title="协作与权限管理" subtitle="设置提问由哪一端回答，以及手机可使用的电脑权限" />
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '6px 0', flexWrap: 'wrap' }}>
           <div style={{ minWidth: 0, flex: '1 1 200px' }}>
