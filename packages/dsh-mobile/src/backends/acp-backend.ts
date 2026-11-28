@@ -90,7 +90,7 @@ export abstract class AcpSessionBackend implements AgentBackend {
     return []
   }
 
-  private normalizeSessionCwd(raw: string): string {
+  protected normalizeSessionCwd(raw: string): string {
     let trimmed = raw.trim()
     if (!trimmed) return homedir()
     if (trimmed.includes('%')) {
@@ -463,15 +463,15 @@ export abstract class AcpSessionBackend implements AgentBackend {
             ? item.directory
             : homedir()
       const cwd = this.normalizeSessionCwd(cwdRaw)
-      const updatedRaw = item.updatedAt ?? item.updated ?? item.created ?? Date.now()
-      const updatedAt =
+      const updatedRaw = item.updatedAt ?? item.updated ?? item.created
+      const parsedUpdatedAt =
         typeof updatedRaw === 'number'
           ? updatedRaw
           : typeof updatedRaw === 'string'
-            ? Date.parse(updatedRaw) || Date.now()
-            : Date.now()
+            ? Date.parse(updatedRaw) || 0
+            : 0
       const cache = this.getOrCreateCache(rawId, cwd, title)
-      if (updatedAt > cache.updatedAt) cache.updatedAt = updatedAt
+      if (parsedUpdatedAt > 0) cache.updatedAt = parsedUpdatedAt
       rows.push({
         id: formatSessionId(this.id, rawId),
         rawId,

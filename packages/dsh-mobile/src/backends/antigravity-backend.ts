@@ -8,13 +8,18 @@ import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { AcpSessionBackend, type AcpCliSpec } from './acp-backend.ts'
-import { probeAntigravityDiskActivity, readAntigravityTranscript } from './antigravity-transcript.ts'
+import {
+  probeAntigravityDiskActivity,
+  readAntigravitySessionIndex,
+  readAntigravityTranscript,
+} from './antigravity-transcript.ts'
 import { killProcessTree, resolveCliCommand, spawnCli } from './process-util.ts'
-import type {
-  BackendCapabilities,
-  BackendMessagesResult,
-  BackendModelOption,
-  BackendSessionRow,
+import {
+  formatSessionId,
+  type BackendCapabilities,
+  type BackendMessagesResult,
+  type BackendModelOption,
+  type BackendSessionRow,
 } from './types.ts'
 
 export const ANTIGRAVITY_CAPABILITIES: BackendCapabilities = {
@@ -54,19 +59,94 @@ export class AntigravityBackend extends AcpSessionBackend {
   }
 
   override async listSessions(limit = 40): Promise<BackendSessionRow[]> {
-    const rows = await super.listSessions(limit)
-    for (const row of rows) {
+    // 先取足量原始列表，避免桌面端大量已归档历史会话把当前活跃会话挤出 limit 截断
+    const rawRows = await super.listSessions(Math.max(limit * 5, 200))
+    const index = readAntigravitySessionIndex()
+    const home = homedir()
+    const byId = new Map<string, BackendSessionRow>()
+
+    for (const row of rawRows) {
+      const meta = index.get(row.rawId)
+      const inMemRunning = super.isRunning(row.rawId)
+      if (meta?.hidden && !inMemRunning) {
+        continue
+      }
+      byId.set(row.rawId, row)
+    }
+
+    // 补充桌面端 conversation_summaries.db 中活跃但 ACP 列表暂未返回的会话
+    for (const meta of index.values()) {
+      if (meta.hidden || byId.has(meta.rawId)) continue
+      const cwd = meta.workspaceUri ? this.normalizeSessionCwd(meta.workspaceUri) : home
+      const title = meta.title || this.defaultSessionTitle(false)
+      const cache = this.getOrCreateCache(meta.rawId, cwd, title)
+      if (meta.updatedAt > 0) cache.updatedAt = meta.updatedAt
+      byId.set(meta.rawId, {
+        id: formatSessionId(this.id, meta.rawId),
+        rawId: meta.rawId,
+        backend: this.id,
+        title: meta.title || cache.title,
+        cwd: cache.cwd,
+        updatedAt: meta.updatedAt > 0 ? meta.updatedAt : cache.updatedAt,
+        running: cache.running,
+        asking: cache.pendingAsk !== null,
+        model: cache.model ? { provider: this.id, model: cache.model, reasoningEffort: '' } : null,
+      })
+    }
+
+    const activeRows: BackendSessionRow[] = []
+    for (const row of byId.values()) {
+      const meta = index.get(row.rawId)
       const disk = probeAntigravityDiskActivity(row.rawId)
-      if (!disk.exists) continue
-      if (disk.updatedAt > row.updatedAt) row.updatedAt = disk.updatedAt
+
+      if (meta?.title) row.title = meta.title
+      if (meta?.workspaceUri && (!row.cwd || row.cwd === home)) {
+        row.cwd = this.normalizeSessionCwd(meta.workspaceUri)
+      }
+
+      // 优先采信磁盘真实活跃时间，彻底覆盖 ACP session/list 缺省回退生成的网关启动时刻
+      const authoritativeUpdatedAt = Math.max(meta?.updatedAt ?? 0, disk.updatedAt)
+      if (authoritativeUpdatedAt > 0) {
+        row.updatedAt = authoritativeUpdatedAt
+        const cache = this.getOrCreateCache(row.rawId, row.cwd, row.title)
+        cache.updatedAt = authoritativeUpdatedAt
+      }
+
       if (disk.running) row.running = true
-      if (disk.preview && !row.preview) row.preview = disk.preview
       if (disk.model && !row.model) {
         row.model = { provider: this.id, model: disk.model, reasoningEffort: '' }
       }
+      if (disk.preview) {
+        row.preview = disk.preview
+      } else if (meta?.preview && !row.preview) {
+        row.preview = meta.preview
+      }
+
+      activeRows.push(row)
     }
-    rows.sort((a, b) => b.updatedAt - a.updatedAt)
-    return rows.slice(0, limit)
+
+    activeRows.sort((a, b) => b.updatedAt - a.updatedAt)
+    const sliced = activeRows.slice(0, limit)
+
+    // 对前 6 条仍缺摘要的活跃会话补读一次磁盘转录（如正在进行的最新对话），确保列表摘要完整
+    let lazyReads = 0
+    for (const row of sliced) {
+      if (row.preview || lazyReads >= 6) continue
+      const snap = readAntigravityTranscript(row.rawId)
+      lazyReads += 1
+      if (!snap) continue
+      if (snap.preview) row.preview = snap.preview
+      if (snap.running) row.running = true
+      if (snap.model && !row.model) {
+        row.model = { provider: this.id, model: snap.model, reasoningEffort: '' }
+      }
+      if (snap.updatedAt > row.updatedAt) {
+        row.updatedAt = snap.updatedAt
+      }
+    }
+
+    sliced.sort((a, b) => b.updatedAt - a.updatedAt)
+    return sliced
   }
 
   override async getMessages(

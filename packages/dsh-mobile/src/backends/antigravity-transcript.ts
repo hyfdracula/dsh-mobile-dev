@@ -5,7 +5,7 @@
  * - 结合只读 SQLite `conversations/<id>.db`（`steps.status === 2`）及 `-wal` 时间戳实时感知
  *   桌面端「正在思考（step_type=15） / 正在执行工具（step_type=132）」状态，无需等待回合结束。
  */
-import { closeSync, existsSync, openSync, readSync, statSync } from 'node:fs'
+import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
@@ -483,6 +483,209 @@ function lastPreviewText(messages: readonly ChatMessage[]): string {
     if (txt) return txt.slice(0, 120)
   }
   return ''
+}
+
+export interface AntigravitySessionMeta {
+  rawId: string
+  title: string
+  preview: string
+  updatedAt: number
+  workspaceUri: string
+  projectId: string
+  stepCount: number
+  runningHint: boolean
+  archived: boolean
+  hidden: boolean
+  hasAnnotation: boolean
+}
+
+interface SessionIndexCache {
+  sig: string
+  checkedAt: number
+  map: Map<string, AntigravitySessionMeta>
+}
+
+let sessionIndexCache: SessionIndexCache | null = null
+
+function parseAntigravityIsoTime(raw: unknown): number {
+  if (typeof raw !== 'string') return 0
+  const s = raw.trim()
+  if (!s || s.startsWith('0001-')) return 0
+  const norm = s.replace(' ', 'T').replace(/\.(\d{3})\d+/, '.$1')
+  const ms = Date.parse(norm)
+  return Number.isFinite(ms) && ms > 946_684_800_000 ? ms : 0
+}
+
+function parseFirstWorkspaceUri(raw: unknown): string {
+  if (typeof raw !== 'string') return ''
+  const s = raw.trim()
+  if (!s) return ''
+  if (s.startsWith('[')) {
+    try {
+      const arr = JSON.parse(s) as unknown
+      if (Array.isArray(arr)) {
+        for (const item of arr) {
+          if (typeof item === 'string' && item.trim()) return item.trim()
+        }
+      }
+    } catch {
+      // ignore malformed workspace_uris
+    }
+  }
+  return s
+}
+
+function decodePbtxtString(raw: string): string {
+  try {
+    return JSON.parse(`"${raw}"`) as string
+  } catch {
+    return raw
+  }
+}
+
+/**
+ * 读取 Antigravity 桌面端真实的会话元数据索引：
+ * - 结合 `annotations/<id>.pbtxt`（`archived:true` 与用户自定义标题）和
+ *   `conversation_summaries.db`（真实 `last_modified_time`、`nesting_depth`、`killed`、`preview`、`workspace_uris`）；
+ * - 用于准确过滤已在桌面端归档/隐藏的旧会话与子 Agent，并还原每条会话的真实活跃时间。
+ */
+export function readAntigravitySessionIndex(): Map<string, AntigravitySessionMeta> {
+  const root = baseAntigravityDir()
+  const sumDbPath = join(root, 'conversation_summaries.db')
+  const sumWalPath = `${sumDbPath}-wal`
+  const annDir = join(root, 'annotations')
+
+  const statTag = (p: string): string => {
+    try {
+      const st = statSync(p)
+      return `${String(st.mtimeMs)}:${String(st.size)}`
+    } catch {
+      return '0'
+    }
+  }
+
+  const now = Date.now()
+  const sig = `${statTag(sumDbPath)}|${statTag(sumWalPath)}|${statTag(annDir)}`
+  if (sessionIndexCache && sessionIndexCache.sig === sig && now - sessionIndexCache.checkedAt < 1500) {
+    return sessionIndexCache.map
+  }
+
+  const map = new Map<string, AntigravitySessionMeta>()
+
+  // 1. 扫描 annotations/*.pbtxt 获取精确的归档标记与桌面端自定义标题
+  const annMap = new Map<string, { archived: boolean; title: string }>()
+  try {
+    if (existsSync(annDir)) {
+      for (const name of readdirSync(annDir)) {
+        if (!name.endsWith('.pbtxt')) continue
+        const rawId = name.slice(0, -'.pbtxt'.length)
+        if (!rawId) continue
+        try {
+          const txt = readFileSync(join(annDir, name), 'utf8')
+          const archived = /\barchived:\s*true\b/.test(txt)
+          const tm = /\btitle:\s*"((?:[^"\\]|\\.)*)"/.exec(txt)
+          const title = tm ? decodePbtxtString(tm[1] ?? '').trim() : ''
+          annMap.set(rawId, { archived, title })
+        } catch {
+          // ignore unreadable annotation
+        }
+      }
+    }
+  } catch {
+    // ignore missing annotations dir
+  }
+
+  // 2. 通过内置 node:sqlite 只读查询 conversation_summaries.db
+  const SqliteDb = getSqliteCtor()
+  if (SqliteDb && existsSync(sumDbPath)) {
+    let db: SqliteDbLike | null = null
+    try {
+      db = new SqliteDb(sumDbPath, { readOnly: true })
+      const ftsArchived = new Set<string>()
+      try {
+        const ftsRows = db
+          .prepare('SELECT conversation_id, MAX(archived) AS arch FROM conversations_fts GROUP BY conversation_id')
+          .all()
+        for (const r of ftsRows) {
+          const cid = typeof r.conversation_id === 'string' ? r.conversation_id : ''
+          if (cid && Number(r.arch ?? 0) === 1) ftsArchived.add(cid)
+        }
+      } catch {
+        // conversations_fts 可选
+      }
+
+      const rows = db
+        .prepare(
+          'SELECT conversation_id, title, preview, last_modified_time, status, project_id, nesting_depth, parent_conversation_id, not_fully_idle, killed, step_count, workspace_uris FROM conversation_summaries',
+        )
+        .all()
+      for (const r of rows) {
+        const rawId = typeof r.conversation_id === 'string' ? r.conversation_id.trim() : ''
+        if (!rawId) continue
+        const ann = annMap.get(rawId)
+        const hasAnnotation = ann !== undefined
+        const sumTitle = typeof r.title === 'string' ? r.title.trim() : ''
+        const title = ann?.title || sumTitle
+        const preview = typeof r.preview === 'string' ? r.preview.replace(/\s+/g, ' ').trim().slice(0, 120) : ''
+        const updatedAt = parseAntigravityIsoTime(r.last_modified_time)
+        const workspaceUri = parseFirstWorkspaceUri(r.workspace_uris)
+        const projectId = typeof r.project_id === 'string' ? r.project_id.trim() : ''
+        const nestingDepth = Number(r.nesting_depth ?? 0)
+        const parentId = typeof r.parent_conversation_id === 'string' ? r.parent_conversation_id.trim() : ''
+        const killed = Number(r.killed ?? 0) !== 0
+        const stepCount = Number(r.step_count ?? 0)
+        const statusStr = typeof r.status === 'string' ? r.status : ''
+        const runningHint = statusStr === 'CASCADE_RUN_STATUS_RUNNING' || Number(r.not_fully_idle ?? 0) !== 0
+        const archived = ann?.archived === true || ftsArchived.has(rawId)
+        const isSubagent = nestingDepth > 0 || parentId !== ''
+        const isOrphanStub = (stepCount <= 0 && !title) || (!title && !projectId && !hasAnnotation)
+        const hidden = archived || isSubagent || killed || isOrphanStub
+
+        map.set(rawId, {
+          rawId,
+          title,
+          preview,
+          updatedAt,
+          workspaceUri,
+          projectId,
+          stepCount,
+          runningHint,
+          archived,
+          hidden,
+          hasAnnotation,
+        })
+      }
+    } catch {
+      // SQLite 只读失败时退回 annotations-only 兜底
+    } finally {
+      try {
+        db?.close()
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  // 3. 补齐仅存在于 annotations/*.pbtxt 的条目（例如 SQLite 不可用时的兜底）
+  for (const [rawId, ann] of annMap.entries()) {
+    if (map.has(rawId)) continue
+    map.set(rawId, {
+      rawId,
+      title: ann.title,
+      preview: '',
+      updatedAt: 0,
+      workspaceUri: '',
+      projectId: '',
+      stepCount: 0,
+      runningHint: false,
+      archived: ann.archived,
+      hidden: ann.archived,
+      hasAnnotation: true,
+    })
+  }
+
+  sessionIndexCache = { sig, checkedAt: now, map }
+  return map
 }
 
 /** 轻量探测某个 Antigravity 会话是否正在桌面端运行（用于会话列表绿点与排序）。 */
