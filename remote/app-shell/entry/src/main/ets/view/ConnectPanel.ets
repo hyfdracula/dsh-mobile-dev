@@ -1,7 +1,6 @@
-import { Api, PairInviteResp, RemotePairPendingItem } from '../common/Api';
+import { Api } from '../common/Api';
 import { AppCtx } from '../common/AppCtx';
 import { CardIcon } from '../common/CardIcon';
-import { copyText } from '../common/Clipboard';
 import { Haptics } from '../common/Haptics';
 import { Machines } from '../common/Machines';
 import { Mat } from '../common/Mat';
@@ -72,17 +71,8 @@ export struct ConnectPanel {
   @State private renameId: string = '';
   @State private renameName: string = '';
   @State private renameErr: string = '';
-  @State private pairReqs: RemotePairPendingItem[] = [];
-  @State private pairReqBusyId: string = '';
-  @State private inviteBusy: boolean = false;
-  @State private inviteCode: string = '';
-  @State private invitePayload: string = '';
-  @State private inviteHasPublic: boolean = false;
-  @State private inviteExpiresAt: number = 0;
   @State private entered: boolean = true;
   private enterTimer: number = -1;
-  private pairReqTimer: number = -1;
-  private pairReqPollInFlight: boolean = false;
   private wave: BloomWaveTracker = new BloomWaveTracker();
 
   aboutToAppear(): void {
@@ -95,84 +85,12 @@ export struct ConnectPanel {
     } else {
       this.entered = true;
     }
-    void this.refreshPairRequests();
-    this.pairReqTimer = setInterval(() => {
-      void this.refreshPairRequests();
-    }, 3000);
   }
 
   aboutToDisappear(): void {
     if (this.enterTimer >= 0) {
       clearTimeout(this.enterTimer);
       this.enterTimer = -1;
-    }
-    if (this.pairReqTimer >= 0) {
-      clearInterval(this.pairReqTimer);
-      this.pairReqTimer = -1;
-    }
-  }
-
-  private async refreshPairRequests(): Promise<void> {
-    if (!this.connected || this.pairReqPollInFlight) {
-      return;
-    }
-    this.pairReqPollInFlight = true;
-    try {
-      this.pairReqs = await this.api.listPairRequests();
-    } catch (e) {
-    } finally {
-      this.pairReqPollInFlight = false;
-    }
-  }
-
-  private async handleDecidePairRequest(id: string, approve: boolean): Promise<void> {
-    if (this.pairReqBusyId !== '') {
-      return;
-    }
-    this.pairReqBusyId = id;
-    try {
-      this.pairReqs = await this.api.decidePairRequest(id, approve);
-      if (approve) {
-        Haptics.success();
-        Toast.ok('已批准新设备配对');
-      } else {
-        Haptics.soft();
-        Toast.info('已拒绝该配对申请');
-      }
-    } catch (e) {
-      Haptics.error();
-      Toast.err('审批失败：' + ((e as Error).message ?? '请稍后重试'));
-    } finally {
-      this.pairReqBusyId = '';
-    }
-  }
-
-  private async handleCreatePairInvite(): Promise<void> {
-    if (this.inviteBusy) {
-      return;
-    }
-    if (!this.connected) {
-      Toast.info('请先连接到电脑后再生成配对口令');
-      return;
-    }
-    this.inviteBusy = true;
-    try {
-      const res: PairInviteResp = await this.api.createPairInvite();
-      const payload: string = res.payload !== undefined ? res.payload : '';
-      if (res.ok !== true || payload === '') {
-        throw new Error(res.error !== undefined && res.error !== '' ? res.error : '电脑未开启新设备配对');
-      }
-      this.inviteCode = res.code !== undefined ? res.code : '';
-      this.invitePayload = payload;
-      this.inviteHasPublic = res.publicUrl !== undefined && res.publicUrl.trim() !== '';
-      this.inviteExpiresAt = res.expiresAt !== undefined ? res.expiresAt : 0;
-      Haptics.success();
-      await copyText(payload, '已复制连接令牌');
-    } catch (e) {
-      Haptics.error();
-      Toast.err('生成失败：' + ((e as Error).message ?? '请确认电脑网关已升级并开启配对'));
-    } finally {
-      this.inviteBusy = false;
     }
   }
 
@@ -634,218 +552,6 @@ export struct ConnectPanel {
     })
   }
 
-  @Builder
-  remotePairSection() {
-    this.sectionTitle('邀请新设备连接', 16, 'hdr:remotePair', 256)
-    Column({ space: 9 }) {
-      if (this.pairReqs.length > 0) {
-        Column({ space: 10 }) {
-          Row({ space: 8 }) {
-            Row()
-              .width(7)
-              .height(7)
-              .borderRadius(Tokens.rPill)
-              .backgroundColor(Tokens.accent)
-            Text('待审批的远程配对申请')
-              .fontSize(Tokens.fsBody)
-              .fontWeight(FontWeight.Medium)
-              .fontColor(Tokens.fg)
-              .layoutWeight(1)
-            Text(String(this.pairReqs.length) + ' 条')
-              .fontSize(Tokens.fsCaption)
-              .fontColor(Tokens.accent)
-              .backgroundColor(Tokens.accentSoft)
-              .borderRadius(Tokens.rPill)
-              .padding({ left: 8, right: 8, top: 2, bottom: 2 })
-          }
-          .width('100%')
-          .alignItems(VerticalAlign.Center)
-
-          ForEach(this.pairReqs, (req: RemotePairPendingItem) => {
-            Column({ space: 8 }) {
-              Row({ space: 8 }) {
-                Text(req.deviceName !== '' ? req.deviceName : '新设备')
-                  .fontSize(Tokens.fsBody)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor(Tokens.fg)
-                  .layoutWeight(1)
-                  .maxLines(1)
-                  .textOverflow({ overflow: TextOverflow.Ellipsis })
-                Text(req.source === 'lan' ? '局域网' : '公网远程')
-                  .fontSize(Tokens.fsCaption)
-                  .fontColor(req.source === 'lan' ? Tokens.doneInk : Tokens.accent)
-                  .backgroundColor(req.source === 'lan' ? Tokens.doneBg : Tokens.accentSoft)
-                  .borderRadius(Tokens.rPill)
-                  .padding({ left: 8, right: 8, top: 2, bottom: 2 })
-              }
-              .width('100%')
-
-              Row({ space: 10 }) {
-                Text('验证码')
-                  .fontSize(Tokens.fsCaption)
-                  .fontColor(Tokens.dim2)
-                Text(req.verifyCode)
-                  .fontSize(20)
-                  .fontWeight(FontWeight.Bold)
-                  .fontFamily('monospace')
-                  .fontColor(Tokens.accent)
-                Blank()
-                if (req.expiresAt > 0) {
-                  Text('约 ' + String(Math.max(1, Math.ceil((req.expiresAt - Date.now()) / 1000))) + 's 有效')
-                    .fontSize(Tokens.fsCaption)
-                    .fontFamily('monospace')
-                    .fontColor(Tokens.dim2)
-                }
-              }
-              .width('100%')
-              .alignItems(VerticalAlign.Center)
-
-              Row({ space: 8 }) {
-                Text('拒绝')
-                  .fontSize(Tokens.fsFoot)
-                  .fontColor(Tokens.fg)
-                  .textAlign(TextAlign.Center)
-                  .layoutWeight(1)
-                  .height(36)
-                  .backgroundColor(Tokens.surface)
-                  .borderRadius(Tokens.rSm)
-                  .border({ width: 1, color: Tokens.lineSoft })
-                  .opacity(this.pairReqBusyId === req.id ? 0.5 : 1)
-                  .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.96 })
-                  .onClick(() => {
-                    void this.handleDecidePairRequest(req.id, false);
-                  })
-
-                Text(this.pairReqBusyId === req.id ? '处理中…' : '批准配对')
-                  .fontSize(Tokens.fsFoot)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor(Tokens.accentInk)
-                  .textAlign(TextAlign.Center)
-                  .layoutWeight(1.4)
-                  .height(36)
-                  .backgroundColor(Tokens.accent)
-                  .borderRadius(Tokens.rSm)
-                  .opacity(this.pairReqBusyId === req.id ? 0.5 : 1)
-                  .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.96 })
-                  .onClick(() => {
-                    void this.handleDecidePairRequest(req.id, true);
-                  })
-              }
-              .width('100%')
-            }
-            .width('100%')
-            .padding(12)
-            .backgroundColor(Tokens.surface2)
-            .borderRadius(Tokens.rSm)
-            .alignItems(HorizontalAlign.Start)
-          }, (req: RemotePairPendingItem) => req.id)
-        }
-        .width('100%')
-        .padding(14)
-        .backgroundColor(Mat.cardBg(this.hdsOn))
-        .border({ width: 1, color: Tokens.accentGlass })
-        .shadow(Mat.rowShadow(this.hdsOn))
-        .borderRadius(Tokens.rRow)
-        .alignItems(HorizontalAlign.Start)
-      }
-
-      Column({ space: 10 }) {
-        Row({ space: 12 }) {
-          CardIcon({
-            symbol: $r('sys.symbol.key_shield_fill'),
-            entered: this.entered,
-            distanceVp: this.wave.distanceOf('conn:remotePair', 274)
-          })
-
-          Column({ space: 3 }) {
-            Text('生成一次性连接令牌')
-              .fontSize(Tokens.fsBodyLg)
-              .fontColor(Tokens.fg)
-            Text('5 分钟内有效且不含长期密钥，发给新手机粘贴即可一键连接，局域网与外网通用')
-              .fontSize(Tokens.fsFoot)
-              .fontColor(Tokens.dim2)
-              .lineHeight(17)
-          }
-          .alignItems(HorizontalAlign.Start)
-          .layoutWeight(1)
-
-          Text(this.inviteBusy ? '生成中…' : '生成令牌')
-            .fontSize(Tokens.fsFoot)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(Tokens.accentInk)
-            .backgroundColor(Tokens.accent)
-            .borderRadius(Tokens.rPill)
-            .padding({ left: 13, right: 13, top: 8, bottom: 8 })
-            .opacity(this.inviteBusy || !this.connected ? 0.55 : 1)
-            .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.95 })
-            .onClick(() => {
-              void this.handleCreatePairInvite();
-            })
-        }
-        .width('100%')
-        .alignItems(VerticalAlign.Center)
-
-        if (this.invitePayload !== '') {
-          Row({ space: 8 }) {
-            Column({ space: 2 }) {
-              Text('一次性连接令牌已就绪（' + this.inviteCode + '）')
-                .fontSize(Tokens.fsFoot)
-                .fontWeight(FontWeight.Medium)
-                .fontColor(Tokens.fg)
-              Text(this.inviteHasPublic ? '已自动包含局域网与外网通道 · 单次有效' : '当前包含局域网通道 · 单次有效')
-                .fontSize(Tokens.fsCaption)
-                .fontColor(Tokens.dim2)
-            }
-            .alignItems(HorizontalAlign.Start)
-            .layoutWeight(1)
-
-            Text('再次复制')
-              .fontSize(Tokens.fsCaption)
-              .fontColor(Tokens.accent)
-              .backgroundColor(Tokens.accentSoft)
-              .borderRadius(Tokens.rPill)
-              .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-              .onClick(() => {
-                Haptics.tap();
-                void copyText(this.invitePayload, '已复制连接令牌');
-              })
-          }
-          .width('100%')
-          .padding({ left: 11, right: 11, top: 9, bottom: 9 })
-          .backgroundColor(Tokens.surface2)
-          .borderRadius(Tokens.rSm)
-          .alignItems(VerticalAlign.Center)
-        }
-      }
-      .width('100%')
-      .padding({ left: 16, right: 16, top: 13, bottom: 13 })
-      .backgroundColor(Mat.cardBg(this.hdsOn))
-      .border(Mat.cardBorder(this.hdsOn))
-      .shadow(Mat.rowShadow(this.hdsOn))
-      .borderRadius(Tokens.rRow)
-      .clip(true)
-      .alignItems(HorizontalAlign.Start)
-    }
-    .width('100%')
-    .onAreaChange((_old: Area, area: Area) => {
-      this.wave.record('conn:remotePair', area);
-    })
-    .animation(null)
-    .opacity(this.entered ? 1 : 0)
-    .animation(this.entered
-      ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:remotePair', 274), this.motionMode)
-      : null)
-    .scale({
-      x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
-      y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
-      centerX: '50%',
-      centerY: '50%'
-    })
-    .animation(this.entered
-      ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:remotePair', 274), this.motionMode)
-      : null)
-  }
-
   build() {
     Column() {
       // 0. 当前连接与加密态
@@ -922,11 +628,8 @@ export struct ConnectPanel {
           this.addOn = false;
         }, true, true))
 
-      // 2. 远程配对新设备（异地审批 + 生成一次性口令）
-      this.remotePairSection()
-
-      // 3. 网络与地址（逐条独立卡片；地址与令牌输入框收进二级菜单「连接地址与外网」）
-      this.sectionTitle('网络与连接地址', 16, 'hdr:net', 340)
+      // 2. 网络与地址（逐条独立卡片；地址与令牌输入框收进二级菜单「连接地址与外网」）
+      this.sectionTitle('网络与连接地址', 16, 'hdr:net', 256)
       Column({ space: 9 }) {
         Row() {
           CardIcon({

@@ -601,7 +601,7 @@ export struct PairPage {
             .fontSize(Tokens.fsBodyLg)
             .fontWeight(FontWeight.Bold)
             .fontColor(Tokens.fg)
-          Text('不方便扫码时，粘贴电脑端或已连接手机复制的「连接令牌」，同样支持局域网与外网自动连上')
+          Text('不方便扫码时，粘贴电脑端「Agent Mobile」面板里复制的「连接令牌」，同样支持局域网与外网自动连上')
             .fontSize(Tokens.fsFoot)
             .fontColor(Tokens.dim2)
             .lineHeight(18)

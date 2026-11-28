@@ -95,12 +95,14 @@ export class Motion {
   static readonly BLOOM_SCALE_START: number = 0.04;
   static readonly BLOOM_HEADER_SCALE_START: number = 0.76;
   /** 二级子页卡片默认起播基准延时（ms），与 Navigation 右推入场对齐，保证顶部卡片在视口内完整绽放 */
-  static readonly BLOOM_SUB_BASE_DELAY: number = 92;
-  /** 图标滞后宿主卡片起播时间（ms），在卡片放大到约 60% 时于原位旋转绽放 */
-  static readonly ICON_FLY_LAG_MS: number = 78;
+  static readonly BLOOM_SUB_BASE_DELAY: number = 112;
+  /** 图标显隐/放大滞后宿主卡片起播时间（ms），快速显形后再启动旋正，确保前半段旋转清晰可见 */
+  static readonly ICON_FLY_LAG_MS: number = 64;
+  /** 图标旋转相对显形的额外错拍延时（ms），让图标先以 +180° 显形再完整旋正 */
+  static readonly ICON_FLY_ROTATE_EXTRA_LAG_MS: number = 28;
   static readonly ICON_FLY_ROTATE_START: number = 180;
-  static readonly ICON_FLY_SCALE_START: number = 0.0;
-  static readonly ICON_FLY_ROTATE_DURATION_MS: number = 450;
+  static readonly ICON_FLY_SCALE_START: number = 0.14;
+  static readonly ICON_FLY_ROTATE_DURATION_MS: number = 540;
   /** 空间波纹传播速率：每 vp 纵向中心距对应的起播延时（ms/vp）与最大首屏错峰上限（ms） */
   static readonly BLOOM_MS_PER_VP: number = 0.32;
   static readonly BLOOM_MAX_STAGGER_MS: number = 340;
@@ -129,11 +131,11 @@ export class Motion {
    */
   static readonly unifiedElastic = curves.springMotion(0.44, 0.82);
 
-  /** 卡片内纯蓝图标随卡片长大而原位放大绽放的利落弹簧曲线 */
-  static readonly iconFlyScaleSpring = curves.springMotion(0.36, 0.82);
+  /** 卡片内纯蓝图标随卡片长大而快速原位放大显形的轻快弹簧曲线 */
+  static readonly iconFlyScaleSpring = curves.springMotion(0.24, 0.84);
 
-  /** 卡片内图标 +180° -> 0° 丝滑减速归正曲线（无回弹抖动） */
-  static readonly iconFlyRotateCurve = curves.cubicBezierCurve(0.16, 0.94, 0.28, 1.0);
+  /** 卡片内图标 +180° -> 0° 均衡丝滑旋正曲线（前后段旋转弧度均清晰可见，落定无回弹抖动） */
+  static readonly iconFlyRotateCurve = curves.cubicBezierCurve(0.22, 0.56, 0.32, 1.0);
 
   /**
    * 与 unifiedElastic（response=0.44s, dampingFraction=0.82）严格数学等价的插值弹簧曲线：
@@ -328,21 +330,21 @@ export class Motion {
     return opts;
   }
 
-  /** 按真实距离计算的卡片图标原位显隐动画（滞后卡片绽放 ICON_FLY_LAG_MS） */
+  /** 按真实距离计算的卡片图标原位显隐动画（滞后卡片绽放 ICON_FLY_LAG_MS，快速显形） */
   static iconFlyOpacityAnimByDist(distanceVp: number, mode: string,
     baseDelay: number = Motion.BLOOM_SUB_BASE_DELAY): AnimateParam | undefined {
     if (!Motion.isFlagship(mode) || distanceVp < 0) {
       return undefined;
     }
     const opts: AnimateParam = {
-      duration: 155,
+      duration: 95,
       delay: Motion.bloomDelayByDistance(distanceVp, baseDelay) + Motion.ICON_FLY_LAG_MS,
       curve: Motion.std
     };
     return opts;
   }
 
-  /** 按真实距离计算的卡片图标原位绽放缩放动画（0 -> 1） */
+  /** 按真实距离计算的卡片图标原位绽放缩放动画（0.14 -> 1，先快速显出饱满字形） */
   static iconFlyScaleAnimByDist(distanceVp: number, mode: string,
     baseDelay: number = Motion.BLOOM_SUB_BASE_DELAY): AnimateParam | undefined {
     if (!Motion.isFlagship(mode) || distanceVp < 0) {
@@ -355,7 +357,7 @@ export class Motion {
     return opts;
   }
 
-  /** 按真实距离计算的卡片图标原位 180° 丝滑旋正动画（+180° -> 0°） */
+  /** 按真实距离计算的卡片图标原位 180° 完整旋正动画（+180° -> 0°，略晚于显形起转） */
   static iconFlyRotateAnimByDist(distanceVp: number, mode: string,
     baseDelay: number = Motion.BLOOM_SUB_BASE_DELAY): AnimateParam | undefined {
     if (!Motion.isFlagship(mode) || distanceVp < 0) {
@@ -363,7 +365,7 @@ export class Motion {
     }
     const opts: AnimateParam = {
       duration: Motion.ICON_FLY_ROTATE_DURATION_MS,
-      delay: Motion.bloomDelayByDistance(distanceVp, baseDelay) + Motion.ICON_FLY_LAG_MS,
+      delay: Motion.bloomDelayByDistance(distanceVp, baseDelay) + Motion.ICON_FLY_LAG_MS + Motion.ICON_FLY_ROTATE_EXTRA_LAG_MS,
       curve: Motion.iconFlyRotateCurve
     };
     return opts;
