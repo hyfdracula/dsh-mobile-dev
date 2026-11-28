@@ -93,6 +93,9 @@ export abstract class AcpSessionBackend implements AgentBackend {
   protected normalizeSessionCwd(raw: string): string {
     let trimmed = raw.trim()
     if (!trimmed) return homedir()
+    if (/^file:\/\//i.test(trimmed)) {
+      trimmed = trimmed.replace(/^file:\/\//i, '')
+    }
     if (trimmed.includes('%')) {
       try {
         trimmed = decodeURIComponent(trimmed)

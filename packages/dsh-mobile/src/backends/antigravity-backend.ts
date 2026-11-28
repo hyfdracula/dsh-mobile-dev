@@ -58,6 +58,13 @@ export class AntigravityBackend extends AcpSessionBackend {
     return probeAntigravityDiskActivity(rawId).running
   }
 
+  private isSameDirPath(a: string, b: string): boolean {
+    const norm = (s: string): string => s.trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+    const na = norm(a)
+    const nb = norm(b)
+    return na !== '' && na === nb
+  }
+
   override async listSessions(limit = 40): Promise<BackendSessionRow[]> {
     // 先取足量原始列表，避免桌面端大量已归档历史会话把当前活跃会话挤出 limit 截断
     const rawRows = await super.listSessions(Math.max(limit * 5, 200))
@@ -77,16 +84,16 @@ export class AntigravityBackend extends AcpSessionBackend {
     // 补充桌面端 conversation_summaries.db 中活跃但 ACP 列表暂未返回的会话
     for (const meta of index.values()) {
       if (meta.hidden || byId.has(meta.rawId)) continue
-      const cwd = meta.workspaceUri ? this.normalizeSessionCwd(meta.workspaceUri) : home
+      const displayCwd = meta.workspaceUri ? this.normalizeSessionCwd(meta.workspaceUri) : ''
       const title = meta.title || this.defaultSessionTitle(false)
-      const cache = this.getOrCreateCache(meta.rawId, cwd, title)
+      const cache = this.getOrCreateCache(meta.rawId, displayCwd || home, title)
       if (meta.updatedAt > 0) cache.updatedAt = meta.updatedAt
       byId.set(meta.rawId, {
         id: formatSessionId(this.id, meta.rawId),
         rawId: meta.rawId,
         backend: this.id,
         title: meta.title || cache.title,
-        cwd: cache.cwd,
+        cwd: displayCwd,
         updatedAt: meta.updatedAt > 0 ? meta.updatedAt : cache.updatedAt,
         running: cache.running,
         asking: cache.pendingAsk !== null,
@@ -100,15 +107,18 @@ export class AntigravityBackend extends AcpSessionBackend {
       const disk = probeAntigravityDiskActivity(row.rawId)
 
       if (meta?.title) row.title = meta.title
-      if (meta?.workspaceUri && (!row.cwd || row.cwd === home)) {
+      if (meta?.workspaceUri) {
         row.cwd = this.normalizeSessionCwd(meta.workspaceUri)
+      } else if (this.isSameDirPath(row.cwd, home)) {
+        // 未分配 Project 的会话不展示系统用户主目录名
+        row.cwd = ''
       }
 
       // 优先采信磁盘真实活跃时间，彻底覆盖 ACP session/list 缺省回退生成的网关启动时刻
       const authoritativeUpdatedAt = Math.max(meta?.updatedAt ?? 0, disk.updatedAt)
       if (authoritativeUpdatedAt > 0) {
         row.updatedAt = authoritativeUpdatedAt
-        const cache = this.getOrCreateCache(row.rawId, row.cwd, row.title)
+        const cache = this.getOrCreateCache(row.rawId, row.cwd || home, row.title)
         cache.updatedAt = authoritativeUpdatedAt
       }
 
@@ -128,10 +138,15 @@ export class AntigravityBackend extends AcpSessionBackend {
     activeRows.sort((a, b) => b.updatedAt - a.updatedAt)
     const sliced = activeRows.slice(0, limit)
 
-    // 对前 6 条仍缺摘要的活跃会话补读一次磁盘转录（如正在进行的最新对话），确保列表摘要完整
+    // 对前 8 条活跃会话读取增量磁盘转录，确保列表摘要始终展示最新一条消息而非首句
     let lazyReads = 0
     for (const row of sliced) {
-      if (row.preview || lazyReads >= 6) continue
+      if (lazyReads >= 8) break
+      const disk = probeAntigravityDiskActivity(row.rawId)
+      if (disk.preview) {
+        row.preview = disk.preview
+        continue
+      }
       const snap = readAntigravityTranscript(row.rawId)
       lazyReads += 1
       if (!snap) continue

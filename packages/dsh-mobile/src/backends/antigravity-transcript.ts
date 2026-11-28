@@ -156,13 +156,13 @@ function extractUserText(rawContent: string, mediaCount: number): string {
   return body
 }
 
-function parseIsoTime(raw: unknown): number {
-  if (typeof raw === 'number' && Number.isFinite(raw)) return raw
+function parseIsoTimeOptional(raw: unknown): number {
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 946_684_800_000) return raw
   if (typeof raw === 'string' && raw.trim() !== '') {
     const t = Date.parse(raw)
-    if (Number.isFinite(t)) return t
+    if (Number.isFinite(t) && t > 946_684_800_000) return t
   }
-  return Date.now()
+  return 0
 }
 
 function appendThinking(prev: string | undefined, chunk: string): string {
@@ -213,8 +213,9 @@ function ingestTranscriptLine(state: ParsedSessionState, rawLine: string): void 
   const type = typeof obj.type === 'string' ? obj.type : ''
   const source = typeof obj.source === 'string' ? obj.source : ''
   const status = typeof obj.status === 'string' ? obj.status : ''
-  const ts = parseIsoTime(obj.created_at)
-  if (ts > state.lastEventTime) state.lastEventTime = ts
+  const parsedTs = parseIsoTimeOptional(obj.created_at)
+  if (parsedTs > state.lastEventTime) state.lastEventTime = parsedTs
+  const ts = parsedTs > 0 ? parsedTs : (state.lastEventTime || state.fileMtimeMs || Date.now())
 
   if (type === 'CHECKPOINT' || type === 'SYSTEM_MESSAGE' || source === 'SYSTEM') {
     // 跳过系统注入与上下文压缩检查点，避免污染用户可见对话

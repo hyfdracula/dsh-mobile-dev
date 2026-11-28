@@ -105,7 +105,7 @@ export function wsLeafName(cwd: string): string {
   const norm: string = cwd.replace(/\\/g, '/');
   const parts: string[] = norm.split('/').filter((s: string) => s.length > 0);
   if (parts.length === 0) {
-    return norm.startsWith('/') ? '/' : '默认';
+    return norm.startsWith('/') ? '/' : '未分组';
   }
   const last: string = parts[parts.length - 1];
   return last !== '' ? last : '默认';
@@ -165,6 +165,9 @@ export function buildWsOptions(rows: SessionRow[], wsFilter: string): WsBuildRes
   for (let i = 0; i < rows.length; i++) {
     const cwd: string = tidyCwd(rows[i].cwd);
     const k: string = normCwdKey(cwd);
+    if (k === '') {
+      continue;
+    }
     countMap.set(k, (countMap.get(k) ?? 0) + 1);
     if (!rawMap.has(k)) {
       rawMap.set(k, cwd);
