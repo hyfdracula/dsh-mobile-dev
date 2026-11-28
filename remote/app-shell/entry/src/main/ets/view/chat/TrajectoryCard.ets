@@ -12,6 +12,7 @@ import { Tokens } from '../../common/Tokens';
 export struct TrajectoryCard {
   @Prop thinking: string = '';
   @Prop tools: ToolStep[] = [];
+  @Prop isStreaming: boolean = false;
   @StorageLink('textScale') textScale: number = 1;
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
@@ -23,13 +24,21 @@ export struct TrajectoryCard {
     return this.thinking.trim() !== '';
   }
 
-  private hasRunningTool(): boolean {
-    for (let i = 0; i < this.tools.length; i++) {
+  private runningTool(): ToolStep | null {
+    for (let i = this.tools.length - 1; i >= 0; i--) {
       if (this.tools[i].status === 'run') {
-        return true;
+        return this.tools[i];
       }
     }
-    return false;
+    return null;
+  }
+
+  private hasRunningTool(): boolean {
+    return this.runningTool() !== null;
+  }
+
+  private isLiveActive(): boolean {
+    return this.isStreaming || this.hasRunningTool();
   }
 
   private hasErrTool(): boolean {
@@ -41,17 +50,48 @@ export struct TrajectoryCard {
     return false;
   }
 
+  private livePreviewLine(): string {
+    const rt: ToolStep | null = this.runningTool();
+    if (rt !== null) {
+      const s: string = rt.summary.trim();
+      if (s !== '' && s !== rt.name) {
+        return s;
+      }
+      return '';
+    }
+    if (this.isStreaming && this.hasThinking()) {
+      const lines: string[] = this.thinking.trim().split('\n');
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const line: string = lines[i].trim();
+        if (line !== '') {
+          return line;
+        }
+      }
+    }
+    return '';
+  }
+
   private headerLabel(): string {
     const think: boolean = this.hasThinking();
     const count: number = this.tools.length;
-    const runningSuffix: string = this.hasRunningTool() ? ' · 执行中' : '';
+    const rt: ToolStep | null = this.runningTool();
+    if (rt !== null) {
+      const name: string = rt.name !== '' ? rt.name : '工具';
+      return '正在执行 ' + name + (count > 1 ? (' · 共 ' + String(count) + ' 步') : '');
+    }
+    if (this.isStreaming) {
+      if (count > 0) {
+        return '正在思考 · 已完成 ' + String(count) + ' 个工具步骤';
+      }
+      return '正在思考…';
+    }
     if (think && count > 0) {
-      return '思考过程 · ' + String(count) + ' 个工具步骤' + runningSuffix;
+      return '思考过程 · ' + String(count) + ' 个工具步骤';
     }
     if (think) {
-      return '思考过程' + runningSuffix;
+      return '思考过程';
     }
-    return String(count) + ' 个工具步骤' + runningSuffix;
+    return String(count) + ' 个工具步骤';
   }
 
   private headerDotColor(): string {
@@ -81,7 +121,7 @@ export struct TrajectoryCard {
     Column() {
       // 顶栏胶囊行
       Row() {
-        if (this.hasRunningTool()) {
+        if (this.isLiveActive()) {
           LoadingProgress()
             .width(14)
             .height(14)
@@ -95,13 +135,25 @@ export struct TrajectoryCard {
             .margin({ right: 8 })
         }
 
-        Text(this.headerLabel())
-          .fontSize(Tokens.fsFoot)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(Tokens.dim)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .layoutWeight(1)
+        Column({ space: 2 }) {
+          Text(this.headerLabel())
+            .fontSize(Tokens.fsFoot)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.isLiveActive() ? Tokens.accent : Tokens.dim)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .width('100%')
+          if (!this.expanded && this.isLiveActive() && this.livePreviewLine() !== '') {
+            Text(this.livePreviewLine())
+              .fontSize(11.5 * this.textScale)
+              .fontColor(Tokens.dim2)
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .width('100%')
+          }
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
 
         if (Motion.isVivid(this.motionMode)) {
           SymbolGlyph(this.expanded ? $r('sys.symbol.chevron_down') : $r('sys.symbol.chevron_right'))

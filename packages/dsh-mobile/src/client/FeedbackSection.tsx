@@ -1,8 +1,10 @@
 /**
  * DSH 设置对话框中的「用户反馈」管理面板（仅本机持有管理员密钥时注册显示）。
+ * 简洁优雅的分层设计：顶部筛选与统计一目了然，列表采用轻分割线排布，
+ * 展开后分区呈现工单正文、环境信息、历史回复、状态切换与快捷回复。
  * @module @deepseek-ai/dsh-mobile/client/FeedbackSection
  */
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
 
 interface TicketFile {
   name: string
@@ -32,26 +34,35 @@ interface State {
 }
 
 const C = {
-  card: 'var(--dsw-alias-surface-card, var(--dsw-alias-bg-layer-3, rgba(127,127,127,0.08)))',
+  card: 'var(--dsw-alias-surface-card, var(--dsw-alias-bg-layer-3, rgba(127,127,127,0.07)))',
   cardSoft: 'var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-layer-1, rgba(127,127,127,0.06)))',
-  border: 'var(--dsw-alias-border-l2, rgba(127,127,127,0.24))',
+  border: 'var(--dsw-alias-border-l2, rgba(127,127,127,0.18))',
+  divider: 'var(--dsw-alias-border-l1, rgba(127,127,127,0.12))',
   fg: 'var(--dsw-alias-label-primary, currentColor)',
-  fgDim: 'var(--dsw-alias-label-secondary, rgba(127,127,127,0.85))',
-  fgFaint: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,0.68))',
-  accent: 'var(--dsw-alias-state-business-primary, #1a6ef0)',
-  onAccent: 'var(--dsw-alias-label-on-color, #f8fafc)',
-  ok: 'var(--dsw-alias-state-success-primary, #1a9a5e)',
-  bad: 'var(--dsw-alias-state-error-primary, #d4380d)',
-  badBg: 'rgba(212,56,13,0.10)',
+  fgDim: 'var(--dsw-alias-label-secondary, rgba(127,127,127,0.84))',
+  fgFaint: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,0.64))',
+  accent: 'var(--dsw-alias-state-business-primary, #2F6BFF)',
+  accentSoft: 'rgba(47,107,255,0.12)',
+  accentBorder: 'rgba(47,107,255,0.28)',
+  onAccent: 'var(--dsw-alias-label-on-color, #FFFFFF)',
+  ok: 'var(--dsw-alias-state-success-primary, #10A366)',
+  okBg: 'rgba(16,163,102,0.12)',
+  warn: '#D97706',
+  warnBg: 'rgba(217,119,6,0.12)',
+  bad: 'var(--dsw-alias-state-error-primary, #DC3545)',
+  badBg: 'rgba(220,53,69,0.10)',
+  mono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
 }
 
 const ROUTE = '/api/dsh-mobile/panel/feedback'
 
-const STATUS: Record<string, { label: string; color: string }> = {
-  open: { label: '待处理', color: C.accent },
-  doing: { label: '处理中', color: C.accent },
-  done: { label: '已完成', color: C.ok },
-  wontfix: { label: '不处理', color: C.fgFaint },
+const STATUS_ORDER = ['open', 'doing', 'done', 'wontfix'] as const
+
+const STATUS: Record<string, { label: string; color: string; bg: string }> = {
+  open: { label: '待处理', color: C.accent, bg: C.accentSoft },
+  doing: { label: '处理中', color: C.warn, bg: C.warnBg },
+  done: { label: '已完成', color: C.ok, bg: C.okBg },
+  wontfix: { label: '不处理', color: C.fgFaint, bg: 'rgba(127,127,127,0.12)' },
 }
 
 const KIND: Record<string, string> = {
@@ -80,6 +91,11 @@ const formatSize = (n: number): string => (
   n >= 1024 * 1024
     ? `${(n / 1024 / 1024).toFixed(1)} MB`
     : `${String(Math.max(1, Math.round(n / 1024)))} KB`
+)
+
+/** 清理历史工单环境字符串中可能残留的编码替换符，统一为干净的间隔点。 */
+const sanitizeEnv = (raw: string): string => (
+  raw.replace(/\s*\uFFFD+\s*/g, ' · ').replace(/\s{2,}/g, ' ').trim()
 )
 
 const isInlineTextFile = (f: TicketFile): boolean => (
@@ -135,6 +151,7 @@ async function buildAiTriageText(t: Ticket): Promise<string> {
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
   const kindLabel = KIND[t.kind] ?? t.kind
   const statusLabel = STATUS[t.status]?.label ?? t.status
+  const envClean = sanitizeEnv(t.env)
   const lines: string[] = [
     `# Agent Mobile 用户反馈工单 (${t.id})`,
     '',
@@ -144,7 +161,7 @@ async function buildAiTriageText(t: Ticket): Promise<string> {
     `- 当前状态: ${statusLabel} (${t.status})`,
     `- 提交时间: ${formatIso(t.created_at)}`,
     `- 最后更新: ${formatIso(t.updated_at)}`,
-    `- 运行环境: ${t.env !== '' ? t.env : '（未采集）'}`,
+    `- 运行环境: ${envClean !== '' ? envClean : '（未采集）'}`,
     `- 联系方式: ${t.contact !== '' ? t.contact : '（未填写）'}`,
     '',
     '## 问题标题',
@@ -220,23 +237,6 @@ async function post(path: string, body: unknown): Promise<void> {
   }
 }
 
-function btn(primary: boolean, disabled: boolean): CSSProperties {
-  return {
-    fontSize: 12,
-    fontFamily: 'inherit',
-    lineHeight: 1.45,
-    padding: '5px 12px',
-    borderRadius: 8,
-    border: `1px solid ${primary ? C.accent : C.border}`,
-    background: primary ? C.accent : 'transparent',
-    color: primary ? C.onAccent : C.fgDim,
-    cursor: disabled ? 'default' : 'pointer',
-    opacity: disabled ? 0.5 : 1,
-    flexShrink: 0,
-    whiteSpace: 'nowrap',
-  }
-}
-
 export function FeedbackSection(): ReactElement | null {
   const [state, setState] = useState<State | null>(null)
   const [seen, setSeen] = useState(false)
@@ -245,6 +245,7 @@ export function FeedbackSection(): ReactElement | null {
   const [error, setError] = useState('')
   const [reply, setReply] = useState<Record<string, string>>({})
   const [open, setOpen] = useState('')
+  const [filter, setFilter] = useState<string>('all')
   const [copyingId, setCopyingId] = useState('')
   const [copiedId, setCopiedId] = useState('')
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -294,7 +295,7 @@ export function FeedbackSection(): ReactElement | null {
       const text = await buildAiTriageText(t)
       const ok = await writeClipboard(text)
       if (!ok) {
-        setError('复制到剪贴板失败，请检查浏览器或系统剪贴板权限。')
+        setError('复制到剪贴板失败，请检查系统剪贴板权限。')
         return
       }
       setCopiedId(t.id)
@@ -324,48 +325,80 @@ export function FeedbackSection(): ReactElement | null {
   }
 
   const tickets = state.tickets ?? []
-  const counts = state.summary?.counts ?? []
+  const countMap: Record<string, number> = {}
+  for (const t of tickets) {
+    countMap[t.status] = (countMap[t.status] ?? 0) + 1
+  }
+  const filteredTickets = filter === 'all' ? tickets : tickets.filter((t) => t.status === filter)
+
+  const filterTabs: { id: string; label: string; count: number }[] = [
+    { id: 'all', label: '全部', count: tickets.length },
+    ...STATUS_ORDER
+      .filter((st) => (countMap[st] ?? 0) > 0 || filter === st)
+      .map((st) => ({ id: st, label: STATUS[st]?.label ?? st, count: countMap[st] ?? 0 })),
+  ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0 }}>
-        <span style={{ fontSize: 13, color: C.fgDim, flexShrink: 0, whiteSpace: 'nowrap' }}>
-          共 {String(tickets.length)} 条
-        </span>
-        {counts.map((one) => (
-          <span
-            key={one.status}
-            style={{
-              fontSize: 12,
-              color: STATUS[one.status]?.color ?? C.fgFaint,
-              flexShrink: 0,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {STATUS[one.status]?.label ?? one.status} {String(one.n)}
-          </span>
-        ))}
-        <span style={{ flex: 1 }} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+      {/* 顶部简洁筛选栏 */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', minWidth: 0 }}>
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          padding: 3,
+          borderRadius: 999,
+          border: `1px solid ${C.border}`,
+          background: C.cardSoft,
+          flexWrap: 'wrap',
+        }}
+        >
+          {filterTabs.map((tab) => {
+            const active = filter === tab.id
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => { setFilter(tab.id) }}
+                style={{
+                  border: 'none',
+                  borderRadius: 999,
+                  padding: '4px 12px',
+                  fontSize: 12,
+                  fontWeight: active ? 500 : 400,
+                  fontFamily: 'inherit',
+                  background: active ? C.accent : 'transparent',
+                  color: active ? C.onAccent : C.fgDim,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {tab.label} {String(tab.count)}
+              </button>
+            )
+          })}
+        </div>
+
         <button
           type="button"
           disabled={loading}
           onClick={() => { void load() }}
           style={{
-            fontSize: 12,
+            fontSize: 12.5,
             fontFamily: 'inherit',
-            lineHeight: 1.45,
-            padding: '4px 10px',
-            borderRadius: 8,
+            lineHeight: 1.4,
+            padding: '6px 13px',
+            borderRadius: 10,
             border: `1px solid ${C.border}`,
-            background: 'transparent',
-            color: C.fgDim,
+            background: C.cardSoft,
+            color: C.fg,
             cursor: loading ? 'default' : 'pointer',
             opacity: loading ? 0.5 : 1,
             flexShrink: 0,
             whiteSpace: 'nowrap',
           }}
         >
-          刷新
+          {loading ? '刷新中...' : '刷新'}
         </button>
       </div>
 
@@ -374,265 +407,398 @@ export function FeedbackSection(): ReactElement | null {
           <div
             role="alert"
             style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 10,
               border: `1px solid ${C.bad}`,
               background: C.badBg,
               color: C.bad,
-              borderRadius: 10,
+              borderRadius: 12,
               padding: '9px 12px',
               fontSize: 12.5,
               lineHeight: 1.45,
               minWidth: 0,
               overflowWrap: 'anywhere',
-              wordBreak: 'break-word',
             }}
           >
-            出错了：{error}
+            <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{error}</span>
+            <button
+              type="button"
+              onClick={() => { setError('') }}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: C.bad,
+                fontSize: 15,
+                fontFamily: 'inherit',
+                padding: '0 4px',
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+              aria-label="关闭提示"
+            >
+              ×
+            </button>
           </div>
         )
         : null}
 
-      {tickets.length === 0
-        ? <div style={{ fontSize: 12, color: C.fgFaint }}>还没有人反馈。</div>
-        : null}
+      {/* 反馈列表统一容器：轻分割线排布，点击任意一行展开详情 */}
+      <div style={{
+        border: `1px solid ${C.border}`,
+        background: C.card,
+        borderRadius: 16,
+        overflow: 'hidden',
+        minWidth: 0,
+      }}
+      >
+        {filteredTickets.length === 0
+          ? (
+            <div style={{ padding: '28px 18px', textAlign: 'center', fontSize: 12.5, color: C.fgFaint }}>
+              {tickets.length === 0 ? '暂时还没有收到用户反馈。' : '当前筛选下没有反馈记录。'}
+            </div>
+          )
+          : filteredTickets.map((t, index) => {
+            const st = STATUS[t.status] ?? { label: t.status, color: C.fgFaint, bg: 'rgba(127,127,127,0.12)' }
+            const expanded = open === t.id
+            const replyText = (reply[t.id] ?? '').trim()
+            const replyDisabled = busy === t.id || replyText === ''
+            const isCopying = copyingId === t.id
+            const isCopied = copiedId === t.id
+            const copyLabel = isCopying ? '整理中...' : (isCopied ? '已复制' : '复制给 AI')
+            const envClean = sanitizeEnv(t.env)
 
-      {tickets.map((t) => {
-        const st = STATUS[t.status] ?? { label: t.status, color: C.fgFaint }
-        const expanded = open === t.id
-        const replyText = (reply[t.id] ?? '').trim()
-        const replyDisabled = busy === t.id || replyText === ''
-        const isCopying = copyingId === t.id
-        const isCopied = copiedId === t.id
-        const copyLabel = isCopying ? '整理中...' : (isCopied ? '已复制给 AI' : '复制给 AI')
-        return (
-          <div
-            key={t.id}
-            style={{
-              border: `1px solid ${C.border}`,
-              background: C.card,
-              borderRadius: 12,
-              padding: '12px 14px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-              minWidth: 0,
-            }}
-          >
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => { setOpen(expanded ? '' : t.id) }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  setOpen(expanded ? '' : t.id)
-                }
-              }}
-              style={{ display: 'flex', flexDirection: 'column', gap: 6, cursor: 'pointer', minWidth: 0 }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
-                <span style={{ fontSize: 12, color: C.fgDim, flexShrink: 0, whiteSpace: 'nowrap' }}>
-                  {expanded ? '▾' : '▸'}
-                </span>
-                <span style={{ fontSize: 11, color: C.fgFaint, flexShrink: 0, whiteSpace: 'nowrap' }}>{t.id}</span>
-                <span style={{ fontSize: 11, color: C.fgDim, flexShrink: 0, whiteSpace: 'nowrap' }}>{KIND[t.kind] ?? t.kind}</span>
-                <span style={{ fontSize: 11, color: C.fgFaint, flexShrink: 0, whiteSpace: 'nowrap' }}>{stamp(t.created_at)}</span>
-                <span style={{ flex: 1 }} />
-                <button
-                  type="button"
-                  disabled={isCopying}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    void handleCopyForAi(t)
+            return (
+              <div
+                key={t.id}
+                style={{
+                  borderTop: index > 0 ? `1px solid ${C.divider}` : 'none',
+                  padding: '13px 18px',
+                  minWidth: 0,
+                }}
+              >
+                {/* 折叠态摘要行：标题居主位，状态与时间轻柔呈现 */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => { setOpen(expanded ? '' : t.id) }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setOpen(expanded ? '' : t.id)
+                    }
                   }}
                   style={{
-                    fontSize: 11,
-                    fontFamily: 'inherit',
-                    lineHeight: 1.4,
-                    padding: '2px 9px',
-                    borderRadius: 999,
-                    border: `1px solid ${isCopied ? C.ok : C.border}`,
-                    background: isCopied ? 'rgba(26,154,94,0.12)' : C.cardSoft,
-                    color: isCopied ? C.ok : C.accent,
-                    cursor: isCopying ? 'default' : 'pointer',
-                    opacity: isCopying ? 0.6 : 1,
-                    flexShrink: 0,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {copyLabel}
-                </button>
-                <span style={{
-                  fontSize: 11,
-                  color: st.color,
-                  background: 'rgba(127,127,127,0.10)',
-                  borderRadius: 999,
-                  padding: '1px 8px',
-                  flexShrink: 0,
-                  whiteSpace: 'nowrap',
-                }}
-                >
-                  {st.label}
-                </span>
-              </div>
-              <div style={{
-                fontSize: 13,
-                color: C.fg,
-                fontWeight: 500,
-                minWidth: 0,
-                overflowWrap: 'anywhere',
-                wordBreak: 'break-word',
-              }}
-              >
-                {t.title}
-              </div>
-            </div>
-
-            {expanded
-              ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
-                  <div style={{
-                    fontSize: 12.5,
-                    color: C.fg,
-                    whiteSpace: 'pre-wrap',
-                    lineHeight: 1.65,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    cursor: 'pointer',
                     minWidth: 0,
-                    overflowWrap: 'anywhere',
-                    wordBreak: 'break-word',
                   }}
-                  >
-                    {t.body}
-                  </div>
-                  <div style={{ fontSize: 11, color: C.fgFaint, minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
-                    运行环境：{t.env === '' ? '（未采集）' : t.env}
-                  </div>
-                  {t.contact !== ''
-                    ? (
-                      <div style={{ fontSize: 11, color: C.fgFaint, minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
-                        联系方式：{t.contact}
-                      </div>
-                    )
-                    : null}
-                  {t.files.length > 0
-                    ? (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, minWidth: 0 }}>
-                        {t.files.map((f) => (
-                          <a
-                            key={f.name}
-                            href={`${ROUTE}/file?id=${encodeURIComponent(t.id)}&name=${encodeURIComponent(f.name)}`}
-                            style={{
-                              fontSize: 11,
-                              color: C.accent,
-                              border: `1px solid ${C.border}`,
-                              background: C.cardSoft,
-                              borderRadius: 8,
-                              padding: '2px 8px',
-                              textDecoration: 'none',
-                              maxWidth: '100%',
-                              minWidth: 0,
-                              overflowWrap: 'anywhere',
-                              wordBreak: 'break-word',
-                            }}
-                          >
-                            {f.name} · {formatSize(f.size)}
-                          </a>
-                        ))}
-                      </div>
-                    )
-                    : null}
-                  {t.replies.length > 0
-                    ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
-                        {t.replies.map((r, i) => (
-                          <div
-                            key={`${t.id}-${String(i)}`}
-                            style={{
-                              fontSize: 12,
-                              color: C.fgDim,
-                              minWidth: 0,
-                              overflowWrap: 'anywhere',
-                              wordBreak: 'break-word',
-                            }}
-                          >
-                            <span style={{ color: r.author === 'admin' ? C.accent : C.fgFaint }}>
-                              {r.author === 'admin' ? '我' : '用户'} · {stamp(r.at)}：
-                            </span>
-                            {r.text}
-                          </div>
-                        ))}
-                      </div>
-                    )
-                    : null}
-                  <textarea
-                    value={reply[t.id] ?? ''}
-                    onChange={(e) => { setReply({ ...reply, [t.id]: e.target.value }) }}
-                    placeholder="回复内容（留空时仅可切换右侧状态）"
-                    rows={2}
-                    style={{
-                      width: '100%',
-                      minWidth: 0,
-                      boxSizing: 'border-box',
-                      fontSize: 12.5,
-                      fontFamily: 'inherit',
-                      lineHeight: 1.45,
-                      padding: '8px 10px',
-                      borderRadius: 9,
-                      border: `1px solid ${C.border}`,
-                      background: C.cardSoft,
-                      color: C.fg,
-                      resize: 'vertical',
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                      <span style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: 4,
+                        background: st.color,
+                        flexShrink: 0,
+                      }}
+                      />
+                      <span style={{
+                        fontSize: 13.5,
+                        fontWeight: 500,
+                        color: C.fg,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: expanded ? 'normal' : 'nowrap',
+                        overflowWrap: 'anywhere',
+                      }}
+                      >
+                        {t.title}
+                      </span>
+                    </div>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      flexWrap: 'wrap',
+                      marginTop: 3,
+                      paddingLeft: 15,
+                      fontSize: 11.5,
+                      color: C.fgFaint,
                     }}
-                  />
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      disabled={isCopying}
-                      onClick={() => { void handleCopyForAi(t) }}
+                    >
+                      <span>{KIND[t.kind] ?? t.kind}</span>
+                      <span>·</span>
+                      <span>{stamp(t.created_at)}</span>
+                      {t.files.length > 0 ? <span>· {String(t.files.length)} 个附件</span> : null}
+                      {t.replies.length > 0 ? <span>· {String(t.replies.length)} 条回复</span> : null}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                    <span style={{
+                      fontSize: 11.5,
+                      fontWeight: 500,
+                      color: st.color,
+                      background: st.bg,
+                      borderRadius: 999,
+                      padding: '2px 9px',
+                      whiteSpace: 'nowrap',
+                    }}
+                    >
+                      {st.label}
+                    </span>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      aria-hidden="true"
                       style={{
-                        ...btn(false, isCopying),
-                        borderColor: isCopied ? C.ok : C.border,
-                        color: isCopied ? C.ok : C.accent,
+                        color: C.fgFaint,
+                        transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                        transition: 'transform .18s ease',
+                        flexShrink: 0,
                       }}
                     >
-                      {copyLabel}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={replyDisabled}
-                      onClick={() => {
-                        if (replyDisabled) return
-                        void act(t.id, async () => {
-                          await post('reply', { id: t.id, text: replyText })
-                          setReply({ ...reply, [t.id]: '' })
-                        })
-                      }}
-                      style={btn(true, replyDisabled)}
-                    >
-                      回复
-                    </button>
-                    {['doing', 'done', 'wontfix', 'open'].map((next) => {
-                      const stDisabled = busy === t.id || t.status === next
-                      return (
-                        <button
-                          key={next}
-                          type="button"
-                          disabled={stDisabled}
-                          onClick={() => {
-                            if (stDisabled) return
-                            void act(t.id, async () => { await post('status', { id: t.id, status: next }) })
-                          }}
-                          style={btn(false, stDisabled)}
-                        >
-                          {STATUS[next]?.label ?? next}
-                        </button>
-                      )
-                    })}
+                      <path d="M6 3.5 L10.5 8 L6 12.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
                   </div>
                 </div>
-              )
-              : null}
-          </div>
-        )
-      })}
+
+                {/* 展开态详情区 */}
+                {expanded
+                  ? (
+                    <div style={{
+                      marginTop: 12,
+                      padding: '14px 16px',
+                      borderRadius: 12,
+                      background: C.cardSoft,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 12,
+                      minWidth: 0,
+                    }}
+                    >
+                      {t.body.trim() !== '' && t.body.trim() !== t.title.trim()
+                        ? (
+                          <div style={{
+                            fontSize: 13,
+                            color: C.fg,
+                            whiteSpace: 'pre-wrap',
+                            lineHeight: 1.65,
+                            overflowWrap: 'anywhere',
+                            wordBreak: 'break-word',
+                          }}
+                          >
+                            {t.body}
+                          </div>
+                        )
+                        : null}
+
+                      {/* 环境、联系方式与编号信息条 */}
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 4,
+                        fontSize: 11.5,
+                        color: C.fgFaint,
+                        lineHeight: 1.5,
+                      }}
+                      >
+                        <div>编号：<span style={{ fontFamily: C.mono }}>{t.id}</span></div>
+                        {envClean !== '' ? <div style={{ overflowWrap: 'anywhere' }}>环境：{envClean}</div> : null}
+                        {t.contact !== '' ? <div style={{ overflowWrap: 'anywhere' }}>联系：{t.contact}</div> : null}
+                      </div>
+
+                      {t.files.length > 0
+                        ? (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, minWidth: 0 }}>
+                            {t.files.map((f) => (
+                              <a
+                                key={f.name}
+                                href={`${ROUTE}/file?id=${encodeURIComponent(t.id)}&name=${encodeURIComponent(f.name)}`}
+                                style={{
+                                  fontSize: 11.5,
+                                  color: C.accent,
+                                  border: `1px solid ${C.border}`,
+                                  background: C.card,
+                                  borderRadius: 8,
+                                  padding: '3px 9px',
+                                  textDecoration: 'none',
+                                  maxWidth: '100%',
+                                  overflowWrap: 'anywhere',
+                                }}
+                              >
+                                {f.name} · {formatSize(f.size)}
+                              </a>
+                            ))}
+                          </div>
+                        )
+                        : null}
+
+                      {t.replies.length > 0
+                        ? (
+                          <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 6,
+                            borderLeft: `2px solid ${C.border}`,
+                            paddingLeft: 10,
+                          }}
+                          >
+                            {t.replies.map((r, i) => (
+                              <div
+                                key={`${t.id}-${String(i)}`}
+                                style={{
+                                  fontSize: 12,
+                                  color: C.fgDim,
+                                  lineHeight: 1.5,
+                                  overflowWrap: 'anywhere',
+                                }}
+                              >
+                                <span style={{ color: r.author === 'admin' ? C.accent : C.fgFaint, fontWeight: 500 }}>
+                                  {r.author === 'admin' ? '我' : '用户'} · {stamp(r.at)}：
+                                </span>
+                                {r.text}
+                              </div>
+                            ))}
+                          </div>
+                        )
+                        : null}
+
+                      <div style={{ height: 1, background: C.divider }} />
+
+                      {/* 状态分段选择 */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 12, color: C.fgDim }}>工单状态</span>
+                        <div style={{
+                          display: 'inline-flex',
+                          border: `1px solid ${C.border}`,
+                          background: C.card,
+                          borderRadius: 999,
+                          padding: 2,
+                          gap: 2,
+                          flexWrap: 'wrap',
+                        }}
+                        >
+                          {STATUS_ORDER.map((next) => {
+                            const active = t.status === next
+                            const stDisabled = busy === t.id || active
+                            return (
+                              <button
+                                key={next}
+                                type="button"
+                                disabled={stDisabled}
+                                onClick={() => {
+                                  if (stDisabled) return
+                                  void act(t.id, async () => { await post('status', { id: t.id, status: next }) })
+                                }}
+                                style={{
+                                  border: 'none',
+                                  borderRadius: 999,
+                                  padding: '3px 11px',
+                                  fontSize: 11.5,
+                                  fontWeight: active ? 500 : 400,
+                                  fontFamily: 'inherit',
+                                  background: active ? C.accent : 'transparent',
+                                  color: active ? C.onAccent : C.fgDim,
+                                  cursor: stDisabled ? 'default' : 'pointer',
+                                  opacity: busy === t.id && !active ? 0.5 : 1,
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {STATUS[next]?.label ?? next}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      {/* 回复输入与底部操作栏 */}
+                      <textarea
+                        value={reply[t.id] ?? ''}
+                        onChange={(e) => { setReply({ ...reply, [t.id]: e.target.value }) }}
+                        placeholder="写一条回复给用户..."
+                        rows={2}
+                        style={{
+                          width: '100%',
+                          minWidth: 0,
+                          boxSizing: 'border-box',
+                          fontSize: 12.5,
+                          fontFamily: 'inherit',
+                          lineHeight: 1.5,
+                          padding: '8px 11px',
+                          borderRadius: 10,
+                          border: `1px solid ${C.border}`,
+                          background: C.card,
+                          color: C.fg,
+                          resize: 'vertical',
+                        }}
+                      />
+
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          disabled={isCopying}
+                          onClick={() => { void handleCopyForAi(t) }}
+                          style={{
+                            fontSize: 12,
+                            fontFamily: 'inherit',
+                            lineHeight: 1.4,
+                            padding: '6px 12px',
+                            borderRadius: 10,
+                            border: `1px solid ${isCopied ? C.ok : C.border}`,
+                            background: isCopied ? C.okBg : C.card,
+                            color: isCopied ? C.ok : C.fgDim,
+                            cursor: isCopying ? 'default' : 'pointer',
+                            opacity: isCopying ? 0.6 : 1,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {copyLabel}
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={replyDisabled}
+                          onClick={() => {
+                            if (replyDisabled) return
+                            void act(t.id, async () => {
+                              await post('reply', { id: t.id, text: replyText })
+                              setReply({ ...reply, [t.id]: '' })
+                            })
+                          }}
+                          style={{
+                            fontSize: 12.5,
+                            fontWeight: 500,
+                            fontFamily: 'inherit',
+                            lineHeight: 1.4,
+                            padding: '6px 16px',
+                            borderRadius: 10,
+                            border: 'none',
+                            background: C.accent,
+                            color: C.onAccent,
+                            cursor: replyDisabled ? 'default' : 'pointer',
+                            opacity: replyDisabled ? 0.45 : 1,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {busy === t.id ? '发送中...' : '发送回复'}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                  : null}
+              </div>
+            )
+          })}
+      </div>
     </div>
   )
 }

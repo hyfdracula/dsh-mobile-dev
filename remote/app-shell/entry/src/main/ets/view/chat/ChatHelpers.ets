@@ -238,20 +238,23 @@ export function collectImageIds(msgs: Message[]): string[] {
  */
 export function buildMsgForEachKey(m: Message): string {
   const thinkLen: number = m.thinking !== undefined ? m.thinking.length : 0;
+  const thinkTail: string = m.thinking !== undefined && thinkLen > 0
+    ? m.thinking.slice(Math.max(0, thinkLen - 24))
+    : '';
   const toolLen: number = m.tools !== undefined ? m.tools.length : 0;
   let toolSig: string = '';
   if (m.tools !== undefined && m.tools.length > 0) {
     const bits: string[] = [];
     for (let i = 0; i < m.tools.length; i++) {
       const s: ToolStep = m.tools[i];
-      bits.push(s.status + ':' + String(s.summary.length));
+      bits.push(s.name + ':' + s.status + ':' + String(s.summary.length));
     }
     toolSig = bits.join(',');
   }
   const turnSig: string = m.turn !== undefined ? (m.turn.status + ':' + String(m.turn.tokensOut)) : '';
   const imgLen: number = m.images !== undefined ? m.images.length : 0;
   return String(m.seq) + '_' + m.role + '_' + String(m.text.length) + '_' +
-    String(thinkLen) + '_' + String(toolLen) + '_' + toolSig + '_' + turnSig + '_' + String(imgLen);
+    String(thinkLen) + '_' + thinkTail + '_' + String(toolLen) + '_' + toolSig + '_' + turnSig + '_' + String(imgLen);
 }
 
 /** 构造待发送板行列表（本地待发文件 + 宿主排队消息）。 */

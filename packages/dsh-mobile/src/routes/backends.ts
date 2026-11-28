@@ -104,6 +104,31 @@ export function createBackendRoutes(deps: BackendRoutesDeps): BackendRoutesBundl
     let liveAssistant: ChatMessage | null = null
     let running = driver.isRunning(rawId)
     let lastErr: { code: string; text: string; time: number } | null = null
+    let lastPushedFp = ''
+    let pollBusy = false
+
+    const buildSnapshotFingerprint = (merged: readonly ChatMessage[], isRunning: boolean): string => {
+      const tail = merged.length > 0 ? merged[merged.length - 1] : undefined
+      const toolsSig = tail?.tools
+        ? tail.tools.map((t) => `${t.id}:${t.name}:${t.status}:${String(t.summary.length)}`).join(',')
+        : ''
+      const turnSig = tail?.turn ? `${tail.turn.status}:${String(tail.turn.tokensOut)}` : ''
+      const ask = driver.getAsk(rawId).pending
+      return [
+        String(merged.length),
+        isRunning ? '1' : '0',
+        String(tail?.seq ?? 0),
+        tail?.role ?? '',
+        String(tail?.text.length ?? 0),
+        tail?.text.slice(-48) ?? '',
+        String(tail?.thinking?.length ?? 0),
+        tail?.thinking?.slice(-48) ?? '',
+        toolsSig,
+        turnSig,
+        ask?.askId ?? '',
+        lastErr?.text ?? '',
+      ].join('|')
+    }
 
     const loadBase = async (): Promise<void> => {
       try {
@@ -115,16 +140,20 @@ export function createBackendRoutes(deps: BackendRoutesDeps): BackendRoutesBundl
       }
     }
 
-    const pushSnapshot = (): void => {
+    const pushSnapshot = (force = false): void => {
       const merged: ChatMessage[] = liveAssistant ? [...baseMessages, liveAssistant] : [...baseMessages]
-      const total = merged.length
-      const firstSeq = total > 0 ? (merged[0]?.seq ?? 1) : 1
+      const fp = buildSnapshotFingerprint(merged, running)
+      if (!force && fp === lastPushedFp) return
+      lastPushedFp = fp
+      const total = merged.length > 0 ? Math.max(merged.length, merged[merged.length - 1]?.seq ?? merged.length) : 0
+      const windowMsgs = merged.slice(-40)
+      const firstSeq = windowMsgs.length > 0 ? (windowMsgs[0]?.seq ?? 1) : 1
       const payload = {
         ok: true,
         sessionId,
         total,
         firstSeq,
-        messages: merged.slice(-40),
+        messages: windowMsgs,
         lastTurn: null,
         lastErr,
         running,
@@ -233,6 +262,16 @@ export function createBackendRoutes(deps: BackendRoutesDeps): BackendRoutesBundl
     }
 
     const unsubscribe = driver.subscribe(rawId, onEvent)
+    // 定期轻量同步桌面端直接发起的新消息、思考过程与运行状态（通过增量 stat/offset，无变更零推送）
+    const pollTimer = setInterval(() => {
+      if (closed || pollBusy || liveAssistant !== null) return
+      pollBusy = true
+      void loadBase()
+        .then(() => pushSnapshot(false))
+        .finally(() => {
+          pollBusy = false
+        })
+    }, 650)
     const pingTimer = setInterval(() => {
       writeSse(': ping\n\n')
     }, 15_000)
@@ -244,6 +283,7 @@ export function createBackendRoutes(deps: BackendRoutesDeps): BackendRoutesBundl
         clearTimeout(flushTimer)
         flushTimer = null
       }
+      clearInterval(pollTimer)
       clearInterval(pingTimer)
       unsubscribe()
       activeStreamClosers.delete(cleanup)
@@ -259,7 +299,7 @@ export function createBackendRoutes(deps: BackendRoutesDeps): BackendRoutesBundl
     res.on('error', cleanup)
 
     await loadBase()
-    pushSnapshot()
+    pushSnapshot(true)
   }
 
   const tryHandle = async (

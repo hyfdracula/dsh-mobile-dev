@@ -257,7 +257,8 @@ export struct ChatBubbleItem {
           if (this.hasTrajectory()) {
             TrajectoryCard({
               thinking: this.msg.thinking === undefined ? '' : this.msg.thinking,
-              tools: this.msg.tools === undefined ? [] : this.msg.tools
+              tools: this.msg.tools === undefined ? [] : this.msg.tools,
+              isStreaming: this.isStreaming
             })
               .margin({
                 bottom: (this.msg.text !== '' || (this.msg.images !== undefined && this.msg.images.length > 0)) ? 10 : 0

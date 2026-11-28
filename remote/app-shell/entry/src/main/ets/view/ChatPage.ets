@@ -23,6 +23,7 @@ import {
   SessionStats,
   SlashCommandRow,
   StreamUpdate,
+  ToolStep,
   TurnErr,
   backendIdOfSession,
   backendLabelOf,
@@ -365,6 +366,33 @@ export struct ChatPage {
     } else {
       this.stopDotTimer();
     }
+  }
+
+  private liveActivityLabel(): string {
+    if (this.msgs.length === 0) {
+      return '正在思考…';
+    }
+    const tail: Message = this.msgs[this.msgs.length - 1];
+    if (tail.role === 'user') {
+      return '正在思考…';
+    }
+    const tools: ToolStep[] | undefined = tail.tools;
+    if (tools !== undefined && tools.length > 0) {
+      for (let i = tools.length - 1; i >= 0; i--) {
+        if (tools[i].status === 'run') {
+          const name: string = tools[i].name !== '' ? tools[i].name : '工具';
+          const sum: string = tools[i].summary.trim();
+          if (sum !== '' && sum !== name) {
+            return '正在执行 ' + name + ' · ' + sum;
+          }
+          return '正在执行 ' + name + '…';
+        }
+      }
+    }
+    if (tail.text.trim() === '') {
+      return '正在思考…';
+    }
+    return '正在回复…';
   }
 
   private stopDotTimer(): void {
@@ -746,7 +774,8 @@ export struct ChatPage {
     }
     const g: number = this.gen;
     const lastSeq: number = this.msgs.length > 0 ? this.msgs[this.msgs.length - 1].seq : 0;
-    const sinceSeq: number = this.running && lastSeq > 0 ? lastSeq - 1 : lastSeq;
+    const sinceSeq: number = lastSeq > 0 ? lastSeq - 1 : 0;
+    const prevTailKey: string = this.msgs.length > 0 ? buildMsgForEachKey(this.msgs[this.msgs.length - 1]) : '';
     try {
       const r: MessagesResult = await this.api.messagesSince(this.param.id, sinceSeq, this.compactHistory);
       if (!this.alive || g !== this.gen || this.sseActive) return;
@@ -760,24 +789,28 @@ export struct ChatPage {
       if (this.err !== '') this.err = '';
       if (r.total !== this.total || r.messages.length > 0) {
         const merged: Message[] = mergeMessageList(this.msgs, r.messages);
-        await this.api.signAttachments(collectImageIds(r.messages));
-        if (!this.alive || g !== this.gen) return;
-        this.msgs = merged;
-        this.total = r.total > 0 ? r.total : merged.length;
-        this.hasMore = this.msgs.length < this.total;
-        if (r.stats !== undefined && r.stats !== null) this.stats = r.stats;
-        ChatCache.write(this.param.id, this.msgs, this.total, this.running, r.lastTurn ?? '');
-        this.rescue = reconcileOutboxItems(this.param.id, r);
-        this.markReadIfForeground();
-        if (this.atBottom) {
-          setTimeout(() => {
-            if (this.alive) this.scroller.scrollEdge(Edge.Bottom);
-          }, 80);
+        const nextTailKey: string = merged.length > 0 ? buildMsgForEachKey(merged[merged.length - 1]) : '';
+        const changed: boolean = r.total !== this.total || merged.length !== this.msgs.length || nextTailKey !== prevTailKey;
+        if (changed) {
+          await this.api.signAttachments(collectImageIds(r.messages));
+          if (!this.alive || g !== this.gen) return;
+          this.msgs = merged;
+          this.total = r.total > 0 ? r.total : merged.length;
+          this.hasMore = this.msgs.length < this.total;
+          if (r.stats !== undefined && r.stats !== null) this.stats = r.stats;
+          ChatCache.write(this.param.id, this.msgs, this.total, this.running, r.lastTurn ?? '');
+          this.rescue = reconcileOutboxItems(this.param.id, r);
+          this.markReadIfForeground();
+          if (this.atBottom) {
+            setTimeout(() => {
+              if (this.alive) this.scroller.scrollEdge(Edge.Bottom);
+            }, 80);
+          }
         }
       }
     } catch (e) {
     }
-    this.schedulePoll(this.running ? 1200 : 4000);
+    this.schedulePoll(this.running ? 1000 : 3000);
   }
 
   // ---------- 消息加载与分页 ----------
@@ -2301,7 +2334,7 @@ export struct ChatPage {
             ListItem() {
               Column() {
                 Column() {
-                  TypingBubble({ active: this.dotOn })
+                  TypingBubble({ active: this.dotOn, statusText: this.liveActivityLabel() })
                 }
                 .width('100%')
                 .alignItems(HorizontalAlign.Start)

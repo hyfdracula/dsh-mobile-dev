@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "com.agent.mobile",
     "vendor": "agentmobile",
-    "versionCode": 3001012,
-    "versionName": "3.1.12",
+    "versionCode": 3001013,
+    "versionName": "3.1.13",
     "icon": "$media:layered_image_dark",
     "label": "$string:app_name",
     "alternateIcons": [

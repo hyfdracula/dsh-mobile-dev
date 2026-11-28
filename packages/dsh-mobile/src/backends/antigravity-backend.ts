@@ -8,8 +8,14 @@ import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { AcpSessionBackend, type AcpCliSpec } from './acp-backend.ts'
+import { probeAntigravityDiskActivity, readAntigravityTranscript } from './antigravity-transcript.ts'
 import { killProcessTree, resolveCliCommand, spawnCli } from './process-util.ts'
-import type { BackendCapabilities, BackendModelOption } from './types.ts'
+import type {
+  BackendCapabilities,
+  BackendMessagesResult,
+  BackendModelOption,
+  BackendSessionRow,
+} from './types.ts'
 
 export const ANTIGRAVITY_CAPABILITIES: BackendCapabilities = {
   listExistingSessions: true,
@@ -40,6 +46,68 @@ export class AntigravityBackend extends AcpSessionBackend {
 
   protected override autoInitForList(): boolean {
     return true
+  }
+
+  override isRunning(rawId: string): boolean {
+    if (super.isRunning(rawId)) return true
+    return probeAntigravityDiskActivity(rawId).running
+  }
+
+  override async listSessions(limit = 40): Promise<BackendSessionRow[]> {
+    const rows = await super.listSessions(limit)
+    for (const row of rows) {
+      const disk = probeAntigravityDiskActivity(row.rawId)
+      if (!disk.exists) continue
+      if (disk.updatedAt > row.updatedAt) row.updatedAt = disk.updatedAt
+      if (disk.running) row.running = true
+      if (disk.preview && !row.preview) row.preview = disk.preview
+      if (disk.model && !row.model) {
+        row.model = { provider: this.id, model: disk.model, reasoningEffort: '' }
+      }
+    }
+    rows.sort((a, b) => b.updatedAt - a.updatedAt)
+    return rows.slice(0, limit)
+  }
+
+  override async getMessages(
+    rawId: string,
+    opts?: { limit?: number; offset?: number; compact?: boolean },
+  ): Promise<BackendMessagesResult> {
+    const cache = this.getOrCreateCache(rawId)
+    const disk = readAntigravityTranscript(rawId)
+    if (disk !== null && disk.messages.length > 0) {
+      if (disk.model) cache.model = disk.model
+      if (disk.updatedAt > cache.updatedAt) cache.updatedAt = disk.updatedAt
+      cache.loaded = true
+
+      // 若同时存在本机手机发起的流式回合，把未落盘的实时增量拼到末尾，避免闪回
+      const merged = disk.messages.slice()
+      const running = cache.running || disk.running
+      if (cache.running && cache.activeAssistant) {
+        const live = cache.activeAssistant
+        const tail = merged[merged.length - 1]
+        if (tail && tail.role === 'assistant') {
+          if (live.text.length > tail.text.length) tail.text = live.text
+          if ((live.thinking?.length ?? 0) > (tail.thinking?.length ?? 0)) tail.thinking = live.thinking
+          if ((live.tools?.length ?? 0) > (tail.tools?.length ?? 0)) tail.tools = live.tools
+        } else if (live.text || live.thinking || (live.tools && live.tools.length > 0)) {
+          merged.push({ ...live, seq: merged.length + 1 })
+        }
+      }
+
+      const lim = opts?.limit && opts.limit > 0 ? opts.limit : merged.length
+      const start = Math.max(0, merged.length - lim)
+      return {
+        messages: merged.slice(start),
+        total: merged.length,
+        hasMore: start > 0,
+        model: cache.model || disk.model || undefined,
+        cwd: cache.cwd,
+        running,
+        asking: cache.pendingAsk !== null,
+      }
+    }
+    return await super.getMessages(rawId, opts)
   }
 
   protected override async listModelsViaCliFallback(): Promise<BackendModelOption[]> {

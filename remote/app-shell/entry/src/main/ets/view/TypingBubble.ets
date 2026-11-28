@@ -12,6 +12,8 @@ import { Tokens } from '../common/Tokens';
 export struct TypingBubble {
   /** 当前主相位的点下标（0/1/2），由父级在运行态推进。 */
   @Prop active: number = 0;
+  /** 可选实时状态文案（如「正在思考…」「正在执行 read_file」）。 */
+  @Prop statusText: string = '';
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('appIconStyle') appIconStyle: string = ICON_DARK;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
@@ -69,8 +71,18 @@ export struct TypingBubble {
         this.phaseDot(0)
         this.phaseDot(1)
         this.phaseDot(2)
+        if (this.statusText !== '') {
+          Text(this.statusText)
+            .fontSize(Tokens.fsFoot)
+            .fontColor(Tokens.dim)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .constraintSize({ maxWidth: 240 })
+            .margin({ left: 4 })
+        }
       }
-      .padding({ left: 16, right: 16, top: 14, bottom: 14 })
+      .alignItems(VerticalAlign.Center)
+      .padding({ left: 16, right: 16, top: 13, bottom: 13 })
       .backgroundColor(Tokens.surface)
       .borderRadius(Tokens.rCard)
       .border({
