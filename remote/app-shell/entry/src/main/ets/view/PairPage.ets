@@ -514,28 +514,6 @@ export struct PairPage {
           .height(46)
           .borderRadius(12)
           .border({ width: 0.5, color: Tokens.line })
-          .animation(null)
-          .opacity(this.entered ? 1 : 0)
-          .animation(this.entered
-            ? Motion.iconFlyOpacityAnimByDist(this.wave.distanceOf('conn:hero', 96), this.motionMode)
-            : null)
-          .scale({
-            x: this.entered ? 1 : Motion.ICON_FLY_SCALE_START,
-            y: this.entered ? 1 : Motion.ICON_FLY_SCALE_START,
-            centerX: '50%',
-            centerY: '50%'
-          })
-          .animation(this.entered
-            ? Motion.iconFlyScaleAnimByDist(this.wave.distanceOf('conn:hero', 96), this.motionMode)
-            : null)
-          .rotate({
-            angle: this.entered ? 0 : Motion.ICON_FLY_ROTATE_START,
-            centerX: '50%',
-            centerY: '50%'
-          })
-          .animation(this.entered
-            ? Motion.iconFlyRotateAnimByDist(this.wave.distanceOf('conn:hero', 96), this.motionMode)
-            : null)
         Column({ space: 3 }) {
           Text('方式一：扫一扫二维码')
             .fontSize(Tokens.fsTitle)

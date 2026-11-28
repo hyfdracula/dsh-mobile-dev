@@ -731,28 +731,6 @@ export struct SettingsPage {
         .height(46)
         .borderRadius(Tokens.rMd)
         .border({ width: 0.5, color: Tokens.line })
-        .animation(null)
-        .opacity(this.rootEntered ? 1 : 0)
-        .animation(this.rootEntered
-          ? Motion.iconFlyOpacityAnimByDist(this.rootWave.distanceOf('banner', 0), this.motionMode, 12)
-          : null)
-        .scale({
-          x: this.rootEntered ? 1 : Motion.ICON_FLY_SCALE_START,
-          y: this.rootEntered ? 1 : Motion.ICON_FLY_SCALE_START,
-          centerX: '50%',
-          centerY: '50%'
-        })
-        .animation(this.rootEntered
-          ? Motion.iconFlyScaleAnimByDist(this.rootWave.distanceOf('banner', 0), this.motionMode, 12)
-          : null)
-        .rotate({
-          angle: this.rootEntered ? 0 : Motion.ICON_FLY_ROTATE_START,
-          centerX: '50%',
-          centerY: '50%'
-        })
-        .animation(this.rootEntered
-          ? Motion.iconFlyRotateAnimByDist(this.rootWave.distanceOf('banner', 0), this.motionMode, 12)
-          : null)
       Column() {
         Row({ space: 6 }) {
           Text(this.machineName !== '' ? this.machineName : (this.info !== null ? this.info.host : '电脑连接'))
