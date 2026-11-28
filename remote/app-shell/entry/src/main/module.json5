@@ -12,6 +12,10 @@
       {
         "name": "ohos.net.network_config",
         "resource": "$profile:network_config"
+      },
+      {
+        "name": "client_id",
+        "value": "6917622872229302021"
       }
     ],
     "deviceTypes": [
