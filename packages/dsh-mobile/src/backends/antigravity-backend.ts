@@ -4,6 +4,9 @@
  * - 通过 ACP stdio 协议完成会话新建、历史重放、流式增量输出、权限审批与模型切换；
  * - 无私有磁盘结构强依赖，完全遵循 ACP v1 规范。
  */
+import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { AcpSessionBackend, type AcpCliSpec } from './acp-backend.ts'
 import { killProcessTree, resolveCliCommand, spawnCli } from './process-util.ts'
 import type { BackendCapabilities, BackendModelOption } from './types.ts'
@@ -91,12 +94,25 @@ export class AntigravityBackend extends AcpSessionBackend {
     })
   }
 
+  private buildAcpArgs(): string[] {
+    const args: string[] = ['acp']
+    // 当本机存在桌面版 Antigravity 数据目录（~/.gemini/antigravity）时显式对齐该目录，
+    // 避免 agy acp 默认使用 antigravity-cli 导致列出的桌面历史会话在 session/load 时报 Session not found (-32002)。
+    const desktopDir = join(homedir(), '.gemini', 'antigravity')
+    if (existsSync(desktopDir)) {
+      args.push('--app-data-dir', 'antigravity')
+    }
+    args.push('--dangerously-skip-permissions')
+    return args
+  }
+
   protected resolveSpec(force = false): AcpCliSpec | null {
+    const acpArgs = this.buildAcpArgs()
     const agy = resolveCliCommand('agy', force)
-    if (agy) return { cli: agy, args: ['acp', '--dangerously-skip-permissions'] }
+    if (agy) return { cli: agy, args: acpArgs }
 
     const antigravity = resolveCliCommand('antigravity', force)
-    if (antigravity) return { cli: antigravity, args: ['acp', '--dangerously-skip-permissions'] }
+    if (antigravity) return { cli: antigravity, args: acpArgs }
 
     const server = resolveCliCommand('agy_acp_server', force)
     if (server) return { cli: server, args: ['--dangerously-skip-permissions'] }

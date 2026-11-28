@@ -386,16 +386,28 @@ export function createBackendRoutes(deps: BackendRoutesDeps): BackendRoutesBundl
     }
 
     if (sub === 'messages' && method === 'GET') {
-      const limit = Number(url.searchParams.get('limit') ?? '50')
+      const limitRaw = Number(url.searchParams.get('limit') ?? '50')
+      const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 200) : 50
       const sinceRaw = url.searchParams.get('since')
       const since = sinceRaw !== null && sinceRaw !== '' ? Number(sinceRaw) : NaN
+      const beforeRaw = url.searchParams.get('before')
+      const before = beforeRaw !== null && beforeRaw !== '' ? Number(beforeRaw) : NaN
       const compact = url.searchParams.get('compact') === '1'
-      const data = await driver.getMessages(rawId, { limit: Number.isFinite(limit) && limit > 0 ? limit : 50, compact })
+      const needAll = Number.isFinite(before) && before > 0
+      const data = await driver.getMessages(rawId, { limit: needAll ? 0 : limit, compact })
       const allMsgs = data.messages.map((m, idx) => ({ ...m, seq: m.seq || idx + 1 }))
-      const msgs = Number.isFinite(since) && since >= 0
-        ? allMsgs.filter((m) => m.seq > since)
-        : allMsgs
-      const firstSeq = allMsgs.length > 0 ? (allMsgs[0]?.seq ?? 1) : 1
+      let msgs: ChatMessage[]
+      let hasMore = data.hasMore
+      if (Number.isFinite(since) && since >= 0) {
+        msgs = allMsgs.filter((m) => m.seq > since)
+      } else if (needAll) {
+        const older = allMsgs.filter((m) => m.seq < before)
+        msgs = older.slice(-limit)
+        hasMore = older.length > msgs.length
+      } else {
+        msgs = allMsgs
+      }
+      const firstSeq = msgs.length > 0 ? (msgs[0]?.seq ?? 1) : (allMsgs.length > 0 ? (allMsgs[0]?.seq ?? 1) : 1)
       send(res, 200, {
         ok: true,
         sessionId,
@@ -403,7 +415,7 @@ export function createBackendRoutes(deps: BackendRoutesDeps): BackendRoutesBundl
         capabilities: driver.capabilities,
         total: data.total,
         firstSeq,
-        hasMore: data.hasMore,
+        hasMore,
         messages: msgs,
         running: data.running,
         model: data.model ? { provider: resolved.backend, model: data.model } : null,

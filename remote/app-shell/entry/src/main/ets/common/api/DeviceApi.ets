@@ -73,8 +73,27 @@ export class DeviceApi {
     );
   }
 
-  static async pushStatus(t: ApiTransport, relayUrl: string = ''): Promise<PushStatusResp> {
-    const q: string = relayUrl !== '' ? ('?relayUrl=' + encodeURIComponent(relayUrl)) : '';
+  static async pushStatus(
+    t: ApiTransport,
+    relayUrl: string = '',
+    deviceId: string = '',
+    clientState: string = '',
+    errCode: number = 0
+  ): Promise<PushStatusResp> {
+    const parts: string[] = [];
+    if (relayUrl !== '') {
+      parts.push('relayUrl=' + encodeURIComponent(relayUrl));
+    }
+    if (deviceId !== '') {
+      parts.push('deviceId=' + encodeURIComponent(deviceId));
+    }
+    if (clientState !== '') {
+      parts.push('clientState=' + encodeURIComponent(clientState));
+    }
+    if (errCode !== 0) {
+      parts.push('errCode=' + encodeURIComponent(String(errCode)));
+    }
+    const q: string = parts.length > 0 ? ('?' + parts.join('&')) : '';
     return await t.call<PushStatusResp>('/api/push/status' + q, 'GET');
   }
 

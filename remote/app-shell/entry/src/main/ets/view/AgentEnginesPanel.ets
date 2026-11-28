@@ -1,4 +1,5 @@
 import { Api, BackendInfo } from '../common/Api';
+import { CardIcon } from '../common/CardIcon';
 import { Haptics } from '../common/Haptics';
 import { Mat } from '../common/Mat';
 import { BloomWaveTracker, Motion, MOTION_VIVID } from '../common/Motion';
@@ -105,10 +106,26 @@ export struct AgentEnginesPanel {
       return '默认宿主引擎 · 需保持启动' + (b.version !== '' ? (' · ' + b.version) : '');
     }
     if (!b.installed) {
-      return '电脑未检测到该引擎';
+      return b.error !== undefined && b.error !== '' ? b.error : '电脑未检测到该引擎';
     }
     const ver: string = b.version !== '' ? b.version : '已就绪';
     return b.enabled ? ('已开启 · ' + ver) : ('未开启 · ' + ver);
+  }
+
+  private engineSymbol(id: string): Resource {
+    if (id === 'dsh') {
+      return $r('sys.symbol.display');
+    }
+    if (id === 'antigravity') {
+      return $r('sys.symbol.wand_and_stars');
+    }
+    if (id === 'claude') {
+      return $r('sys.symbol.cloud_fill');
+    }
+    if (id === 'opencode') {
+      return $r('sys.symbol.slider_vertical_3');
+    }
+    return $r('sys.symbol.gearshape_fill');
   }
 
   build() {
@@ -169,6 +186,13 @@ export struct AgentEnginesPanel {
         Column({ space: 9 }) {
           ForEach(this.backends, (b: BackendInfo, idx: number) => {
             Row() {
+              CardIcon({
+                symbol: this.engineSymbol(b.id),
+                entered: this.entered,
+                distanceVp: this.wave.distanceOf('eng:' + b.id, (idx + 1) * 72)
+              })
+              .margin({ right: 12 })
+
               Column() {
                 Text(b.label)
                   .fontSize(Tokens.fsBodyLg)
@@ -177,11 +201,12 @@ export struct AgentEnginesPanel {
                   .fontSize(Tokens.fsFoot)
                   .fontColor(b.installed ? Tokens.dim2 : Tokens.err)
                   .margin({ top: 2 })
-                  .maxLines(1)
+                  .maxLines(b.installed ? 1 : 2)
                   .textOverflow({ overflow: TextOverflow.Ellipsis })
               }
               .alignItems(HorizontalAlign.Start)
               .layoutWeight(1)
+              .margin({ right: 8 })
 
               if (b.id === 'dsh') {
                 Text('默认')
@@ -210,6 +235,18 @@ export struct AgentEnginesPanel {
             .shadow(Mat.rowShadow(this.hdsOn))
             .borderRadius(Tokens.rRow)
             .clip(true)
+            .onClick(() => {
+              if (b.id === 'dsh') {
+                return;
+              }
+              if (!b.installed) {
+                Toast.err(this.backendSubText(b));
+                return;
+              }
+              if (this.togglingBackend === '') {
+                void this.onToggleBackend(b, !b.enabled);
+              }
+            })
             .onAreaChange((_old: Area, area: Area) => {
               this.wave.record('eng:' + b.id, area);
             })
@@ -227,7 +264,7 @@ export struct AgentEnginesPanel {
             .animation(this.entered
               ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('eng:' + b.id, (idx + 1) * 72), this.motionMode)
               : null)
-          }, (b: BackendInfo) => b.id + ':' + String(b.enabled) + ':' + String(b.installed))
+          }, (b: BackendInfo) => b.id)
         }
         .width('100%')
       } else {

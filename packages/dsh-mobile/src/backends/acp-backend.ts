@@ -91,11 +91,21 @@ export abstract class AcpSessionBackend implements AgentBackend {
   }
 
   private normalizeSessionCwd(raw: string): string {
-    const trimmed = raw.trim()
+    let trimmed = raw.trim()
     if (!trimmed) return homedir()
+    if (trimmed.includes('%')) {
+      try {
+        trimmed = decodeURIComponent(trimmed)
+      } catch {
+        // keep raw path when percent sequence is malformed
+      }
+    }
     if (process.platform === 'win32') {
       const m = /^\/([A-Za-z]:[\\/].*)$/.exec(trimmed)
-      if (m) return m[1].replace(/\//g, '\\')
+      if (m) {
+        const winPath = m[1].replace(/\//g, '\\')
+        return winPath.charAt(0).toUpperCase() + winPath.slice(1)
+      }
     }
     return trimmed
   }

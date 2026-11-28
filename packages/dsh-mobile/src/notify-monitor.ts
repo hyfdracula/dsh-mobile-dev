@@ -454,10 +454,16 @@ export class NotifyMonitor {
     const all = pushTargets()
     const key = (deviceIdOrToken ?? '').trim()
     const target = key !== ''
-      ? (all.find((t) => t.deviceId === key || t.pushToken === key) ?? all[0])
+      ? all.find((t) => t.deviceId === key || t.pushToken === key)
       : all[0]
     if (target === undefined) {
-      return { ok: false, code: 'no_push_token', message: '尚未收到手机上传的 Push Token' }
+      return {
+        ok: false,
+        code: key !== '' ? 'device_not_registered' : 'no_push_token',
+        message: key !== ''
+          ? '当前手机尚未拿到 Push Token，请查看上方华为系统推送通道的错误提示'
+          : '尚未收到手机上传的 Push Token',
+      }
     }
     return await this.postToRelay(relayUrl || target.relayUrl, target.relaySecret, {
       pushToken: target.pushToken,

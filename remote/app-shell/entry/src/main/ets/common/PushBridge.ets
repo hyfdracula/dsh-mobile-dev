@@ -4,6 +4,7 @@ import { http } from '@kit.NetworkKit';
 import { pushCommon, pushService } from '@kit.PushKit';
 import { Api } from './Api';
 import { PushRegisterBody, PushStatusResp, PushTestResp } from './ApiTypes';
+import { AppCtx } from './AppCtx';
 import { FEEDBACK_BASE, installId } from './Feedback';
 import { LinkLog } from './LinkLog';
 import { Secret } from './Secret';
@@ -31,9 +32,44 @@ export class PushBridge {
   private static cachedRelaySecret: string = '';
   private static boundApi: Api | null = null;
   private static lastSyncSig: string = '';
+  private static inflightRefresh: Promise<string> | null = null;
 
   static hasToken(): boolean {
     return PushBridge.currentToken !== '';
+  }
+
+  static isActivated(): boolean {
+    return PushBridge.privacyAllowed;
+  }
+
+  /** 确保已过隐私门禁的页面在任何生命周期恢复后都能正常拉起 Push Kit。 */
+  static ensureActivated(): void {
+    if (!PushBridge.privacyAllowed) {
+      PushBridge.activateAfterPrivacy();
+    }
+  }
+
+  static diagText(): string {
+    const state: string = AppStorage.get<string>('pushState') ?? 'idle';
+    const bind: string = AppStorage.get<string>('pushBindState') ?? 'idle';
+    const code: number = AppStorage.get<number>('pushErrCode') ?? 0;
+    const msg: string = AppStorage.get<string>('pushErrMsg') ?? '';
+    const synced: boolean = AppStorage.get<boolean>('pushSynced') === true;
+    const preview: string = AppStorage.get<string>('pushTokenPreview') ?? '';
+    let bundle: string = 'com.agent.mobile';
+    try {
+      bundle = AppCtx.bundleName();
+    } catch (_e) {
+      // ignore
+    }
+    return 'bundle=' + bundle +
+      ' deviceId=' + PushBridge.deviceId() +
+      ' state=' + state +
+      ' bind=' + bind +
+      ' synced=' + (synced ? '1' : '0') +
+      ' token=' + (preview !== '' ? preview : '-') +
+      ' errCode=' + String(code) +
+      (msg !== '' ? (' msg=' + msg) : '');
   }
 
   static deviceId(): string {
@@ -62,19 +98,31 @@ export class PushBridge {
 
   private static formatErr(code: number, rawMsg: string): string {
     if (code === 1000900010) {
-      return '当前签名未关联 AGC 应用身份，请在 DevEco 与 AGC 完成签名关联 (1000900010)';
+      return '应用身份或签名校验未通过：若通过手机第三方安装器重签安装，会丢失 AGC 推送配置，请通过 DevEco/hdc 原签或应用市场安装 (1000900010)';
     }
     if (code === 1000900012) {
-      return 'AGC 项目尚未开通 Push Kit 推送权益 (1000900012)';
+      return '推送权益未激活：请确认使用原签安装包（含 AGC Push Profile）而非第三方重签包 (1000900012)';
+    }
+    if (code === 1000900013) {
+      return '检测到网络出口跨区（如开启了代理或 ClashBox），请暂停代理或将华为推送直连分流后点「刷新状态」 (1000900013)';
     }
     if (code === 1000900014) {
-      return '当前设备或模拟器暂不支持 Push Token 申请，请在真机并开通 AGC 后使用 (1000900014)';
+      return '当前设备暂不支持 Push Token 申请 (1000900014)';
     }
     if (code === 1000900011) {
       return '网络不可用，暂无法向华为推送服务申请令牌 (1000900011)';
     }
     if (code === 1000900008) {
-      return '连接华为推送服务超时 (1000900008)';
+      return '连接华为推送服务超时，请检查网络或代理分流后重试 (1000900008)';
+    }
+    if (code === 1000900001 || code === 1000900009) {
+      return '华为系统推送服务内部暂不可用，请稍后点「刷新状态」重试 (' + String(code) + ')';
+    }
+    if (code === 1000900020) {
+      return '推送令牌申请过于频繁，请稍候再试 (1000900020)';
+    }
+    if (code === -2) {
+      return '向华为推送服务申请令牌超时（12 秒无响应），请检查网络或关闭代理后重试';
     }
     const clean: string = rawMsg.trim();
     return clean !== '' ? (clean + ' (' + String(code) + ')') : ('Push Kit 暂不可用 (' + String(code) + ')');
@@ -136,11 +184,55 @@ export class PushBridge {
     if (!PushBridge.privacyAllowed) {
       return '';
     }
+    if (PushBridge.inflightRefresh !== null) {
+      return await PushBridge.inflightRefresh;
+    }
+    const task: Promise<string> = PushBridge.doRefreshToken();
+    PushBridge.inflightRefresh = task;
+    try {
+      return await task;
+    } finally {
+      if (PushBridge.inflightRefresh === task) {
+        PushBridge.inflightRefresh = null;
+      }
+    }
+  }
+
+  private static async getTokenWithTimeout(ms: number): Promise<string> {
+    return await new Promise<string>((resolve, reject) => {
+      let settled: boolean = false;
+      const timer: number = setTimeout(() => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        const err: Error = new Error('getToken timeout');
+        reject(err);
+      }, ms);
+      pushService.getToken().then((tok: string) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        resolve(tok);
+      }).catch((e: BusinessError) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        reject(e);
+      });
+    });
+  }
+
+  private static async doRefreshToken(): Promise<string> {
     if (PushBridge.currentToken === '') {
       AppStorage.setOrCreate('pushState', 'loading');
     }
     try {
-      const token: string = (await pushService.getToken()).trim();
+      const token: string = (await PushBridge.getTokenWithTimeout(12000)).trim();
       if (token !== '') {
         PushBridge.currentToken = token;
         AppStorage.setOrCreate('pushState', 'ready');
@@ -154,18 +246,22 @@ export class PushBridge {
         return token;
       }
       AppStorage.setOrCreate('pushState', 'unavailable');
-      AppStorage.setOrCreate('pushErrMsg', '未获取到有效的 Push Token');
+      AppStorage.setOrCreate('pushErrCode', -3);
+      AppStorage.setOrCreate('pushErrMsg', '华为推送服务返回了空令牌，请稍后重试');
       return '';
     } catch (err) {
       const be: BusinessError = err as BusinessError;
-      const code: number = typeof be.code === 'number' ? be.code : -1;
-      const msg: string = PushBridge.formatErr(code, be.message ?? '');
+      const rawMsg: string = typeof be.message === 'string' ? be.message : '';
+      const code: number = typeof be.code === 'number'
+        ? be.code
+        : (rawMsg === 'getToken timeout' ? -2 : -1);
+      const msg: string = PushBridge.formatErr(code, rawMsg);
       AppStorage.setOrCreate('pushState', 'unavailable');
       AppStorage.setOrCreate('pushErrCode', code);
       AppStorage.setOrCreate('pushErrMsg', msg);
       AppStorage.setOrCreate('pushSynced', false);
-      LinkLog.record('NOTIFY', 'push token unavailable code=' + String(code));
-      console.info('DSH_PUSH getToken failed code=' + String(code) + ' :: ' + (be.message ?? ''));
+      LinkLog.record('NOTIFY', 'push token unavailable code=' + String(code) + ' raw=' + rawMsg.slice(0, 80));
+      console.info('DSH_PUSH getToken failed code=' + String(code) + ' :: ' + rawMsg);
       return '';
     }
   }
@@ -307,7 +403,9 @@ export class PushBridge {
       return null;
     }
     try {
-      return await api.pushStatus(FEEDBACK_BASE);
+      const state: string = AppStorage.get<string>('pushState') ?? 'idle';
+      const errCode: number = AppStorage.get<number>('pushErrCode') ?? 0;
+      return await api.pushStatus(FEEDBACK_BASE, PushBridge.deviceId(), state, errCode);
     } catch (e) {
       return null;
     }

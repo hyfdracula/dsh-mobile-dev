@@ -707,12 +707,22 @@ export function apply(ctx: any, rawConfig?: Config): void {
 
       if (path === '/api/push/status' && method === 'GET') {
         const targets = pushTargets()
+        const devId = (url.searchParams.get('deviceId') ?? '').trim()
+        const clientState = (url.searchParams.get('clientState') ?? '').trim()
+        const errCode = (url.searchParams.get('errCode') ?? '').trim()
+        if (devId !== '' && (errCode !== '' || (clientState !== '' && clientState !== 'ready'))) {
+          await record(
+            logFile,
+            `PUSH status device=${devId} clientState=${clientState || '-'} errCode=${errCode || '0'}`,
+          )
+        }
         const relay = await notifyMonitor!.relayStatus(url.searchParams.get('relayUrl') ?? undefined)
         send(res, 200, {
           ok: true,
           registeredCount: targets.length,
           enabledCount: targets.filter((t) => t.enabled).length,
           boundCount: targets.filter((t) => t.relaySecret.length >= 32).length,
+          currentDeviceRegistered: devId !== '' ? targets.some((t) => t.deviceId === devId) : targets.length > 0,
           relayOk: relay.ok,
           relayConfigured: relay.configured,
           category: relay.category ?? 'WORK',

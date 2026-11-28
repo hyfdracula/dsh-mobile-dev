@@ -59,7 +59,6 @@ export struct ConnectPanel {
   @StorageLink('hdsOn') hdsOn: boolean = true;
   @StorageLink('themeDark') themeDark: boolean = true;
   @StorageLink('motionMode') motionMode: string = MOTION_VIVID;
-  @StorageLink('linkEncrypted') linkEncrypted: boolean = false;
 
   @State private addOn: boolean = false;
   @State private addBase: string = '';
@@ -391,90 +390,6 @@ export struct ConnectPanel {
     .scrollBar(BarState.Off)
   }
 
-  private linkSummaryText(): string {
-    if (this.linkLoading) {
-      return '正在检测连接…';
-    }
-    if (!this.connected) {
-      return '未连接 · 请检查网络或重新配对';
-    }
-    const route: string = this.isLanLink ? '已连接 · 局域网直连' : '已连接 · 公网入口';
-    return this.linkEncrypted ? route + ' · 端到端加密' : route;
-  }
-
-  @Builder
-  linkStatusCard() {
-    Row({ space: 12 }) {
-      CardIcon({
-        symbol: $r('sys.symbol.wifi'),
-        entered: this.entered,
-        distanceVp: this.wave.distanceOf('conn:status', 0)
-      })
-
-      Column() {
-        Row() {
-          Text(this.linkSummaryText())
-            .fontSize(Tokens.fsBody)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(this.linkLoading ? Tokens.dim2 : (this.connected ? Tokens.fg : Tokens.err))
-            .layoutWeight(1)
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-          if (!this.linkLoading && this.connected && this.linkEncrypted) {
-            Text('端到端加密')
-              .fontSize(Tokens.fsCaption)
-              .fontColor(Tokens.doneInk)
-              .backgroundColor(Tokens.doneBg)
-              .borderRadius(Tokens.rPill)
-              .padding({ left: 8, right: 8, top: 3, bottom: 3 })
-              .margin({ left: 6 })
-          }
-        }
-        .width('100%')
-        .alignItems(VerticalAlign.Center)
-
-        if (this.currentBase !== '') {
-          Text(this.currentBase)
-            .fontSize(Tokens.fsCaption)
-            .fontFamily('monospace')
-            .fontColor(Tokens.dim2)
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .width('100%')
-            .margin({ top: 4 })
-        }
-      }
-      .layoutWeight(1)
-      .alignItems(HorizontalAlign.Start)
-    }
-    .width('100%')
-    .padding({ left: 16, right: 16, top: 13, bottom: 13 })
-    .backgroundColor(Mat.cardBg(this.hdsOn))
-    .border(Mat.cardBorder(this.hdsOn))
-    .shadow(Mat.rowShadow(this.hdsOn))
-    .borderRadius(Tokens.rRow)
-    .clip(true)
-    .alignItems(VerticalAlign.Center)
-    .margin({ top: 6, bottom: 6 })
-    .onAreaChange((_old: Area, area: Area) => {
-      this.wave.record('conn:status', area);
-    })
-    .animation(null)
-    .opacity(this.entered ? 1 : 0)
-    .animation(this.entered
-      ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:status', 0), this.motionMode)
-      : null)
-    .scale({
-      x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
-      y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
-      centerX: '50%',
-      centerY: '50%'
-    })
-    .animation(this.entered
-      ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:status', 0), this.motionMode)
-      : null)
-  }
-
   @Builder
   guideEntryCard(title: string, sub: string, tag: string, kind: string, waveKey: string, fallbackDistVp: number,
     iconSymbol: Resource, iconTone: string) {
@@ -554,11 +469,8 @@ export struct ConnectPanel {
 
   build() {
     Column() {
-      // 0. 当前连接与加密态
-      this.linkStatusCard()
-
       // 1. 多电脑管理
-      this.sectionTitle('电脑', 10, 'hdr:machines', 80)
+      this.sectionTitle('电脑', 6, 'hdr:machines', 0)
       Column() {
         MachineList({
           onPick: (id: string) => {
@@ -583,7 +495,7 @@ export struct ConnectPanel {
       .animation(null)
       .opacity(this.entered ? 1 : 0)
       .animation(this.entered
-        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:machines', 140), this.motionMode)
+        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:machines', 56), this.motionMode)
         : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
@@ -592,7 +504,7 @@ export struct ConnectPanel {
         centerY: '50%'
       })
       .animation(this.entered
-        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:machines', 140), this.motionMode)
+        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:machines', 56), this.motionMode)
         : null)
       .bindSheet($$this.renameOn, this.renameMachineSheet(),
         Mat.sheetOpts(this.hdsOn, SheetSize.FIT_CONTENT, () => {
@@ -612,7 +524,7 @@ export struct ConnectPanel {
       .animation(null)
       .opacity(this.entered ? 1 : 0)
       .animation(this.entered
-        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:chips', 220), this.motionMode)
+        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:chips', 136), this.motionMode)
         : null)
       .scale({
         x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
@@ -621,7 +533,7 @@ export struct ConnectPanel {
         centerY: '50%'
       })
       .animation(this.entered
-        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:chips', 220), this.motionMode)
+        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:chips', 136), this.motionMode)
         : null)
       .bindSheet($$this.addOn, this.addMachineSheet(),
         Mat.sheetOpts(this.hdsOn, SheetSize.FIT_CONTENT, () => {
@@ -629,14 +541,14 @@ export struct ConnectPanel {
         }, true, true))
 
       // 2. 网络与地址（逐条独立卡片；地址与令牌输入框收进二级菜单「连接地址与外网」）
-      this.sectionTitle('网络与连接地址', 16, 'hdr:net', 256)
+      this.sectionTitle('网络与连接地址', 16, 'hdr:net', 176)
       Column({ space: 9 }) {
         Row() {
           CardIcon({
             symbol: $r('sys.symbol.wifi'),
             tone: 'blue',
             entered: this.entered,
-            distanceVp: this.wave.distanceOf('conn:net', 384)
+            distanceVp: this.wave.distanceOf('conn:net', 256)
           })
           .margin({ right: 12 })
 
@@ -677,7 +589,7 @@ export struct ConnectPanel {
         .animation(null)
         .opacity(this.entered ? 1 : 0)
         .animation(this.entered
-          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:net', 384), this.motionMode)
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:net', 256), this.motionMode)
           : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
@@ -686,7 +598,7 @@ export struct ConnectPanel {
           centerY: '50%'
         })
         .animation(this.entered
-          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:net', 384), this.motionMode)
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:net', 256), this.motionMode)
           : null)
 
         // 连接地址与外网（隐藏进二级菜单）
@@ -695,7 +607,7 @@ export struct ConnectPanel {
             symbol: $r('sys.symbol.link'),
             tone: 'violet',
             entered: this.entered,
-            distanceVp: this.wave.distanceOf('conn:form', 456)
+            distanceVp: this.wave.distanceOf('conn:form', 332)
           })
           .margin({ right: 12 })
 
@@ -740,7 +652,7 @@ export struct ConnectPanel {
         .animation(null)
         .opacity(this.entered ? 1 : 0)
         .animation(this.entered
-          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:form', 456), this.motionMode)
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:form', 332), this.motionMode)
           : null)
         .scale({
           x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
@@ -749,7 +661,7 @@ export struct ConnectPanel {
           centerY: '50%'
         })
         .animation(this.entered
-          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:form', 456), this.motionMode)
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:form', 332), this.motionMode)
           : null)
         .onClick(() => {
           Haptics.tap();
@@ -759,11 +671,11 @@ export struct ConnectPanel {
       .width('100%')
 
       // 4. 外网访问配置（逐条独立卡片）
-      this.sectionTitle('外网访问配置', 16, 'hdr:guide', 536)
+      this.sectionTitle('外网访问配置', 16, 'hdr:guide', 416)
       Column({ space: 9 }) {
-        this.guideEntryCard('让 AI 帮你配', '复制完整指令给 Codex / Claude 等 AI 自动完成', '自动方案', 'ai', 'guide:ai', 586,
+        this.guideEntryCard('让 AI 帮你配', '复制完整指令给 Codex / Claude 等 AI 自动完成', '自动方案', 'ai', 'guide:ai', 466,
           $r('sys.symbol.wand_and_stars'), 'violet')
-        this.guideEntryCard('外网访问配置向导', '按 7 步手动命令配置 Cloudflare 安全隧道', '手动向导', 'tunnel', 'guide:tunnel', 658,
+        this.guideEntryCard('外网访问配置向导', '按 7 步手动命令配置 Cloudflare 安全隧道', '手动向导', 'tunnel', 'guide:tunnel', 538,
           $r('sys.symbol.cloud_fill'), 'blue')
       }
       .width('100%')

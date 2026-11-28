@@ -4,6 +4,7 @@ import { Api } from '../common/Api';
 import { PushStatusResp, PushTestResp } from '../common/ApiTypes';
 import { AppCtx } from '../common/AppCtx';
 import { CardIcon } from '../common/CardIcon';
+import { copyText } from '../common/Clipboard';
 import { Haptics } from '../common/Haptics';
 import { Mat } from '../common/Mat';
 import { BloomWaveTracker, Motion, MOTION_VIVID } from '../common/Motion';
@@ -63,7 +64,7 @@ export struct NotifyPanel {
     }
     Unread.count();
     void this.refreshPermission();
-    void this.refreshPushChannel(false);
+    void this.refreshPushChannel(!PushBridge.hasToken(), false);
   }
 
   aboutToDisappear(): void {
@@ -149,13 +150,14 @@ export struct NotifyPanel {
     return this.unreadCount > 0 ? ('当前 ' + String(this.unreadCount) + ' 条未读') : '暂无未读';
   }
 
-  private async refreshPushChannel(retryToken: boolean): Promise<void> {
+  private async refreshPushChannel(retryToken: boolean, fromUserTap: boolean = false): Promise<void> {
     if (this.relayLoading) {
       return;
     }
     this.relayLoading = true;
     try {
-      if (retryToken) {
+      PushBridge.ensureActivated();
+      if (retryToken || !PushBridge.hasToken()) {
         await PushBridge.refreshToken();
       }
       if (this.api.currentBase() === '') {
@@ -177,6 +179,13 @@ export struct NotifyPanel {
       this.relayOk = st.relayOk === true;
       this.relayConfigured = st.relayConfigured === true;
       this.relayErr = st.relayError !== undefined ? st.relayError : '';
+      if (fromUserTap) {
+        if (this.pushState === 'ready' && this.relayConfigured) {
+          Toast.ok('华为系统推送通道已就绪');
+        } else if (this.pushErrMsg !== '') {
+          Toast.err(this.pushErrMsg);
+        }
+      }
     } finally {
       this.relayLoading = false;
     }
@@ -546,7 +555,7 @@ export struct NotifyPanel {
 
         Text(this.pushDetailText())
           .fontSize(Tokens.fsFoot)
-          .fontColor(Tokens.dim2)
+          .fontColor(this.pushState === 'unavailable' ? Tokens.askInk : Tokens.dim2)
           .lineHeight(18)
           .width('100%')
 
@@ -562,7 +571,7 @@ export struct NotifyPanel {
             .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.94 })
             .onClick(() => {
               Haptics.tap();
-              void this.refreshPushChannel(true);
+              void this.refreshPushChannel(true, true);
             })
 
           Text(this.testPushBusy ? '发送中…' : '测试后台推送')
@@ -592,6 +601,21 @@ export struct NotifyPanel {
               .onClick(() => {
                 Haptics.tap();
                 void this.runRotateBinding();
+              })
+          } else {
+            Text('复制诊断')
+              .fontSize(Tokens.fsFoot)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(Tokens.dim)
+              .backgroundColor(Tokens.surface2)
+              .borderRadius(Tokens.rPill)
+              .padding({ left: 12, right: 12, top: 7, bottom: 7 })
+              .margin({ top: 2 })
+              .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.94 })
+              .onClick(() => {
+                Haptics.tap();
+                copyText(PushBridge.diagText());
+                Toast.ok('已复制推送诊断信息');
               })
           }
         }
