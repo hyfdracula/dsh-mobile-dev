@@ -164,7 +164,7 @@ export class Pairing {
         alts.push(Pairing.normalizeBase(v));
       }
     }
-    if (base === '' || code === '') {
+    if (base === '' || !/^\d{6}$/.test(code)) {
       return null;
     }
     return { base: Pairing.normalizeBase(base), code: code, alts: alts };
@@ -173,11 +173,12 @@ export class Pairing {
   private static async req(base: string, path: string, method: string, payload: string): Promise<RawResp> {
     const client = http.createHttp();
     const t0: number = Date.now();
+    const isHttps: boolean = base.toLowerCase().startsWith('https://');
     try {
       const opts: http.HttpRequestOptions = {
         method: method === 'POST' ? http.RequestMethod.POST : http.RequestMethod.GET,
         header: { 'Content-Type': 'application/json' },
-        connectTimeout: 3000,
+        connectTimeout: isHttps ? 4000 : 2200,
         readTimeout: 6000,
         expectDataType: http.HttpDataType.STRING
       };
@@ -233,12 +234,12 @@ export class Pairing {
       }
       tried.push(one);
       if (onStage !== undefined) {
-        onStage(0, '正在尝试 ' + one + ' (' + String(tried.length) + '/' + String(bases.length) + ')');
+        onStage(0, '正在尝试第 ' + String(tried.length) + ' / ' + String(bases.length) + ' 条通道…');
       }
       try {
         const res: PairClaim = await Pairing.claim(one, code);
         if (onStage !== undefined) {
-          onStage(1, '已验证配对码 · ' + one);
+          onStage(1, '通道已连通，正在校验安全身份…');
         }
         return res;
       } catch (e) {
@@ -253,9 +254,8 @@ export class Pairing {
       }
     }
     throw new Error(
-      '连不上这台电脑（试了 ' + tried.length + ' 个地址，最后一个：' + last + '）。' +
-        '检查：①手机和电脑连的是同一个 Wi-Fi；②电脑防火墙放行 DSH（端口 8901）；' +
-        '③或者让电脑打开公网访问，重新扫一次。'
+      '暂时连不上电脑（已自动尝试 ' + tried.length + ' 条通道）。' +
+        '请确认电脑上的 DSH 正在运行，网络畅通后点击下方「重新连接」即可。'
     );
   }
 

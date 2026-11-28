@@ -166,7 +166,7 @@ export struct ConnectPanel {
       this.inviteHasPublic = res.publicUrl !== undefined && res.publicUrl.trim() !== '';
       this.inviteExpiresAt = res.expiresAt !== undefined ? res.expiresAt : 0;
       Haptics.success();
-      await copyText(payload, '已复制远程配对口令');
+      await copyText(payload, '已复制连接令牌');
     } catch (e) {
       Haptics.error();
       Toast.err('生成失败：' + ((e as Error).message ?? '请确认电脑网关已升级并开启配对'));
@@ -622,7 +622,7 @@ export struct ConnectPanel {
 
   @Builder
   remotePairSection() {
-    this.sectionTitle('远程配对新设备', 16, 'hdr:remotePair', 256)
+    this.sectionTitle('邀请新设备连接', 16, 'hdr:remotePair', 256)
     Column({ space: 9 }) {
       if (this.pairReqs.length > 0) {
         Column({ space: 10 }) {
@@ -738,10 +738,10 @@ export struct ConnectPanel {
       Column({ space: 10 }) {
         Row({ space: 10 }) {
           Column({ space: 3 }) {
-            Text('生成一次性远程配对口令')
+            Text('生成一次性连接令牌')
               .fontSize(Tokens.fsBodyLg)
               .fontColor(Tokens.fg)
-            Text('5 分钟内有效且不含长期令牌，发给新手机粘贴即可一键配对')
+            Text('5 分钟内有效且不含长期密钥，发给新手机粘贴即可一键连接，局域网与外网通用')
               .fontSize(Tokens.fsFoot)
               .fontColor(Tokens.dim2)
               .lineHeight(17)
@@ -749,7 +749,7 @@ export struct ConnectPanel {
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)
 
-          Text(this.inviteBusy ? '生成中…' : '生成口令')
+          Text(this.inviteBusy ? '生成中…' : '生成令牌')
             .fontSize(Tokens.fsFoot)
             .fontWeight(FontWeight.Medium)
             .fontColor(Tokens.accentInk)
@@ -768,12 +768,11 @@ export struct ConnectPanel {
         if (this.invitePayload !== '') {
           Row({ space: 8 }) {
             Column({ space: 2 }) {
-              Text('6 位配对码：' + this.inviteCode)
+              Text('一次性连接令牌已就绪（' + this.inviteCode + '）')
                 .fontSize(Tokens.fsFoot)
                 .fontWeight(FontWeight.Medium)
-                .fontFamily('monospace')
                 .fontColor(Tokens.fg)
-              Text(this.inviteHasPublic ? '已优先附带公网入口 · 仅限单次使用' : '当前未配公网地址 · 仅含局域网入口')
+              Text(this.inviteHasPublic ? '已自动包含局域网与外网通道 · 单次有效' : '当前包含局域网通道 · 单次有效')
                 .fontSize(Tokens.fsCaption)
                 .fontColor(Tokens.dim2)
             }
@@ -788,7 +787,7 @@ export struct ConnectPanel {
               .padding({ left: 10, right: 10, top: 5, bottom: 5 })
               .onClick(() => {
                 Haptics.tap();
-                void copyText(this.invitePayload, '已复制远程配对口令');
+                void copyText(this.invitePayload, '已复制连接令牌');
               })
           }
           .width('100%')
@@ -875,7 +874,7 @@ export struct ConnectPanel {
         }, true, true))
 
       Row() {
-        this.addMachineChip('扫码 / 远程配对', 'scan')
+        this.addMachineChip('扫码 / 令牌配对', 'scan')
         this.addMachineChip('新手引导', 'guide')
         this.addMachineChip('手动添加', 'manual')
       }

@@ -747,7 +747,7 @@ export function MobileSection(): ReactNode {
       <Card hero>
         <SectionHead
           title="连接手机 App"
-          subtitle="打开 Agent Mobile 扫码，或填入电脑地址与下方 6 位一次性配对码"
+          subtitle="在手机上打开 Agent Mobile 扫一扫，或点击下方「复制连接令牌」发到手机粘贴连接（局域网与外网通用）"
           right={<Btn text={busy === 'code' ? '更新中...' : '换一个新码'} primary disabled={busy === 'code'} onClick={() => { void rotate() }} />}
         />
 
@@ -873,7 +873,7 @@ export function MobileSection(): ReactNode {
               ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <Btn
-                    text={copied === 'invite' ? '已复制远程配对口令' : '复制远程配对口令'}
+                    text={copied === 'invite' ? '已复制连接令牌' : '复制连接令牌'}
                     onClick={() => {
                       const link = (state?.remotePayload && state.remotePayload.length > 0)
                         ? state.remotePayload
@@ -882,7 +882,7 @@ export function MobileSection(): ReactNode {
                     }}
                   />
                   <span style={{ fontSize: 11.5, color: C.fgFaint }}>
-                    不含长期令牌 · 手机粘贴口令即可一键配对
+                    一次性有效且不含长期密钥 · 手机粘贴即可自动连接（局域网/外网通用）
                   </span>
                 </div>
               )
