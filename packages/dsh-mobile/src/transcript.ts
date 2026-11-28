@@ -8,6 +8,13 @@ import { join } from 'node:path'
 import * as zlib from 'node:zlib'
 import type { SessionStats, TokenUsage } from './projections.ts'
 import { dshHome } from './state.ts'
+import {
+  applyTaskToolCall,
+  cloneTaskSteps,
+  normalizeTaskStatus,
+  parseTaskStepArray,
+  type TaskStep,
+} from './task-steps.ts'
 
 export interface ImageRef {
   id: string
@@ -409,6 +416,8 @@ interface SessionFoldEntry {
   teamSawMode: boolean
   teamMembers: Map<string, Record<string, unknown>>
   teamTasks: Map<string, Record<string, unknown>>
+  // 统一步骤/任务清单（来自 DSH `todo/write` 事件与 todo/task 类工具调用）
+  todoSteps: TaskStep[]
 }
 
 const historyCache = new Map<string, SessionFoldEntry>()
@@ -444,6 +453,7 @@ function createEmptyFoldEntry(size: number, mtimeMs: number, headLen: number, fi
     teamSawMode: false,
     teamMembers: new Map(),
     teamTasks: new Map(),
+    todoSteps: [],
   }
 }
 
@@ -539,6 +549,14 @@ function foldEventLine(entry: SessionFoldEntry, line: string): void {
   if (event === null || typeof event !== 'object') return
   const ev = event as Record<string, any>
   const type = String(ev.type ?? '')
+
+  if (type === 'todo/write') {
+    const rawTodos = ev.data?.todos ?? ev.data?.steps ?? ev.data?.items
+    if (Array.isArray(rawTodos)) {
+      entry.todoSteps = parseTaskStepArray(rawTodos)
+    }
+    return
+  }
 
   // AgentTeams 事件顺带折叠，供 `/team` 路由直接读取。
   if (type === 'team/mode') {
@@ -661,9 +679,14 @@ function foldEventLine(entry: SessionFoldEntry, line: string): void {
     entry.stats.toolCalls += 1
     const callId = String(ev.data?.callId ?? ev.data?.id ?? '')
     const name = String(ev.data?.name ?? '')
+    const rawArgs = ev.data?.arguments ?? ev.data?.args ?? ev.data?.input
     const stepKey = `${String(ev.data?.turn ?? '')}:${String(ev.data?.step ?? '')}`
     if (callId !== '' && name !== '') {
-      registerToolTrace(entry, stepKey, callId, name, ev.data?.arguments ?? ev.data?.args ?? ev.data?.input)
+      registerToolTrace(entry, stepKey, callId, name, rawArgs)
+    }
+    if (name !== '') {
+      const mut = applyTaskToolCall(entry.todoSteps, name, rawArgs)
+      if (mut.changed) entry.todoSteps = mut.tasks
     }
     return
   }
@@ -839,6 +862,36 @@ function ensureDecoded(file: string): SessionFoldEntry {
   }
 }
 
+/** 从折叠状态组装统一的任务/步骤列表：优先返回原生 todoSteps，否则回退映射 AgentTeams 任务。 */
+function resolveSessionTasks(entry: SessionFoldEntry): TaskStep[] {
+  if (entry.todoSteps.length > 0) {
+    return cloneTaskSteps(entry.todoSteps)
+  }
+  if (entry.teamTasks.size === 0) return []
+  const rows = Array.from(entry.teamTasks.values())
+    .filter((task) => task.status !== 'deleted')
+    .sort((a, b) => {
+      const rank = (s: unknown): number =>
+        s === 'in_progress' ? 0 : s === 'pending' ? 1 : s === 'completed' ? 2 : 3
+      const delta = rank(a.status) - rank(b.status)
+      return delta !== 0 ? delta : String(a.subject ?? '').localeCompare(String(b.subject ?? ''))
+    })
+  return rows
+    .map((task, idx): TaskStep | null => {
+      const title = String(task.subject ?? '').replace(/\s+/g, ' ').trim().slice(0, 220)
+      if (!title) return null
+      const id = String(task.id ?? '') || `team-${String(idx + 1)}`
+      const status = normalizeTaskStatus(task.status)
+      const owner = String(task.ownerName ?? '').trim()
+      const descLine = String(task.description ?? '').split(/\r?\n/)[0]?.trim() ?? ''
+      const detail = owner ? `负责: ${owner}` : (descLine && descLine !== title ? descLine.slice(0, 140) : undefined)
+      const step: TaskStep = { id, title, status }
+      if (detail) step.detail = detail
+      return step
+    })
+    .filter((x): x is TaskStep => x !== null)
+}
+
 /** 读取会话完整消息轨迹与统计（自动走增量 Zstd 缓存）。 */
 export function historyOf(file: string): {
   messages: ChatMessage[]
@@ -846,6 +899,7 @@ export function historyOf(file: string): {
   lastTurn: string
   lastErr: TurnErr | null
   byteOffset: number
+  tasks: TaskStep[]
 } {
   const entry = ensureDecoded(file)
   return {
@@ -854,6 +908,7 @@ export function historyOf(file: string): {
     lastTurn: entry.lastTurn,
     lastErr: entry.lastErr,
     byteOffset: entry.byteOffset,
+    tasks: resolveSessionTasks(entry),
   }
 }
 

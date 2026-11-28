@@ -5,6 +5,7 @@
  */
 import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
+import { applyTaskToolCall, cloneTaskSteps, parseTaskStepArray, type TaskStep } from '../task-steps.ts'
 import type { ChatMessage, ToolTrace } from '../transcript.ts'
 import { AcpClient, type AcpPermissionRequest, type AcpSessionUpdate } from './acp-client.ts'
 import { probeCliVersion, validateWorkingDir, type ResolvedCli } from './process-util.ts'
@@ -32,6 +33,7 @@ export interface AcpSessionCache {
   updatedAt: number
   model: string
   messages: ChatMessage[]
+  tasks: TaskStep[]
   loaded: boolean
   boundToProcess: boolean
   running: boolean
@@ -161,6 +163,7 @@ export abstract class AcpSessionBackend implements AgentBackend {
         updatedAt: Date.now(),
         model: '',
         messages: [],
+        tasks: [],
         loaded: false,
         boundToProcess: false,
         running: false,
@@ -290,6 +293,16 @@ export abstract class AcpSessionBackend implements AgentBackend {
       return
     }
 
+    if (kind === 'plan') {
+      const parsed = parseTaskStepArray(u.entries ?? u.plan ?? u.steps ?? u.items)
+      s.tasks = parsed
+      s.updatedAt = Date.now()
+      if (!isReplay) {
+        this.emit(sid, { type: 'tasks', tasks: cloneTaskSteps(s.tasks), running: s.running })
+      }
+      return
+    }
+
     if (kind === 'tool_call' || kind === 'tool_call_update') {
       const a = this.ensureActiveAssistant(s)
       if (!a.tools) a.tools = []
@@ -324,6 +337,14 @@ export abstract class AcpSessionBackend implements AgentBackend {
         if (name && name !== 'tool') existing.name = name
         if (summary) existing.summary = summary
         existing.status = traceStatus
+      }
+      const taskToolName = typeof u.toolName === 'string' && u.toolName.trim() !== '' ? u.toolName : existing.name
+      const taskMut = applyTaskToolCall(s.tasks, taskToolName, u.rawInput)
+      if (taskMut.changed) {
+        s.tasks = taskMut.tasks
+        if (!isReplay) {
+          this.emit(sid, { type: 'tasks', tasks: cloneTaskSteps(s.tasks), running: true })
+        }
       }
       if (!isReplay) {
         this.emit(sid, {
@@ -626,6 +647,7 @@ export abstract class AcpSessionBackend implements AgentBackend {
       cwd: cache.cwd,
       running: cache.running,
       asking: cache.pendingAsk !== null,
+      tasks: cloneTaskSteps(cache.tasks),
     }
   }
 

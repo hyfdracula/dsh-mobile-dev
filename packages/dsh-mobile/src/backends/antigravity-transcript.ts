@@ -9,6 +9,7 @@ import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, s
 import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
+import { applyTaskToolCall, cloneTaskSteps, type TaskStep } from '../task-steps.ts'
 import type { ChatMessage, ToolTrace } from '../transcript.ts'
 
 const MAX_CACHE_ENTRIES = 24
@@ -50,6 +51,7 @@ export interface AntigravityLiveState {
 
 export interface AntigravityTranscriptSnapshot {
   messages: ChatMessage[]
+  tasks: TaskStep[]
   model: string
   running: boolean
   phase: 'idle' | 'thinking' | 'tool'
@@ -64,6 +66,7 @@ interface ParsedSessionState {
   byteOffset: number
   leftover: string
   messages: ChatMessage[]
+  tasks: TaskStep[]
   activeAssistant: ChatMessage | null
   pendingToolIndices: number[]
   turnStartTime: number
@@ -293,6 +296,10 @@ function ingestTranscriptLine(state: ParsedSessionState, rawLine: string): void 
         const summary = formatToolSummary(name, tc.args)
         if (name === 'update_focus' && summary) {
           state.liveFocus = summary
+        }
+        const taskMut = applyTaskToolCall(state.tasks, name, tc.args)
+        if (taskMut.changed) {
+          state.tasks = taskMut.tasks
         }
         const trace: ToolTrace = {
           id: `ag-${String(stepIdx)}-${String(i)}`,
@@ -775,6 +782,7 @@ export function readAntigravityTranscript(rawId: string): AntigravityTranscriptS
       byteOffset: 0,
       leftover: '',
       messages: [],
+      tasks: [],
       activeAssistant: null,
       pendingToolIndices: [],
       turnStartTime: 0,
@@ -867,6 +875,7 @@ export function readAntigravityTranscript(rawId: string): AntigravityTranscriptS
 
   return {
     messages: outMessages,
+    tasks: cloneTaskSteps(state.tasks),
     model: state.model,
     running: live.running,
     phase: live.phase,

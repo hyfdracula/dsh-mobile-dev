@@ -7,6 +7,13 @@
 import type { ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
+import {
+  applyTaskToolCall,
+  cloneTaskSteps,
+  parseChecklistMarkdown,
+  parseTaskStepArray,
+  type TaskStep,
+} from '../task-steps.ts'
 import type { ChatMessage, ToolTrace } from '../transcript.ts'
 import {
   killProcessTree,
@@ -66,6 +73,7 @@ interface CodexRuntimeSession {
   running: boolean
   activeTurnId: string
   liveAssistant: ChatMessage | null
+  tasks: TaskStep[]
   pendingAsk: { ask: BackendPendingAsk; rpcId: number | string; method: string } | null
 }
 
@@ -91,9 +99,10 @@ function extractTextFromContent(content: unknown): string {
   return parts.join('\n')
 }
 
-function mapTurnsToMessages(turns: unknown, fallbackTime: number): ChatMessage[] {
-  if (!Array.isArray(turns)) return []
+function mapTurnsToMessages(turns: unknown, fallbackTime: number): { messages: ChatMessage[]; tasks: TaskStep[] } {
+  if (!Array.isArray(turns)) return { messages: [], tasks: [] }
   const out: ChatMessage[] = []
+  let tasks: TaskStep[] = []
   let seq = 0
   for (const t of turns) {
     if (!t || typeof t !== 'object') continue
@@ -176,6 +185,17 @@ function mapTurnsToMessages(turns: unknown, fallbackTime: number): ChatMessage[]
         continue
       }
 
+      if (typ === 'plan') {
+        const structured = parseTaskStepArray(item.plan ?? item.steps ?? item.entries ?? item.items)
+        if (structured.length > 0) {
+          tasks = structured
+        } else if (typeof item.text === 'string') {
+          const parsedMd = parseChecklistMarkdown(item.text)
+          if (parsedMd.length > 0) tasks = parsedMd
+        }
+        continue
+      }
+
       if (typ === 'fileChange' || typ === 'mcpToolCall' || typ === 'toolCall' || typ === 'webSearch') {
         const a = ensureA()
         if (!a.tools) a.tools = []
@@ -185,6 +205,8 @@ function mapTurnsToMessages(turns: unknown, fallbackTime: number): ChatMessage[]
             : typeof item.name === 'string'
               ? item.name
               : typ
+        const taskMut = applyTaskToolCall(tasks, name, item.arguments)
+        if (taskMut.changed) tasks = taskMut.tasks
         const input =
           item.arguments !== undefined
             ? JSON.stringify(item.arguments).slice(0, 200)
@@ -205,7 +227,7 @@ function mapTurnsToMessages(turns: unknown, fallbackTime: number): ChatMessage[]
       }
     }
   }
-  return out
+  return { messages: out, tasks }
 }
 
 export class CodexBackend implements AgentBackend {
@@ -260,6 +282,7 @@ export class CodexBackend implements AgentBackend {
         running: false,
         activeTurnId: '',
         liveAssistant: null,
+        tasks: [],
         pendingAsk: null,
       }
       this.runtime.set(rawId, s)
@@ -552,10 +575,30 @@ export class CodexBackend implements AgentBackend {
       return
     }
 
+    if (msg.method === 'turn/plan/updated' || msg.method === 'plan/updated') {
+      const parsed = parseTaskStepArray(params.plan ?? params.steps ?? params.entries ?? params.items)
+      s.tasks = parsed
+      s.updatedAt = Date.now()
+      this.emit(threadId, { type: 'tasks', tasks: cloneTaskSteps(s.tasks), running: s.running })
+      return
+    }
+
     if (msg.method === 'item/started' || msg.method === 'item/completed') {
       const item = params.item as Record<string, unknown> | undefined
       if (!item) return
       const typ = typeof item.type === 'string' ? item.type : ''
+      if (typ === 'plan') {
+        const structured = parseTaskStepArray(item.plan ?? item.steps ?? item.entries ?? item.items)
+        const nextTasks = structured.length > 0
+          ? structured
+          : (typeof item.text === 'string' ? parseChecklistMarkdown(item.text) : [])
+        if (nextTasks.length > 0) {
+          s.tasks = nextTasks
+          s.updatedAt = Date.now()
+          this.emit(threadId, { type: 'tasks', tasks: cloneTaskSteps(s.tasks), running: s.running })
+        }
+        return
+      }
       if (typ === 'commandExecution' || typ === 'fileChange' || typ === 'mcpToolCall' || typ === 'toolCall') {
         const done = msg.method === 'item/completed'
         const statusRaw = typeof item.status === 'string' ? item.status : ''
@@ -596,6 +639,11 @@ export class CodexBackend implements AgentBackend {
           existing.status = stMapped
         } else {
           live.tools.push({ id: tid, name: toolName, summary, status: stMapped })
+        }
+        const taskMut = applyTaskToolCall(s.tasks, toolName, item.arguments)
+        if (taskMut.changed) {
+          s.tasks = taskMut.tasks
+          this.emit(threadId, { type: 'tasks', tasks: cloneTaskSteps(s.tasks), running: true })
         }
         this.emit(threadId, {
           type: 'tool',
@@ -715,7 +763,14 @@ export class CodexBackend implements AgentBackend {
     if (typeof thread.cwd === 'string' && thread.cwd) rt.cwd = thread.cwd
     if (typeof thread.model === 'string' && thread.model) rt.model = thread.model
     const updatedAt = tsMs(thread.updatedAt ?? thread.createdAt) || Date.now()
-    const all = mapTurnsToMessages(thread.turns, updatedAt)
+    const mapped = mapTurnsToMessages(thread.turns, updatedAt)
+    const all = mapped.messages
+    if (!rt.running && mapped.tasks.length > 0) {
+      rt.tasks = mapped.tasks
+    }
+    const tasks = rt.running && rt.tasks.length > 0
+      ? cloneTaskSteps(rt.tasks)
+      : (mapped.tasks.length > 0 ? mapped.tasks : cloneTaskSteps(rt.tasks))
     // 公网 E2EE 轮询场景下同步拼入运行中增量（正文/思考/工具），避免流式过程空白
     if (rt.running && rt.liveAssistant) {
       const live = rt.liveAssistant
@@ -742,6 +797,7 @@ export class CodexBackend implements AgentBackend {
       cwd: rt.cwd,
       running: rt.running,
       asking: rt.pendingAsk !== null,
+      tasks,
     }
   }
 

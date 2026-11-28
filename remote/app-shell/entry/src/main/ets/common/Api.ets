@@ -102,6 +102,7 @@ export {
   SessionStats,
   ImageRef,
   ToolStep,
+  TaskStep,
   GoalView,
   TurnInfo,
   Message,

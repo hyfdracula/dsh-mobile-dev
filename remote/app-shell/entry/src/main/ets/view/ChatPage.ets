@@ -23,6 +23,7 @@ import {
   SessionStats,
   SlashCommandRow,
   StreamUpdate,
+  TaskStep,
   ToolStep,
   TurnErr,
   backendIdOfSession,
@@ -109,6 +110,7 @@ import { GoalSheet } from './chat/GoalSheet';
 import { MessageSelectSheet } from './chat/MessageSelectSheet';
 import { ModelPickerSheet } from './chat/ModelPickerSheet';
 import { PermPickerSheet } from './chat/PermPickerSheet';
+import { TaskStepsCard } from './chat/TaskStepsCard';
 
 @Component
 export struct ChatPage {
@@ -233,6 +235,7 @@ export struct ChatPage {
   @State private msgMenuOn: boolean = false;
   @State private menuMsg: Message | null = null;
   @State private asks: PendingAsk[] = [];
+  @State private tasks: TaskStep[] = [];
   @State private extrasMode: string = '';
   @State private webConsoleOn: boolean = false;
   @State private composerPressed: boolean = false;
@@ -273,6 +276,7 @@ export struct ChatPage {
     }
     this.initialMaxSeq = Number.MAX_SAFE_INTEGER;
     this.seenSeqs.clear();
+    this.tasks = [];
     this.pinKeyboard();
     this.titleNow = this.param.title;
     Marks.clear(this.param.id);
@@ -412,6 +416,24 @@ export struct ChatPage {
     }
     const tail: Message | undefined = this.msgs[this.msgs.length - 1];
     return tail !== undefined && tail.seq === m.seq;
+  }
+
+  private tasksSignature(list: TaskStep[]): string {
+    let out: string = '';
+    for (let i = 0; i < list.length; i++) {
+      const t: TaskStep = list[i];
+      out += t.id + ':' + t.status + ':' + t.title + ':' + (t.detail ?? '') + '|';
+    }
+    return out;
+  }
+
+  private applyTasks(next: TaskStep[] | undefined): void {
+    if (next === undefined) {
+      return;
+    }
+    if (this.tasksSignature(this.tasks) !== this.tasksSignature(next)) {
+      this.tasks = next;
+    }
   }
 
   private stopDotTimer(): void {
@@ -723,6 +745,7 @@ export struct ChatPage {
     if (u.questions !== undefined) {
       this.asks = u.questions.active === undefined ? [] : u.questions.active;
     }
+    this.applyTasks(u.tasks);
     if (u.messages !== undefined && u.messages.length > 0) {
       const merged: Message[] = mergeMessageList(this.msgs, u.messages);
       this.msgs = merged;
@@ -803,6 +826,7 @@ export struct ChatPage {
       this.applyQueue(r.queue === undefined ? [] : r.queue);
       const qs: AskState | undefined = r.questions;
       this.asks = qs === undefined || qs.active === undefined ? [] : qs.active;
+      this.applyTasks(r.tasks);
       if (r.context !== undefined && r.context !== null) this.ctx = r.context;
       if (r.plan !== undefined) this.planActive = r.plan.active === true;
       if (this.err !== '') this.err = '';
@@ -872,6 +896,7 @@ export struct ChatPage {
       this.applyQueue(r.queue === undefined ? [] : r.queue);
       const qs: AskState | undefined = r.questions;
       this.asks = qs === undefined || qs.active === undefined ? [] : qs.active;
+      this.applyTasks(r.tasks === undefined ? [] : r.tasks);
       this.hasMore = r.messages.length < r.total;
       this.err = '';
       this.takeLastErr(r.lastErr);
@@ -941,6 +966,7 @@ export struct ChatPage {
       this.applyQueue(r.queue === undefined ? [] : r.queue);
       const qs: AskState | undefined = r.questions;
       this.asks = qs === undefined || qs.active === undefined ? [] : qs.active;
+      this.applyTasks(r.tasks === undefined ? [] : r.tasks);
       this.hasMore = out.length < r.total;
       this.err = '';
       this.takeLastErr(r.lastErr);
@@ -2502,6 +2528,13 @@ export struct ChatPage {
                       }
                     }
                   }
+                })
+              }
+
+              if (this.tasks.length > 0 && !this.attachOn) {
+                TaskStepsCard({
+                  tasks: this.tasks,
+                  running: this.running
                 })
               }
 

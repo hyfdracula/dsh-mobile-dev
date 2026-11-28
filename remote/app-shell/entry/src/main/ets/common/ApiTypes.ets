@@ -264,6 +264,14 @@ export interface ToolStep {
   status: string;
 }
 
+/** 跨引擎统一任务/步骤清单项（DSH / Antigravity / Codex / Claude Code / OpenCode） */
+export interface TaskStep {
+  id: string;
+  title: string;
+  status: string;
+  detail?: string;
+}
+
 /** 会话目标视图 */
 export interface GoalView {
   id?: string;
@@ -387,6 +395,7 @@ export interface MessagesResult {
   queue?: QueuedItem[];
   questions?: AskState;
   plan?: PlanState;
+  tasks?: TaskStep[];
 }
 
 /** SSE 增量推送帧（R4：对应 GET /api/sessions/:id/stream 的 event: update） */
@@ -405,6 +414,7 @@ export interface StreamUpdate {
   queue?: QueuedItem[];
   questions?: AskState;
   plan?: PlanState;
+  tasks?: TaskStep[];
 }
 
 export interface ModelRef {
@@ -470,6 +480,7 @@ export interface MessagesResp {
   queue?: QueuedItem[];
   questions?: AskState;
   plan?: PlanState;
+  tasks?: TaskStep[];
 }
 
 export interface PresenceBody {

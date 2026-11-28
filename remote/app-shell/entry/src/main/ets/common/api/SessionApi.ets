@@ -111,7 +111,8 @@ export class SessionApi {
       lastErr: r.lastErr,
       queue: r.queue,
       questions: r.questions,
-      plan: r.plan
+      plan: r.plan,
+      tasks: r.tasks
     };
   }
 

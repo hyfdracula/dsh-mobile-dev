@@ -1,6 +1,7 @@
 /**
  * 多 Agent 后端统一契约与能力矩阵（与 Cordis / DSH 解耦，未来可直接抽成独立常驻网关）。
  */
+import type { TaskStep } from '../task-steps.ts'
 import type { ChatMessage } from '../transcript.ts'
 import type { SessionRow } from '../projections.ts'
 
@@ -111,7 +112,7 @@ export interface BackendNotifyEvent {
 
 /** 推送给客户端 SSE 流的统一事件结构（兼容现有 ChatPage 增量消费）。 */
 export interface BackendStreamEvent {
-  type: 'snapshot' | 'delta' | 'thinking' | 'tool' | 'status' | 'ask' | 'done' | 'error'
+  type: 'snapshot' | 'delta' | 'thinking' | 'tool' | 'tasks' | 'status' | 'ask' | 'done' | 'error'
   text?: string
   thinking?: string
   toolName?: string
@@ -119,6 +120,7 @@ export interface BackendStreamEvent {
   toolInput?: string
   toolOutput?: string
   toolStatus?: 'running' | 'done' | 'error'
+  tasks?: TaskStep[]
   running?: boolean
   asking?: boolean
   ask?: BackendPendingAsk | null
@@ -134,6 +136,7 @@ export interface BackendMessagesResult {
   cwd?: string
   running: boolean
   asking: boolean
+  tasks?: TaskStep[]
 }
 
 export interface AgentBackend {

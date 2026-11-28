@@ -7,6 +7,7 @@
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { cloneTaskSteps } from '../task-steps.ts'
 import { AcpSessionBackend, type AcpCliSpec } from './acp-backend.ts'
 import {
   clearAntigravityAborted,
@@ -222,6 +223,9 @@ export class AntigravityBackend extends AcpSessionBackend {
 
       const lim = opts?.limit && opts.limit > 0 ? opts.limit : merged.length
       const start = Math.max(0, merged.length - lim)
+      const tasks = cache.running && cache.tasks.length > 0
+        ? cloneTaskSteps(cache.tasks)
+        : (disk.tasks.length > 0 ? disk.tasks : cloneTaskSteps(cache.tasks))
       return {
         messages: merged.slice(start),
         total: merged.length,
@@ -230,6 +234,7 @@ export class AntigravityBackend extends AcpSessionBackend {
         cwd: cache.cwd,
         running,
         asking: cache.pendingAsk !== null,
+        tasks,
       }
     }
     return await super.getMessages(rawId, opts)

@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
+import { applyTaskToolCall, cloneTaskSteps, type TaskStep } from '../task-steps.ts'
 import type { ChatMessage, ToolTrace } from '../transcript.ts'
 import {
   killProcessTree,
@@ -62,6 +63,7 @@ interface ClaudeRuntimeSession {
   activeChild: ChildProcess | null
   localMessages: ChatMessage[]
   liveAssistant: ChatMessage | null
+  tasks: TaskStep[]
 }
 
 const DEFAULT_CLAUDE_MODELS: BackendModelOption[] = [
@@ -90,6 +92,7 @@ interface ParsedClaudeFile {
   model: string
   preview: string
   messages: ChatMessage[]
+  tasks: TaskStep[]
 }
 
 function extractUserText(content: unknown): string {
@@ -116,13 +119,14 @@ function parseClaudeJsonl(filePath: string, fullHistory: boolean): ParsedClaudeF
   let model = ''
   let preview = ''
   const messages: ChatMessage[] = []
+  let tasks: TaskStep[] = []
   const toolIndex = new Map<string, ToolTrace>()
 
   let raw = ''
   try {
     raw = readFileSync(filePath, 'utf8')
   } catch {
-    return { sessionId, title: 'Claude 会话', cwd: homedir(), model: '', preview: '', messages: [] }
+    return { sessionId, title: 'Claude 会话', cwd: homedir(), model: '', preview: '', messages: [], tasks: [] }
   }
 
   const lines = raw.split(/\r?\n/)
@@ -212,6 +216,10 @@ function parseClaudeJsonl(filePath: string, fullHistory: boolean): ParsedClaudeF
           } else if (b.type === 'tool_use') {
             const tid = typeof b.id === 'string' ? b.id : `cl-t-${seq}`
             const name = typeof b.name === 'string' ? b.name : 'tool'
+            if (fullHistory) {
+              const taskMut = applyTaskToolCall(tasks, name, b.input)
+              if (taskMut.changed) tasks = taskMut.tasks
+            }
             const tc: ToolTrace = {
               id: tid,
               name,
@@ -251,6 +259,7 @@ function parseClaudeJsonl(filePath: string, fullHistory: boolean): ParsedClaudeF
     model,
     preview,
     messages,
+    tasks,
   }
 }
 
@@ -389,6 +398,7 @@ export class ClaudeBackend implements AgentBackend {
           activeChild: null,
           localMessages: [],
           liveAssistant: null,
+          tasks: [],
         }
         this.runtime.set(f.rawId, rt)
       } else {
@@ -440,12 +450,14 @@ export class ClaudeBackend implements AgentBackend {
     const rt = this.runtime.get(rawId)
     const fp = this.locateSessionFile(rawId)
     let all: ChatMessage[] = []
+    let tasks: TaskStep[] = []
     let model = rt?.model ?? ''
     let cwd = rt?.cwd ?? homedir()
 
     if (fp) {
       const parsed = parseClaudeJsonl(fp, true)
       all = parsed.messages
+      tasks = parsed.tasks
       if (parsed.model) model = parsed.model
       if (parsed.cwd) cwd = parsed.cwd
       if (rt) {
@@ -453,9 +465,15 @@ export class ClaudeBackend implements AgentBackend {
         rt.isNew = false
         if (model) rt.model = model
         if (cwd) rt.cwd = cwd
+        if (!rt.running && parsed.tasks.length > 0) rt.tasks = parsed.tasks
       }
     } else if (rt && rt.localMessages.length > 0) {
       all = [...rt.localMessages]
+    }
+    if (rt?.running && rt.tasks.length > 0) {
+      tasks = cloneTaskSteps(rt.tasks)
+    } else if (tasks.length === 0 && rt && rt.tasks.length > 0) {
+      tasks = cloneTaskSteps(rt.tasks)
     }
 
     // 公网 E2EE 轮询场景下拼入当前运行中的流式助手增量（正文/思考/工具状态）
@@ -485,6 +503,7 @@ export class ClaudeBackend implements AgentBackend {
       cwd,
       running: rt?.running === true,
       asking: false,
+      tasks,
     }
   }
 
@@ -503,6 +522,7 @@ export class ClaudeBackend implements AgentBackend {
       activeChild: null,
       localMessages: [],
       liveAssistant: null,
+      tasks: [],
     }
     this.runtime.set(rawId, rt)
     return {
@@ -544,6 +564,7 @@ export class ClaudeBackend implements AgentBackend {
         activeChild: null,
         localMessages: [],
         liveAssistant: null,
+        tasks: [],
       }
       this.runtime.set(rawId, rt)
     }
@@ -700,6 +721,11 @@ export class ClaudeBackend implements AgentBackend {
                   status: 'run',
                 })
               }
+            }
+            const taskMut = applyTaskToolCall(rt!.tasks, tName, b.input)
+            if (taskMut.changed) {
+              rt!.tasks = taskMut.tasks
+              this.emit(rawId, { type: 'tasks', tasks: cloneTaskSteps(rt!.tasks), running: true })
             }
             this.emit(rawId, {
               type: 'tool',

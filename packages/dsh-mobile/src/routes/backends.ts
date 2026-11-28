@@ -15,6 +15,7 @@ import type {
 } from '../backends/types.ts'
 import { readJson, send } from '../http-util.ts'
 import { record } from '../state.ts'
+import { taskStepsFingerprint, type TaskStep } from '../task-steps.ts'
 import type { ChatMessage, ToolTrace } from '../transcript.ts'
 
 export interface BackendRoutesDeps {
@@ -102,6 +103,7 @@ export function createBackendRoutes(deps: BackendRoutesDeps): BackendRoutesBundl
 
     let baseMessages: ChatMessage[] = []
     let liveAssistant: ChatMessage | null = null
+    let tasks: TaskStep[] = []
     let running = driver.isRunning(rawId)
     let lastErr: { code: string; text: string; time: number } | null = null
     let lastPushedFp = ''
@@ -127,6 +129,7 @@ export function createBackendRoutes(deps: BackendRoutesDeps): BackendRoutesBundl
         turnSig,
         ask?.askId ?? '',
         lastErr?.text ?? '',
+        taskStepsFingerprint(tasks),
       ].join('|')
     }
 
@@ -135,6 +138,9 @@ export function createBackendRoutes(deps: BackendRoutesDeps): BackendRoutesBundl
         const resMsg = await driver.getMessages(rawId, { limit })
         baseMessages = resMsg.messages.map((m, idx) => ({ ...m, seq: m.seq || idx + 1 }))
         running = resMsg.running
+        if (Array.isArray(resMsg.tasks)) {
+          tasks = resMsg.tasks
+        }
       } catch {
         // keep current base
       }
@@ -190,6 +196,7 @@ export function createBackendRoutes(deps: BackendRoutesDeps): BackendRoutesBundl
         plan: { active: false, pending: false },
         queue: [],
         questions: buildAskPayload(driver, rawId),
+        tasks,
       }
       writeSse(`event: update\ndata: ${JSON.stringify(payload)}\n\n`)
     }
@@ -260,6 +267,11 @@ export function createBackendRoutes(deps: BackendRoutesDeps): BackendRoutesBundl
         } else {
           a.tools.push({ id: tid, name: ev.toolName || 'tool', summary, status: st })
         }
+        pushSnapshot()
+        return
+      }
+      if (ev.type === 'tasks' && Array.isArray(ev.tasks)) {
+        tasks = ev.tasks
         pushSnapshot()
         return
       }
@@ -496,6 +508,7 @@ export function createBackendRoutes(deps: BackendRoutesDeps): BackendRoutesBundl
         plan: { active: false, pending: false },
         queue: [],
         questions: buildAskPayload(driver, rawId),
+        tasks: data.tasks ?? [],
         lastTurn: null,
         lastErr: null,
       })

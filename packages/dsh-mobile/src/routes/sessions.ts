@@ -35,6 +35,7 @@ import {
   type SessionRow,
 } from '../projections.ts'
 import { hashText, record } from '../state.ts'
+import { taskStepsFingerprint, type TaskStep } from '../task-steps.ts'
 import {
   applyCompactMode,
   findSessionFile,
@@ -258,6 +259,7 @@ export function createSessionRoutes(deps: SessionRouteDeps): SessionRoutesBundle
         let byteOffset = 0
         let total = 0
         let firstSeq = 0
+        let tasks: TaskStep[] = []
 
         if (zstdDecompressSync !== undefined) {
           const file = findSessionFile(sessionId)
@@ -268,6 +270,7 @@ export function createSessionRoutes(deps: SessionRouteDeps): SessionRoutesBundle
               lastTurn = hist.lastTurn
               lastErr = hist.lastErr
               byteOffset = hist.byteOffset
+              tasks = hist.tasks
               total = all.length
               firstSeq = all.length > 0 ? (all[0]?.seq ?? 0) : 0
             } catch {
@@ -311,6 +314,7 @@ export function createSessionRoutes(deps: SessionRouteDeps): SessionRoutesBundle
           plan,
           queue,
           questions: questions.active,
+          tasks: taskStepsFingerprint(tasks),
         })
 
         if (!forceFirst && fp === lastFingerprint) return
@@ -355,6 +359,7 @@ export function createSessionRoutes(deps: SessionRouteDeps): SessionRoutesBundle
           plan,
           queue,
           questions,
+          tasks,
         }
         writeSse(`event: update\ndata: ${JSON.stringify(payload)}\n\n`)
       } finally {
@@ -598,7 +603,7 @@ export function createSessionRoutes(deps: SessionRouteDeps): SessionRoutesBundle
       const before = Number.isFinite(beforeRaw) ? Math.max(Math.trunc(beforeRaw), 0) : 0
       const compact = url.searchParams.get('compact') === '1' || url.searchParams.get('compact') === 'true'
 
-      const { messages: all, stats, lastTurn, lastErr } = historyOf(file)
+      const { messages: all, stats, lastTurn, lastErr, tasks } = historyOf(file)
       let tokens = stats.tokens
       let running = false
       let context: ContextUsage | null = null
@@ -642,6 +647,7 @@ export function createSessionRoutes(deps: SessionRouteDeps): SessionRoutesBundle
         running,
         queue: await hostQueueView(ctl, sessionId),
         questions: deps.askBridge.pendingAsks(listed, sessionId),
+        tasks,
       })
       return true
     }
