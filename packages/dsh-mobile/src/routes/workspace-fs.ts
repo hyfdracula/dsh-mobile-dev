@@ -57,10 +57,19 @@ export function createWorkspaceFsRoutes(deps: {
   sigOf: (kind: string, value: string, exp: string) => string
   sigTtlSec: number
   logFile: string
+  resolveExternalCwd?: (sid: string) => Promise<string>
 }): WorkspaceFsHelper {
   const tidyCwd = (raw: string): string => raw.replace(/\\\\/g, '\\')
 
   const cwdOf = async (sid: string): Promise<string> => {
+    if (deps.resolveExternalCwd) {
+      try {
+        const extCwd = await deps.resolveExternalCwd(sid)
+        if (extCwd) return tidyCwd(extCwd)
+      } catch {
+        // fall through
+      }
+    }
     const sessions = deps.service('sessions')
     if (sessions !== null && typeof sessions.get === 'function') {
       let live: unknown = null

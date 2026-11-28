@@ -141,7 +141,36 @@ export function createBackendRoutes(deps: BackendRoutesDeps): BackendRoutesBundl
     }
 
     const pushSnapshot = (force = false): void => {
-      const merged: ChatMessage[] = liveAssistant ? [...baseMessages, liveAssistant] : [...baseMessages]
+      let merged: ChatMessage[]
+      if (liveAssistant) {
+        const lastBase = baseMessages.length > 0 ? baseMessages[baseMessages.length - 1] : undefined
+        // 若磁盘快照（如 Antigravity transcript.jsonl）已经落盘了当前轮次的助手气泡，原地合流避免出现两个重复助手气泡
+        if (
+          lastBase
+          && lastBase.role === 'assistant'
+          && liveAssistant.seq <= lastBase.seq + 1
+          && (
+            (lastBase.text !== '' && (liveAssistant.text.startsWith(lastBase.text) || lastBase.text.startsWith(liveAssistant.text)))
+            || (lastBase.text === '' && (lastBase.thinking || (lastBase.tools && lastBase.tools.length > 0)))
+          )
+        ) {
+          const combined: ChatMessage = {
+            ...lastBase,
+            text: liveAssistant.text.length >= lastBase.text.length ? liveAssistant.text : lastBase.text,
+            thinking: (liveAssistant.thinking?.length ?? 0) >= (lastBase.thinking?.length ?? 0)
+              ? liveAssistant.thinking
+              : lastBase.thinking,
+            tools: (liveAssistant.tools?.length ?? 0) >= (lastBase.tools?.length ?? 0)
+              ? liveAssistant.tools
+              : lastBase.tools,
+          }
+          merged = [...baseMessages.slice(0, -1), combined]
+        } else {
+          merged = [...baseMessages, liveAssistant]
+        }
+      } else {
+        merged = [...baseMessages]
+      }
       const fp = buildSnapshotFingerprint(merged, running)
       if (!force && fp === lastPushedFp) return
       lastPushedFp = fp
@@ -231,7 +260,7 @@ export function createBackendRoutes(deps: BackendRoutesDeps): BackendRoutesBundl
         } else {
           a.tools.push({ id: tid, name: ev.toolName || 'tool', summary, status: st })
         }
-        scheduleFlush()
+        pushSnapshot()
         return
       }
       if (ev.type === 'ask') {
@@ -262,16 +291,19 @@ export function createBackendRoutes(deps: BackendRoutesDeps): BackendRoutesBundl
     }
 
     const unsubscribe = driver.subscribe(rawId, onEvent)
-    // 定期轻量同步桌面端直接发起的新消息、思考过程与运行状态（通过增量 stat/offset，无变更零推送）
-    const pollTimer = setInterval(() => {
-      if (closed || pollBusy || liveAssistant !== null) return
-      pollBusy = true
-      void loadBase()
-        .then(() => pushSnapshot(false))
-        .finally(() => {
-          pollBusy = false
-        })
-    }, 650)
+    // 仅对支持桌面端磁盘并发写入的引擎开启定期轻量同步（Antigravity 650ms / Claude 2500ms），避免向 Codex/OpenCode 发起无谓 RPC 轮询
+    const pollIntervalMs = driver.id === 'antigravity' ? 650 : driver.id === 'claude' ? 2500 : 0
+    const pollTimer = pollIntervalMs > 0
+      ? setInterval(() => {
+          if (closed || pollBusy || liveAssistant !== null) return
+          pollBusy = true
+          void loadBase()
+            .then(() => pushSnapshot(false))
+            .finally(() => {
+              pollBusy = false
+            })
+        }, pollIntervalMs)
+      : null
     const pingTimer = setInterval(() => {
       writeSse(': ping\n\n')
     }, 15_000)
@@ -283,7 +315,7 @@ export function createBackendRoutes(deps: BackendRoutesDeps): BackendRoutesBundl
         clearTimeout(flushTimer)
         flushTimer = null
       }
-      clearInterval(pollTimer)
+      if (pollTimer) clearInterval(pollTimer)
       clearInterval(pingTimer)
       unsubscribe()
       activeStreamClosers.delete(cleanup)
@@ -471,6 +503,10 @@ export function createBackendRoutes(deps: BackendRoutesDeps): BackendRoutesBundl
     }
 
     if ((sub === 'messages' || sub === 'send' || sub === 'outbox') && method === 'POST') {
+      if (driver.isRunning(rawId)) {
+        send(res, 409, { error: `${driver.label} 正在回复中，请等待本轮完成或先点击停止` })
+        return true
+      }
       const body = await readJson(req)
       const text = typeof body.text === 'string' ? body.text : typeof body.content === 'string' ? body.content : ''
       const images = parseImagesFromBody(body)
@@ -616,6 +652,15 @@ export function createBackendRoutes(deps: BackendRoutesDeps): BackendRoutesBundl
     if (sub === 'goal' && method === 'GET') {
       send(res, 200, { ok: true, goal: null })
       return true
+    }
+
+    // 工作区文件、Git 变更与远程终端统一交由 workspace-fs / git / terminal 路由处理（按外部会话 cwd 解析目录）
+    if (
+      sub === 'fs' || sub.startsWith('fs/')
+      || sub === 'git' || sub.startsWith('git/')
+      || sub === 'terminal' || sub.startsWith('terminal/')
+    ) {
+      return false
     }
 
     send(res, 400, { error: `${driver.label} 暂不支持该操作 (${sub || method})` })

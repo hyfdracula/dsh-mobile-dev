@@ -838,8 +838,8 @@ export abstract class AcpSessionBackend implements AgentBackend {
     if (!this.capabilities.modelSwitch) return false
     const client = this.ensureClient()
     const cache = this.getOrCreateCache(rawId)
-    if (!cache.loaded) {
-      await this.getMessages(rawId, { limit: 1 })
+    if (!cache.boundToProcess) {
+      await this.ensureSessionBound(rawId, cache)
     }
     const ok = await client.setModel(rawId, model)
     if (ok) {

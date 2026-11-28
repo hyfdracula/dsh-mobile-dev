@@ -9,6 +9,8 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { AcpSessionBackend, type AcpCliSpec } from './acp-backend.ts'
 import {
+  clearAntigravityAborted,
+  markAntigravityAborted,
   probeAntigravityDiskActivity,
   readAntigravitySessionIndex,
   readAntigravityTranscript,
@@ -17,6 +19,7 @@ import { killProcessTree, resolveCliCommand, spawnCli } from './process-util.ts'
 import {
   formatSessionId,
   type BackendCapabilities,
+  type BackendImageInput,
   type BackendMessagesResult,
   type BackendModelOption,
   type BackendSessionRow,
@@ -53,9 +56,31 @@ export class AntigravityBackend extends AcpSessionBackend {
     return true
   }
 
+  private readonly createdRawIds = new Set<string>()
+
   override isRunning(rawId: string): boolean {
     if (super.isRunning(rawId)) return true
     return probeAntigravityDiskActivity(rawId).running
+  }
+
+  override async createSession(cwd: string, opts?: { title?: string; model?: string }): Promise<BackendSessionRow> {
+    const row = await super.createSession(cwd, opts)
+    this.createdRawIds.add(row.rawId)
+    return row
+  }
+
+  override async sendMessage(
+    rawId: string,
+    text: string,
+    opts?: { images?: BackendImageInput[]; model?: string; cwd?: string },
+  ): Promise<{ ok: boolean; runId?: string; status?: string }> {
+    clearAntigravityAborted(rawId)
+    return await super.sendMessage(rawId, text, opts)
+  }
+
+  override async abort(rawId: string): Promise<boolean> {
+    markAntigravityAborted(rawId)
+    return await super.abort(rawId)
   }
 
   private isSameDirPath(a: string, b: string): boolean {
@@ -75,7 +100,12 @@ export class AntigravityBackend extends AcpSessionBackend {
     for (const row of rawRows) {
       const meta = index.get(row.rawId)
       const inMemRunning = super.isRunning(row.rawId)
-      if (meta?.hidden && !inMemRunning) {
+      const isCreatedHere = this.createdRawIds.has(row.rawId)
+      if (meta?.archived && !inMemRunning) {
+        this.createdRawIds.delete(row.rawId)
+        continue
+      }
+      if (meta?.hidden && !inMemRunning && !isCreatedHere) {
         continue
       }
       byId.set(row.rawId, row)

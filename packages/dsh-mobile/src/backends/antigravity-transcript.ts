@@ -78,9 +78,26 @@ interface ParsedSessionState {
   walCacheMtime: number
   walCacheSize: number
   walCacheState: AntigravityLiveState | null
+  walCacheFromGrace: boolean
 }
 
 const cache = new Map<string, ParsedSessionState>()
+const abortedAtMap = new Map<string, number>()
+
+/** 记录会话被用户主动中断的时刻，立即清除运行中缓存，防止中断后残留「正在思考」态。 */
+export function markAntigravityAborted(rawId: string): void {
+  abortedAtMap.set(rawId, Date.now())
+  const st = cache.get(rawId)
+  if (st) {
+    st.walCacheState = null
+    st.walCacheFromGrace = false
+  }
+}
+
+/** 清除主动中断标记（当用户发起新一轮对话时调用）。 */
+export function clearAntigravityAborted(rawId: string): void {
+  abortedAtMap.delete(rawId)
+}
 
 function baseAntigravityDir(): string {
   return join(homedir(), '.gemini', 'antigravity')
@@ -356,11 +373,21 @@ function probeSqliteLiveState(rawId: string, state?: ParsedSessionState): Antigr
     return { running: false, phase: 'idle', walMtimeMs: 0, maxStepIdx: 0 }
   }
 
-  // 若最近 3 分钟无任何写入且已有缓存，则直接判定为空闲，免打开 SQLite
-  const ageMs = Date.now() - walMtimeMs
+  const now = Date.now()
+  const ageMs = now - walMtimeMs
+  const abortedAt = abortedAtMap.get(rawId) ?? 0
+  if (abortedAt > 0) {
+    if (now - abortedAt < 30_000 && walMtimeMs <= abortedAt + 4000) {
+      return { running: false, phase: 'idle', walMtimeMs, maxStepIdx: 0 }
+    }
+    if (walMtimeMs > abortedAt + 4000 || now - abortedAt >= 30_000) {
+      abortedAtMap.delete(rawId)
+    }
+  }
+
+  // 若最近无新写入且已有缓存，则直接复用（注意间隙宽限态超过 8 秒即自动失效，不沿用 90 秒窗口）
   if (state && state.walCacheState && state.walCacheMtime === walMtimeMs && state.walCacheSize === walSize) {
-    // 超过 90 秒仍无新写入则自动降级为空闲，避免僵死 running 态
-    if (state.walCacheState.running && ageMs > RECENT_WAL_MS) {
+    if (state.walCacheState.running && (ageMs > RECENT_WAL_MS || (state.walCacheFromGrace && ageMs > 8_000))) {
       return { running: false, phase: 'idle', walMtimeMs, maxStepIdx: state.walCacheState.maxStepIdx }
     }
     return state.walCacheState
@@ -372,6 +399,7 @@ function probeSqliteLiveState(rawId: string, state?: ParsedSessionState): Antigr
       state.walCacheMtime = walMtimeMs
       state.walCacheSize = walSize
       state.walCacheState = idle
+      state.walCacheFromGrace = false
     }
     return idle
   }
@@ -385,6 +413,7 @@ function probeSqliteLiveState(rawId: string, state?: ParsedSessionState): Antigr
       let running = false
       let phase: 'idle' | 'thinking' | 'tool' = 'idle'
       let maxStepIdx = 0
+      let fromGrace = false
       for (const r of rows) {
         const idx = Number(r.idx ?? 0)
         if (idx > maxStepIdx) maxStepIdx = idx
@@ -397,13 +426,14 @@ function probeSqliteLiveState(rawId: string, state?: ParsedSessionState): Antigr
           break
         }
       }
-      // 防御：若最新步刚提交 USER_INPUT（step_type=14）或刚结束工具步且 25 秒内仍有写入，大概率正处于下一轮思考间隙
-      if (!running && ageMs < 25_000 && rows.length > 0) {
+      // 防御：若最新步刚提交 USER_INPUT（step_type=14）或刚结束工具步且 8 秒内仍有写入，判定处于思考间隙
+      if (!running && ageMs < 8_000 && rows.length > 0) {
         const latestType = Number(rows[0]!.step_type ?? 0)
         const latestStatus = Number(rows[0]!.status ?? 0)
         if (latestType === 14 || (latestType === 132 && latestStatus === 3)) {
           running = true
           phase = 'thinking'
+          fromGrace = true
         }
       }
       const res: AntigravityLiveState = { running, phase, walMtimeMs, maxStepIdx }
@@ -411,6 +441,7 @@ function probeSqliteLiveState(rawId: string, state?: ParsedSessionState): Antigr
         state.walCacheMtime = walMtimeMs
         state.walCacheSize = walSize
         state.walCacheState = res
+        state.walCacheFromGrace = fromGrace
       }
       return res
     } catch {
@@ -446,6 +477,7 @@ function probeSqliteLiveState(rawId: string, state?: ParsedSessionState): Antigr
     state.walCacheMtime = walMtimeMs
     state.walCacheSize = walSize
     state.walCacheState = fallback
+    state.walCacheFromGrace = true
   }
   return fallback
 }
@@ -757,6 +789,7 @@ export function readAntigravityTranscript(rawId: string): AntigravityTranscriptS
       walCacheMtime: 0,
       walCacheSize: 0,
       walCacheState: null,
+      walCacheFromGrace: false,
     }
   }
 

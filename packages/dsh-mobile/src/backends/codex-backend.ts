@@ -72,7 +72,7 @@ interface CodexRuntimeSession {
 const IDLE_TTL_MS = 15 * 60 * 1000
 
 function tsMs(raw: unknown): number {
-  if (typeof raw !== 'number' || !Number.isFinite(raw)) return Date.now()
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) return 0
   return raw > 1e12 ? raw : Math.round(raw * 1000)
 }
 
@@ -255,7 +255,7 @@ export class CodexBackend implements AgentBackend {
         cwd: homedir(),
         model: '',
         title: 'Codex 会话',
-        updatedAt: Date.now(),
+        updatedAt: 0,
         loaded: false,
         running: false,
         activeTurnId: '',
@@ -315,6 +315,7 @@ export class CodexBackend implements AgentBackend {
         if (s.running) {
           s.running = false
           s.activeTurnId = ''
+          s.liveAssistant = null
           this.emit(s.rawId, { type: 'done', running: false })
           this.emitNotify(s.rawId, 'done', 'interrupted')
         }
@@ -506,10 +507,25 @@ export class CodexBackend implements AgentBackend {
     if (!threadId) return
     const s = this.getOrCreateRuntime(threadId)
 
+    const ensureLiveAssistant = (): ChatMessage => {
+      if (!s.liveAssistant) {
+        s.liveAssistant = {
+          seq: 0,
+          role: 'assistant',
+          text: '',
+          thinking: '',
+          tools: [],
+          time: Date.now(),
+        }
+      }
+      return s.liveAssistant
+    }
+
     if (msg.method === 'turn/started') {
       const turn = params.turn as Record<string, unknown> | undefined
       s.running = true
       s.activeTurnId = typeof turn?.id === 'string' ? turn.id : (typeof params.turnId === 'string' ? params.turnId : '')
+      s.liveAssistant = null
       s.updatedAt = Date.now()
       this.emit(threadId, { type: 'status', running: true })
       return
@@ -519,6 +535,7 @@ export class CodexBackend implements AgentBackend {
       const delta = typeof params.delta === 'string' ? params.delta : ''
       if (delta) {
         s.updatedAt = Date.now()
+        ensureLiveAssistant().text += delta
         this.emit(threadId, { type: 'delta', text: delta, running: true })
       }
       return
@@ -528,6 +545,8 @@ export class CodexBackend implements AgentBackend {
       const delta = typeof params.delta === 'string' ? params.delta : ''
       if (delta) {
         s.updatedAt = Date.now()
+        const live = ensureLiveAssistant()
+        live.thinking = (live.thinking ?? '') + delta
         this.emit(threadId, { type: 'thinking', thinking: delta, running: true })
       }
       return
@@ -565,9 +584,22 @@ export class CodexBackend implements AgentBackend {
             : typeof item.output === 'string'
               ? item.output.slice(0, 1200)
               : ''
+        const live = ensureLiveAssistant()
+        if (!live.tools) live.tools = []
+        const tid = typeof item.id === 'string' ? item.id : `cx-live-${live.tools.length}`
+        const stMapped: ToolTrace['status'] = toolStatus === 'error' ? 'err' : toolStatus === 'done' ? 'ok' : 'run'
+        const summary = (toolInput || toolOutput || toolName).slice(0, 200)
+        const existing = live.tools.find((t) => t.id === tid)
+        if (existing) {
+          existing.name = toolName
+          if (summary) existing.summary = summary
+          existing.status = stMapped
+        } else {
+          live.tools.push({ id: tid, name: toolName, summary, status: stMapped })
+        }
         this.emit(threadId, {
           type: 'tool',
-          toolId: typeof item.id === 'string' ? item.id : undefined,
+          toolId: tid,
           toolName,
           toolInput,
           toolOutput,
@@ -581,6 +613,7 @@ export class CodexBackend implements AgentBackend {
     if (msg.method === 'turn/completed') {
       s.running = false
       s.activeTurnId = ''
+      s.liveAssistant = null
       s.updatedAt = Date.now()
       const turn = params.turn as Record<string, unknown> | undefined
       const errObj = turn?.error as Record<string, unknown> | undefined
@@ -647,14 +680,17 @@ export class CodexBackend implements AgentBackend {
       rt.cwd = cwd
       rt.title = title
       if (model) rt.model = model
-      if (updatedAt > rt.updatedAt) rt.updatedAt = updatedAt
+      if (updatedAt > 0 && (rt.updatedAt === 0 || updatedAt > rt.updatedAt)) {
+        rt.updatedAt = updatedAt
+      }
+      const effectiveUpdatedAt = rt.updatedAt > 0 ? rt.updatedAt : Date.now()
       rows.push({
         id: formatSessionId('codex', rawId),
         rawId,
         backend: 'codex',
         title,
         cwd,
-        updatedAt: rt.updatedAt,
+        updatedAt: effectiveUpdatedAt,
         running,
         asking: rt.pendingAsk !== null,
         preview: preview.slice(0, 120),
@@ -678,8 +714,24 @@ export class CodexBackend implements AgentBackend {
     const thread = (res?.thread && typeof res.thread === 'object' ? res.thread : {}) as Record<string, unknown>
     if (typeof thread.cwd === 'string' && thread.cwd) rt.cwd = thread.cwd
     if (typeof thread.model === 'string' && thread.model) rt.model = thread.model
-    const updatedAt = tsMs(thread.updatedAt ?? thread.createdAt)
+    const updatedAt = tsMs(thread.updatedAt ?? thread.createdAt) || Date.now()
     const all = mapTurnsToMessages(thread.turns, updatedAt)
+    // 公网 E2EE 轮询场景下同步拼入运行中增量（正文/思考/工具），避免流式过程空白
+    if (rt.running && rt.liveAssistant) {
+      const live = rt.liveAssistant
+      const tail = all[all.length - 1]
+      if (tail && tail.role === 'assistant') {
+        if (live.text.length > tail.text.length) tail.text = live.text
+        if ((live.thinking?.length ?? 0) > (tail.thinking?.length ?? 0)) tail.thinking = live.thinking
+        if ((live.tools?.length ?? 0) > (tail.tools?.length ?? 0)) tail.tools = live.tools?.map((t) => ({ ...t }))
+      } else if (live.text || live.thinking || (live.tools && live.tools.length > 0)) {
+        all.push({
+          ...live,
+          seq: all.length + 1,
+          tools: live.tools?.map((t) => ({ ...t })),
+        })
+      }
+    }
     const lim = opts?.limit && opts.limit > 0 ? opts.limit : all.length
     const start = Math.max(0, all.length - lim)
     return {
@@ -764,18 +816,29 @@ export class CodexBackend implements AgentBackend {
     }
 
     rt.running = true
+    rt.liveAssistant = null
     rt.updatedAt = Date.now()
     if (rt.title === 'Codex 新会话' || rt.title === 'Codex 会话') {
       rt.title = text.trim().slice(0, 36) || rt.title
     }
     this.emit(rawId, { type: 'status', running: true })
 
-    const res = (await this.request('turn/start', params, 30_000)) as Record<string, unknown> | null
-    const turn = (res?.turn && typeof res.turn === 'object' ? res.turn : {}) as Record<string, unknown>
-    if (typeof turn.id === 'string') {
-      rt.activeTurnId = turn.id
+    try {
+      const res = (await this.request('turn/start', params, 30_000)) as Record<string, unknown> | null
+      const turn = (res?.turn && typeof res.turn === 'object' ? res.turn : {}) as Record<string, unknown>
+      if (typeof turn.id === 'string') {
+        rt.activeTurnId = turn.id
+      }
+      return { ok: true, runId: rt.activeTurnId || `cx-${Date.now()}`, status: 'started' }
+    } catch (err) {
+      rt.running = false
+      rt.activeTurnId = ''
+      rt.liveAssistant = null
+      const msg = err instanceof Error ? err.message : String(err)
+      this.emit(rawId, { type: 'error', error: msg, running: false })
+      this.emit(rawId, { type: 'done', running: false })
+      throw err
     }
-    return { ok: true, runId: rt.activeTurnId || `cx-${Date.now()}`, status: 'started' }
   }
 
   async abort(rawId: string): Promise<boolean> {
@@ -795,6 +858,7 @@ export class CodexBackend implements AgentBackend {
     if (rt) {
       rt.running = false
       rt.activeTurnId = ''
+      rt.liveAssistant = null
       this.emit(rawId, { type: 'done', running: false })
       this.emitNotify(rawId, 'done', 'interrupted')
     }

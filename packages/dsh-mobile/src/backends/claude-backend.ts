@@ -61,6 +61,7 @@ interface ClaudeRuntimeSession {
   running: boolean
   activeChild: ChildProcess | null
   localMessages: ChatMessage[]
+  liveAssistant: ChatMessage | null
 }
 
 const DEFAULT_CLAUDE_MODELS: BackendModelOption[] = [
@@ -260,8 +261,22 @@ export class ClaudeBackend implements AgentBackend {
 
   private cli: ResolvedCli | null = null
   private readonly runtime = new Map<string, ClaudeRuntimeSession>()
+  private readonly summaryCache = new Map<string, { sig: string; parsed: ParsedClaudeFile }>()
   private readonly listeners = new Map<string, Set<(ev: BackendStreamEvent) => void>>()
   private notifyHook: ((ev: BackendNotifyEvent) => void) | null = null
+
+  private readSummaryCached(filePath: string, mtimeMs: number, size: number): ParsedClaudeFile {
+    const sig = `${String(mtimeMs)}:${String(size)}`
+    const hit = this.summaryCache.get(filePath)
+    if (hit && hit.sig === sig) return hit.parsed
+    const parsed = parseClaudeJsonl(filePath, false)
+    this.summaryCache.set(filePath, { sig, parsed })
+    if (this.summaryCache.size > 120) {
+      const oldest = this.summaryCache.keys().next().value
+      if (oldest !== undefined) this.summaryCache.delete(oldest)
+    }
+    return parsed
+  }
 
   setNotifyHook(fn: ((ev: BackendNotifyEvent) => void) | null): void {
     this.notifyHook = fn
@@ -295,10 +310,10 @@ export class ClaudeBackend implements AgentBackend {
     }
   }
 
-  private scanSessionFiles(): Array<{ rawId: string; filePath: string; mtimeMs: number; dirName: string }> {
+  private scanSessionFiles(): Array<{ rawId: string; filePath: string; mtimeMs: number; size: number; dirName: string }> {
     const root = claudeProjectsDir()
     if (!existsSync(root)) return []
-    const found: Array<{ rawId: string; filePath: string; mtimeMs: number; dirName: string }> = []
+    const found: Array<{ rawId: string; filePath: string; mtimeMs: number; size: number; dirName: string }> = []
     try {
       for (const projDir of readdirSync(root)) {
         const fullDir = join(root, projDir)
@@ -319,6 +334,7 @@ export class ClaudeBackend implements AgentBackend {
               rawId: basename(name, '.jsonl'),
               filePath: fp,
               mtimeMs: fst.mtimeMs,
+              size: fst.size,
               dirName: projDir,
             })
           } catch {
@@ -356,7 +372,7 @@ export class ClaudeBackend implements AgentBackend {
 
     for (const f of files) {
       seen.add(f.rawId)
-      const parsed = parseClaudeJsonl(f.filePath, false)
+      const parsed = this.readSummaryCached(f.filePath, f.mtimeMs, f.size)
       const fallbackCwd = decodeProjectDirName(f.dirName)
       const cwd = parsed.cwd || (existsSync(fallbackCwd) ? fallbackCwd : homedir())
       let rt = this.runtime.get(f.rawId)
@@ -372,6 +388,7 @@ export class ClaudeBackend implements AgentBackend {
           running: false,
           activeChild: null,
           localMessages: [],
+          liveAssistant: null,
         }
         this.runtime.set(f.rawId, rt)
       } else {
@@ -441,6 +458,23 @@ export class ClaudeBackend implements AgentBackend {
       all = [...rt.localMessages]
     }
 
+    // 公网 E2EE 轮询场景下拼入当前运行中的流式助手增量（正文/思考/工具状态）
+    if (rt?.running && rt.liveAssistant) {
+      const live = rt.liveAssistant
+      const tail = all[all.length - 1]
+      if (tail && tail.role === 'assistant') {
+        if (live.text.length > tail.text.length) tail.text = live.text
+        if ((live.thinking?.length ?? 0) > (tail.thinking?.length ?? 0)) tail.thinking = live.thinking
+        if ((live.tools?.length ?? 0) > (tail.tools?.length ?? 0)) tail.tools = live.tools?.map((t) => ({ ...t }))
+      } else if (live.text || live.thinking || (live.tools && live.tools.length > 0)) {
+        all.push({
+          ...live,
+          seq: all.length + 1,
+          tools: live.tools?.map((t) => ({ ...t })),
+        })
+      }
+    }
+
     const lim = opts?.limit && opts.limit > 0 ? opts.limit : all.length
     const start = Math.max(0, all.length - lim)
     return {
@@ -468,6 +502,7 @@ export class ClaudeBackend implements AgentBackend {
       running: false,
       activeChild: null,
       localMessages: [],
+      liveAssistant: null,
     }
     this.runtime.set(rawId, rt)
     return {
@@ -508,6 +543,7 @@ export class ClaudeBackend implements AgentBackend {
         running: false,
         activeChild: null,
         localMessages: [],
+        liveAssistant: null,
       }
       this.runtime.set(rawId, rt)
     }
@@ -551,6 +587,14 @@ export class ClaudeBackend implements AgentBackend {
     const child = spawnCli(cli, args, { cwd: safeCwd })
     rt.activeChild = child
     rt.running = true
+    rt.liveAssistant = {
+      seq: rt.localMessages.length + 1,
+      role: 'assistant',
+      text: '',
+      thinking: '',
+      tools: [],
+      time: Date.now(),
+    }
     rt.updatedAt = Date.now()
     this.emit(rawId, { type: 'status', running: true })
 
@@ -578,11 +622,13 @@ export class ClaudeBackend implements AgentBackend {
           if (d.type === 'text_delta' && typeof d.text === 'string' && d.text !== '') {
             sawStreamDeltas = true
             accText += d.text
+            if (rt!.liveAssistant) rt!.liveAssistant.text = accText
             rt!.updatedAt = Date.now()
             this.emit(rawId, { type: 'delta', text: d.text, running: true })
           } else if (d.type === 'thinking_delta' && typeof d.thinking === 'string' && d.thinking !== '') {
             sawStreamDeltas = true
             accThinking += d.thinking
+            if (rt!.liveAssistant) rt!.liveAssistant.thinking = accThinking
             rt!.updatedAt = Date.now()
             this.emit(rawId, { type: 'thinking', thinking: d.thinking, running: true })
           }
@@ -590,7 +636,35 @@ export class ClaudeBackend implements AgentBackend {
         return
       }
 
-      // 2. 完整 assistant 块（若未开启/未收到增量时兜底补发，同时推送工具调用）
+      // 2. 工具执行结果事件（把对应 tool_use 从运行中翻转为 ok / err，消除常驻转圈）
+      if (ev.type === 'user' && ev.message && typeof ev.message === 'object') {
+        const m = ev.message as Record<string, unknown>
+        const content = Array.isArray(m.content) ? m.content : []
+        for (const block of content) {
+          if (!block || typeof block !== 'object') continue
+          const b = block as Record<string, unknown>
+          if (b.type === 'tool_result') {
+            const tid = typeof b.tool_use_id === 'string' ? b.tool_use_id : ''
+            const isErr = b.is_error === true
+            const existing = tid ? rt!.liveAssistant?.tools?.find((t) => t.id === tid) : undefined
+            if (existing) {
+              existing.status = isErr ? 'err' : 'ok'
+            }
+            if (tid) {
+              this.emit(rawId, {
+                type: 'tool',
+                toolId: tid,
+                toolName: existing?.name || 'tool',
+                toolStatus: isErr ? 'error' : 'done',
+                running: true,
+              })
+            }
+          }
+        }
+        return
+      }
+
+      // 3. 完整 assistant 块（若未开启/未收到增量时兜底补发，同时推送工具调用）
       if (ev.type === 'assistant' && ev.message && typeof ev.message === 'object') {
         const m = ev.message as Record<string, unknown>
         if (typeof m.model === 'string' && m.model) rt!.model = m.model
@@ -602,20 +676,36 @@ export class ClaudeBackend implements AgentBackend {
             const diff = b.text.startsWith(accText) ? b.text.slice(accText.length) : b.text
             if (diff) {
               accText += diff
+              if (rt!.liveAssistant) rt!.liveAssistant.text = accText
               this.emit(rawId, { type: 'delta', text: diff, running: true })
             }
           } else if (b.type === 'thinking' && typeof b.thinking === 'string' && b.thinking && !sawStreamDeltas) {
             const diff = b.thinking.startsWith(accThinking) ? b.thinking.slice(accThinking.length) : b.thinking
             if (diff) {
               accThinking += diff
+              if (rt!.liveAssistant) rt!.liveAssistant.thinking = accThinking
               this.emit(rawId, { type: 'thinking', thinking: diff, running: true })
             }
           } else if (b.type === 'tool_use') {
+            const tid = typeof b.id === 'string' ? b.id : `cl-live-${String(rt!.liveAssistant?.tools?.length ?? 0)}`
+            const tName = typeof b.name === 'string' ? b.name : 'tool'
+            const tInput = b.input !== undefined ? JSON.stringify(b.input).slice(0, 500) : ''
+            if (rt!.liveAssistant) {
+              if (!rt!.liveAssistant.tools) rt!.liveAssistant.tools = []
+              if (!rt!.liveAssistant.tools.some((t) => t.id === tid)) {
+                rt!.liveAssistant.tools.push({
+                  id: tid,
+                  name: tName,
+                  summary: (tInput || tName).slice(0, 200),
+                  status: 'run',
+                })
+              }
+            }
             this.emit(rawId, {
               type: 'tool',
-              toolId: typeof b.id === 'string' ? b.id : undefined,
-              toolName: typeof b.name === 'string' ? b.name : 'tool',
-              toolInput: b.input !== undefined ? JSON.stringify(b.input).slice(0, 500) : '',
+              toolId: tid,
+              toolName: tName,
+              toolInput: tInput,
               toolStatus: 'running',
               running: true,
             })
@@ -624,13 +714,14 @@ export class ClaudeBackend implements AgentBackend {
         return
       }
 
-      // 3. 最终结果事件
+      // 4. 最终结果事件
       if (ev.type === 'result') {
         if (ev.is_error === true) {
           const errStr = typeof ev.result === 'string' ? ev.result : 'Claude Code 执行失败'
           this.emit(rawId, { type: 'error', error: errStr, running: false })
         } else if (typeof ev.result === 'string' && ev.result !== '' && accText === '') {
           accText = ev.result
+          if (rt!.liveAssistant) rt!.liveAssistant.text = accText
           this.emit(rawId, { type: 'delta', text: ev.result, running: true })
         }
       }
@@ -665,6 +756,7 @@ export class ClaudeBackend implements AgentBackend {
       rt!.isNew = false
       rt!.running = false
       rt!.activeChild = null
+      rt!.liveAssistant = null
       rt!.updatedAt = Date.now()
       const fp = this.locateSessionFile(rawId)
       if (fp) rt!.filePath = fp
@@ -680,6 +772,7 @@ export class ClaudeBackend implements AgentBackend {
     child.on('error', (err) => {
       rt!.running = false
       rt!.activeChild = null
+      rt!.liveAssistant = null
       this.emit(rawId, { type: 'error', error: err.message, running: false })
       this.emit(rawId, { type: 'done', running: false })
       this.emitNotify(rawId, 'done', 'error')
@@ -696,6 +789,7 @@ export class ClaudeBackend implements AgentBackend {
     }
     if (rt) {
       rt.running = false
+      rt.liveAssistant = null
       this.emit(rawId, { type: 'done', running: false })
       this.emitNotify(rawId, 'done', 'interrupted')
     }

@@ -159,20 +159,26 @@ export function apply(ctx: any, rawConfig?: Config): void {
   const deepContext = createDeepContextReader(service, logFile)
   const flags = createWorkspaceFlags(service)
 
+  const backendRegistry = new BackendRegistry({
+    getEnabledMap: enabledBackends,
+    setEnabled: (id, on) => setBackendEnabled(id, on),
+    dshVersion: VERSION,
+  })
   const fsRoutes = createWorkspaceFsRoutes({
     controller,
     service,
     sigOf,
     sigTtlSec: SIG_TTL_SEC,
     logFile,
+    resolveExternalCwd: async (sid: string): Promise<string> => {
+      const resolved = backendRegistry.resolveBySessionId(sid)
+      if (resolved.backend === 'dsh' || !resolved.driver) return ''
+      const info = await resolved.driver.getMessages(resolved.rawId, { limit: 1, compact: true }).catch(() => null)
+      return info?.cwd ?? ''
+    },
   })
   const gitRoutes = createGitRoutes(fsRoutes)
   const terminalRoutes = createTerminalRoutes(fsRoutes, logFile)
-  const backendRegistry = new BackendRegistry({
-    getEnabledMap: enabledBackends,
-    setEnabled: (id, on) => setBackendEnabled(id, on),
-    dshVersion: VERSION,
-  })
   notifyMonitor = new NotifyMonitor({
     controller,
     askBridge,

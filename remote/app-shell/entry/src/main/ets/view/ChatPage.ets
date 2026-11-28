@@ -395,6 +395,25 @@ export struct ChatPage {
     return '正在回复…';
   }
 
+  private showDayHeader(i: number, m: Message): boolean {
+    if (i <= 0 || i >= this.msgs.length) {
+      return i === 0;
+    }
+    const prev: Message | undefined = this.msgs[i - 1];
+    if (prev === undefined) {
+      return true;
+    }
+    return !sameDay(prev.time, m.time);
+  }
+
+  private isTailStreaming(m: Message): boolean {
+    if (!this.running || this.msgs.length === 0) {
+      return false;
+    }
+    const tail: Message | undefined = this.msgs[this.msgs.length - 1];
+    return tail !== undefined && tail.seq === m.seq;
+  }
+
   private stopDotTimer(): void {
     if (this.dotTimer !== 0) {
       clearInterval(this.dotTimer);
@@ -1609,6 +1628,10 @@ export struct ChatPage {
     this.attachOn = false;
     this.slashOpened = false;
     const runningNow: boolean = this.running;
+    if (runningNow && this.sessionBackend() !== 'dsh') {
+      Toast.info('当前引擎正在回复，请等待完成或先点击停止');
+      return;
+    }
     const mode: string = steerNow ? 'steer' : 'queue';
     const idem: string = this.pendingKey !== '' ? this.pendingKey : Api.newIdemKey();
     this.pendingKey = idem;
@@ -2295,7 +2318,7 @@ export struct ChatPage {
             ListItem() {
               Column() {
                 Column() {
-                  if (i === 0 || !sameDay(this.msgs[i - 1].time, m.time)) {
+                  if (this.showDayHeader(i, m)) {
                     Text(dayLabel(m.time))
                       .fontSize(Tokens.fsCaption)
                       .fontColor(Tokens.dim2)
@@ -2307,7 +2330,7 @@ export struct ChatPage {
                   ChatBubbleItem({
                     msg: m,
                     blocks: m.text !== '' ? this.blocksOf(m) : [],
-                    isStreaming: this.running && i === this.msgs.length - 1,
+                    isStreaming: this.isTailStreaming(m),
                     canFork: this.sessionCaps().fork,
                     api: this.api,
                     onPreviewImage: (url: string, geoId: string): void => { this.openBigImg(url, geoId); },
