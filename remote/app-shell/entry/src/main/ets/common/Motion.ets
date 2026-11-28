@@ -94,6 +94,11 @@ export class Motion {
 
   static readonly BLOOM_SCALE_START: number = 0.04;
   static readonly BLOOM_HEADER_SCALE_START: number = 0.76;
+  static readonly ICON_FLY_LAG_MS: number = 34;
+  static readonly ICON_FLY_ROTATE_START: number = -86;
+  static readonly ICON_FLY_OFFSET_X: number = -22;
+  static readonly ICON_FLY_OFFSET_Y: number = 10;
+  static readonly ICON_FLY_SCALE_START: number = 0.28;
   /** 空间波纹传播速率：每 vp 纵向中心距对应的起播延时（ms/vp）与最大首屏错峰上限（ms） */
   static readonly BLOOM_MS_PER_VP: number = 0.32;
   static readonly BLOOM_MAX_STAGGER_MS: number = 340;
@@ -121,6 +126,9 @@ export class Motion {
    * 其余点击弹窗、搜索栏、抽屉、面板均保持利落短曲线，做到全站快慢有序。
    */
   static readonly unifiedElastic = curves.springMotion(0.44, 0.82);
+
+  /** 卡片内徽标图标随卡片长大而旋转飞入的轻弹物理曲线 */
+  static readonly iconFlySpring = curves.springMotion(0.46, 0.72);
 
   /**
    * 与 unifiedElastic（response=0.44s, dampingFraction=0.82）严格数学等价的插值弹簧曲线：
@@ -309,6 +317,31 @@ export class Motion {
     const opts: AnimateParam = {
       delay: Motion.bloomDelayByDistance(distanceVp, baseDelay),
       curve: Motion.unifiedElastic
+    };
+    return opts;
+  }
+
+  /** 按真实距离计算的卡片图标旋转飞入显隐动画（滞后卡片绽放 ICON_FLY_LAG_MS） */
+  static iconFlyOpacityAnimByDist(distanceVp: number, mode: string, baseDelay: number = 16): AnimateParam | undefined {
+    if (!Motion.isFlagship(mode) || distanceVp < 0) {
+      return undefined;
+    }
+    const opts: AnimateParam = {
+      duration: 165,
+      delay: Motion.bloomDelayByDistance(distanceVp, baseDelay) + Motion.ICON_FLY_LAG_MS,
+      curve: Motion.std
+    };
+    return opts;
+  }
+
+  /** 按真实距离计算的卡片图标旋转 + 平移 + 缩放飞入弹簧动画 */
+  static iconFlyTransformAnimByDist(distanceVp: number, mode: string, baseDelay: number = 16): AnimateParam | undefined {
+    if (!Motion.isFlagship(mode) || distanceVp < 0) {
+      return undefined;
+    }
+    const opts: AnimateParam = {
+      delay: Motion.bloomDelayByDistance(distanceVp, baseDelay) + Motion.ICON_FLY_LAG_MS,
+      curve: Motion.iconFlySpring
     };
     return opts;
   }

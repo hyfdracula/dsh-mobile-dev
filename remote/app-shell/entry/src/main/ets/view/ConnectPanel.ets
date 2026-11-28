@@ -1,5 +1,6 @@
 import { Api, PairInviteResp, RemotePairPendingItem } from '../common/Api';
 import { AppCtx } from '../common/AppCtx';
+import { CardIcon } from '../common/CardIcon';
 import { copyText } from '../common/Clipboard';
 import { Haptics } from '../common/Haptics';
 import { Machines } from '../common/Machines';
@@ -10,7 +11,6 @@ import { PickerOption, PopupPicker } from '../common/PopupPicker';
 import { Toast } from '../common/Toast';
 import { Tokens } from '../common/Tokens';
 import { HintLabel } from '../common/Widgets';
-import { ConnectForm } from './ConnectForm';
 import { DeviceCard } from './DeviceCard';
 import { MachineList } from './MachineList';
 
@@ -52,6 +52,7 @@ export struct ConnectPanel {
   onAddMachine: (wan: string, token: string, name: string) => void = () => {};
   onOpenPair: (entry: string) => void = () => {};
   onOpenGuide: (kind: string) => void = () => {};
+  onOpenConnectForm: () => void = () => {};
   onReconnect: () => void = () => {};
   onRemoveCurrent: () => void = () => {};
 
@@ -485,44 +486,51 @@ export struct ConnectPanel {
 
   @Builder
   linkStatusCard() {
-    Column() {
-      Row() {
-        Row()
-          .width(8)
-          .height(8)
-          .borderRadius(Tokens.rPill)
-          .backgroundColor(this.linkLoading ? Tokens.dim2 : (this.connected ? Tokens.ok : Tokens.err))
-        Text(this.linkSummaryText())
-          .fontSize(Tokens.fsBody)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(this.linkLoading ? Tokens.dim2 : (this.connected ? Tokens.fg : Tokens.err))
-          .margin({ left: 8 })
-          .layoutWeight(1)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-        if (!this.linkLoading && this.connected && this.linkEncrypted) {
-          Text('端到端加密')
+    Row({ space: 12 }) {
+      CardIcon({
+        symbol: $r('sys.symbol.wifi'),
+        tone: this.linkLoading ? 'neutral' : (this.connected ? 'green' : 'danger'),
+        badgeSize: 38,
+        glyphSize: 19,
+        entered: this.entered,
+        distanceVp: this.wave.distanceOf('conn:status', 0)
+      })
+
+      Column() {
+        Row() {
+          Text(this.linkSummaryText())
+            .fontSize(Tokens.fsBody)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.linkLoading ? Tokens.dim2 : (this.connected ? Tokens.fg : Tokens.err))
+            .layoutWeight(1)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          if (!this.linkLoading && this.connected && this.linkEncrypted) {
+            Text('端到端加密')
+              .fontSize(Tokens.fsCaption)
+              .fontColor(Tokens.doneInk)
+              .backgroundColor(Tokens.doneBg)
+              .borderRadius(Tokens.rPill)
+              .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+              .margin({ left: 6 })
+          }
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Center)
+
+        if (this.currentBase !== '') {
+          Text(this.currentBase)
             .fontSize(Tokens.fsCaption)
-            .fontColor(Tokens.doneInk)
-            .backgroundColor(Tokens.doneBg)
-            .borderRadius(Tokens.rPill)
-            .padding({ left: 8, right: 8, top: 3, bottom: 3 })
-            .margin({ left: 6 })
+            .fontFamily('monospace')
+            .fontColor(Tokens.dim2)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .width('100%')
+            .margin({ top: 4 })
         }
       }
-      .width('100%')
-      .alignItems(VerticalAlign.Center)
-
-      if (this.currentBase !== '') {
-        Text(this.currentBase)
-          .fontSize(Tokens.fsCaption)
-          .fontFamily('monospace')
-          .fontColor(Tokens.dim2)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .width('100%')
-          .margin({ top: 6 })
-      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
     }
     .width('100%')
     .padding({ left: 14, right: 14, top: 12, bottom: 12 })
@@ -531,7 +539,7 @@ export struct ConnectPanel {
     .shadow(Mat.rowShadow(this.hdsOn))
     .borderRadius(Tokens.rRow)
     .clip(true)
-    .alignItems(HorizontalAlign.Start)
+    .alignItems(VerticalAlign.Center)
     .margin({ top: 6, bottom: 6 })
     .onAreaChange((_old: Area, area: Area) => {
       this.wave.record('conn:status', area);
@@ -553,8 +561,17 @@ export struct ConnectPanel {
   }
 
   @Builder
-  guideEntryCard(title: string, sub: string, tag: string, kind: string, waveKey: string, fallbackDistVp: number) {
+  guideEntryCard(title: string, sub: string, tag: string, kind: string, waveKey: string, fallbackDistVp: number,
+    iconSymbol: Resource, iconTone: string) {
     Row() {
+      CardIcon({
+        symbol: iconSymbol,
+        tone: iconTone,
+        entered: this.entered,
+        distanceVp: this.wave.distanceOf(waveKey, fallbackDistVp)
+      })
+      .margin({ right: 12 })
+
       Column() {
         Text(title)
           .fontSize(Tokens.fsBodyLg)
@@ -736,7 +753,14 @@ export struct ConnectPanel {
       }
 
       Column({ space: 10 }) {
-        Row({ space: 10 }) {
+        Row({ space: 12 }) {
+          CardIcon({
+            symbol: $r('sys.symbol.key_shield'),
+            tone: 'amber',
+            entered: this.entered,
+            distanceVp: this.wave.distanceOf('conn:remotePair', 274)
+          })
+
           Column({ space: 3 }) {
             Text('生成一次性连接令牌')
               .fontSize(Tokens.fsBodyLg)
@@ -905,102 +929,143 @@ export struct ConnectPanel {
       // 2. 远程配对新设备（异地审批 + 生成一次性口令）
       this.remotePairSection()
 
-      // 3. 网络策略（独立单条卡片）
-      this.sectionTitle('网络策略', 16, 'hdr:net', 284)
-      Row() {
-        Row() {
-          Text('连接优先策略')
-            .fontSize(Tokens.fsBodyLg)
-            .fontColor(Tokens.fg)
-          HintLabel({
-            title: '',
-            tipText: '自动：同一 Wi-Fi 下优先走局域网直连，出门自动走公网隧道；仅局域网：不回退隧道；仅公网：强制走隧道入口。'
-          })
-          .margin({ left: 6 })
-        }
-        .layoutWeight(1)
-        .alignItems(VerticalAlign.Center)
-
-        PopupPicker({
-          options: NET_MODE_OPTIONS,
-          selected: this.netMode,
-          title: '连接优先策略',
-          popupWidth: 236,
-          onSelect: (mode: string) => {
-            this.onNetMode(mode);
-          }
-        })
-      }
-      .width('100%')
-      .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-      .alignItems(VerticalAlign.Center)
-      .backgroundColor(Mat.cardBg(this.hdsOn))
-      .border(Mat.cardBorder(this.hdsOn))
-      .shadow(Mat.rowShadow(this.hdsOn))
-      .borderRadius(Tokens.rRow)
-      .clip(true)
-      .onAreaChange((_old: Area, area: Area) => {
-        this.wave.record('conn:net', area);
-      })
-      .animation(null)
-      .opacity(this.entered ? 1 : 0)
-      .animation(this.entered
-        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:net', 330), this.motionMode)
-        : null)
-      .scale({
-        x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
-        y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
-        centerX: '50%',
-        centerY: '50%'
-      })
-      .animation(this.entered
-        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:net', 330), this.motionMode)
-        : null)
-
-      // 4. 连接地址与外网（表单复合卡）
-      this.sectionTitle('连接地址与外网', 16, 'hdr:form', 404)
-      Column() {
-        ConnectForm({
-          base: $editBase,
-          token: $editToken,
-          saved: this.saved,
-          errMsg: this.saveErr,
-          saving: this.saving,
-          stageIdx: this.saveStage,
-          stageDetail: this.saveDetail,
-          elapsedSec: this.saveElapsed,
-          onSave: (): void => {
-            this.onSave();
-          },
-          onRePair: (): void => {
-            this.onOpenPair('scan');
-          }
-        })
-      }
-      .width('100%')
-      .onAreaChange((_old: Area, area: Area) => {
-        this.wave.record('conn:form', area);
-      })
-      .animation(null)
-      .opacity(this.entered ? 1 : 0)
-      .animation(this.entered
-        ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:form', 520), this.motionMode)
-        : null)
-      .scale({
-        x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
-        y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
-        centerX: '50%',
-        centerY: '50%'
-      })
-      .animation(this.entered
-        ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:form', 520), this.motionMode)
-        : null)
-
-      // 5-6. 外网访问配置（逐条独立卡片）
-      this.sectionTitle('外网访问配置', 16, 'hdr:guide', 660)
+      // 3. 网络与地址（逐条独立卡片；地址与令牌输入框收进二级菜单「连接地址与外网」）
+      this.sectionTitle('网络与连接地址', 16, 'hdr:net', 340)
       Column({ space: 9 }) {
-        this.guideEntryCard('让 AI 帮你配', '复制完整指令给 Codex / Claude 等 AI 自动完成', '自动方案', 'ai', 'guide:ai', 710)
-        this.guideEntryCard('外网访问配置向导', '按 7 步手动命令配置 Cloudflare 安全隧道', '手动向导', 'tunnel', 'guide:tunnel', 782)
+        Row() {
+          CardIcon({
+            symbol: $r('sys.symbol.wifi'),
+            tone: 'blue',
+            entered: this.entered,
+            distanceVp: this.wave.distanceOf('conn:net', 384)
+          })
+          .margin({ right: 12 })
+
+          Row() {
+            Text('连接优先策略')
+              .fontSize(Tokens.fsBodyLg)
+              .fontColor(Tokens.fg)
+            HintLabel({
+              title: '',
+              tipText: '自动：同一 Wi-Fi 下优先走局域网直连，出门自动走公网隧道；仅局域网：不回退隧道；仅公网：强制走隧道入口。'
+            })
+            .margin({ left: 6 })
+          }
+          .layoutWeight(1)
+          .alignItems(VerticalAlign.Center)
+
+          PopupPicker({
+            options: NET_MODE_OPTIONS,
+            selected: this.netMode,
+            title: '连接优先策略',
+            popupWidth: 236,
+            onSelect: (mode: string) => {
+              this.onNetMode(mode);
+            }
+          })
+        }
+        .width('100%')
+        .padding({ left: 14, right: 14, top: 12, bottom: 12 })
+        .alignItems(VerticalAlign.Center)
+        .backgroundColor(Mat.cardBg(this.hdsOn))
+        .border(Mat.cardBorder(this.hdsOn))
+        .shadow(Mat.rowShadow(this.hdsOn))
+        .borderRadius(Tokens.rRow)
+        .clip(true)
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('conn:net', area);
+        })
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(this.entered
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:net', 384), this.motionMode)
+          : null)
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .animation(this.entered
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:net', 384), this.motionMode)
+          : null)
+
+        // 连接地址与外网（隐藏进二级菜单）
+        Row() {
+          CardIcon({
+            symbol: $r('sys.symbol.link'),
+            tone: 'violet',
+            entered: this.entered,
+            distanceVp: this.wave.distanceOf('conn:form', 456)
+          })
+          .margin({ right: 12 })
+
+          Column() {
+            Text('连接地址与外网')
+              .fontSize(Tokens.fsBodyLg)
+              .fontColor(Tokens.fg)
+            Text(this.currentBase !== '' ? this.currentBase : '手动修改电脑地址与访问令牌')
+              .fontSize(Tokens.fsFoot)
+              .fontColor(Tokens.dim2)
+              .fontFamily(this.currentBase !== '' ? 'monospace' : 'sans-serif')
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .margin({ top: 2 })
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+          .margin({ right: 8 })
+
+          if (Motion.isFlagship(this.motionMode)) {
+            SymbolGlyph($r('sys.symbol.chevron_right'))
+              .fontSize(14)
+              .fontColor([Tokens.dim2])
+          } else {
+            Text('›')
+              .fontSize(17)
+              .fontColor(Tokens.dim2)
+          }
+        }
+        .width('100%')
+        .padding({ left: 14, right: 14, top: 13, bottom: 13 })
+        .alignItems(VerticalAlign.Center)
+        .backgroundColor(Mat.cardBg(this.hdsOn))
+        .border(Mat.cardBorder(this.hdsOn))
+        .shadow(Mat.rowShadow(this.hdsOn))
+        .borderRadius(Tokens.rRow)
+        .clip(true)
+        .clickEffect({ level: ClickEffectLevel.LIGHT, scale: 0.97 })
+        .onAreaChange((_old: Area, area: Area) => {
+          this.wave.record('conn:form', area);
+        })
+        .animation(null)
+        .opacity(this.entered ? 1 : 0)
+        .animation(this.entered
+          ? Motion.bloomOpacityAnimByDist(this.wave.distanceOf('conn:form', 456), this.motionMode)
+          : null)
+        .scale({
+          x: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          y: this.entered ? 1 : Motion.BLOOM_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .animation(this.entered
+          ? Motion.bloomScaleAnimByDist(this.wave.distanceOf('conn:form', 456), this.motionMode)
+          : null)
+        .onClick(() => {
+          Haptics.tap();
+          this.onOpenConnectForm();
+        })
+      }
+      .width('100%')
+
+      // 4. 外网访问配置（逐条独立卡片）
+      this.sectionTitle('外网访问配置', 16, 'hdr:guide', 536)
+      Column({ space: 9 }) {
+        this.guideEntryCard('让 AI 帮你配', '复制完整指令给 Codex / Claude 等 AI 自动完成', '自动方案', 'ai', 'guide:ai', 586,
+          $r('sys.symbol.wand_and_stars'), 'violet')
+        this.guideEntryCard('外网访问配置向导', '按 7 步手动命令配置 Cloudflare 安全隧道', '手动向导', 'tunnel', 'guide:tunnel', 658,
+          $r('sys.symbol.cloud'), 'teal')
       }
       .width('100%')
 

@@ -1,4 +1,5 @@
 import { AppCtx } from '../common/AppCtx';
+import { CardIcon } from '../common/CardIcon';
 import { Drafts } from '../common/Drafts';
 import { Haptics } from '../common/Haptics';
 import { Marks } from '../common/Marks';
@@ -78,8 +79,17 @@ export struct DataStoragePanel {
   }
 
   @Builder
-  dataRowCard(label: string, n: number, what: string, waveKey: string, fallbackDistVp: number) {
+  dataRowCard(label: string, n: number, what: string, waveKey: string, fallbackDistVp: number,
+    iconSymbol: Resource, iconTone: string) {
     Row() {
+      CardIcon({
+        symbol: iconSymbol,
+        tone: iconTone,
+        entered: this.entered,
+        distanceVp: this.wave.distanceOf(waveKey, fallbackDistVp)
+      })
+      .margin({ right: 12 })
+
       Text(label)
         .fontSize(Tokens.fsBodyLg)
         .fontColor(Tokens.fg)
@@ -196,6 +206,14 @@ export struct DataStoragePanel {
 
       // 0. 存储空间
       Row() {
+        CardIcon({
+          symbol: $r('sys.symbol.externaldrive'),
+          tone: 'blue',
+          entered: this.entered,
+          distanceVp: this.wave.distanceOf('card:storage', 54)
+        })
+        .margin({ right: 12 })
+
         Column() {
           Text('存储空间')
             .fontSize(Tokens.fsBodyLg)
@@ -273,9 +291,9 @@ export struct DataStoragePanel {
           : null)
 
       Column({ space: 9 }) {
-        this.dataRowCard('草稿', this.draftN, 'draft', 'data:draft', 176)
-        this.dataRowCard('待发送（重启兜底）', this.outN, 'outbox', 'data:outbox', 242)
-        this.dataRowCard('阅读标记', this.markN, 'marks', 'data:marks', 308)
+        this.dataRowCard('草稿', this.draftN, 'draft', 'data:draft', 176, $r('sys.symbol.square_and_pencil'), 'amber')
+        this.dataRowCard('待发送（重启兜底）', this.outN, 'outbox', 'data:outbox', 242, $r('sys.symbol.paperplane'), 'violet')
+        this.dataRowCard('阅读标记', this.markN, 'marks', 'data:marks', 308, $r('sys.symbol.checkmark_circle'), 'green')
       }
       .width('100%')
 

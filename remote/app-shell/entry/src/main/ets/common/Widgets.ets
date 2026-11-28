@@ -1,9 +1,10 @@
+import { CardIcon } from './CardIcon';
 import { Haptics } from './Haptics';
 import { Mat } from './Mat';
 import { Tokens } from './Tokens';
 
 /**
- * 设置里最常见的「标题 + 说明 + 开关」一行。
+ * 设置里最常见的「图标 + 标题 + 说明 + 开关」一行。
  */
 @Component
 export struct RowSwitch {
@@ -11,11 +12,25 @@ export struct RowSwitch {
   hint: string = '';
   @Prop value: boolean = false;
   @Prop switchEnabled: boolean = true;
+  @Prop showIcon: boolean = false;
+  iconSymbol: Resource = $r('sys.symbol.info_circle');
+  @Prop iconTone: string = 'blue';
+  @Prop entered: boolean = true;
+  @Prop distanceVp: number = 0;
   onChanged: (v: boolean) => void = () => {};
   @StorageLink('themeDark') themeDark: boolean = true;
 
   build() {
     Row() {
+      if (this.showIcon) {
+        CardIcon({
+          symbol: this.iconSymbol,
+          tone: this.iconTone,
+          entered: this.entered,
+          distanceVp: this.distanceVp
+        })
+        .margin({ right: 12 })
+      }
       Column() {
         Text(this.title)
           .fontSize(Tokens.fsBodyLg)

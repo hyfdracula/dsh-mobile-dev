@@ -1,3 +1,4 @@
+import { CardIcon } from '../common/CardIcon';
 import { isFeedbackEnabled } from '../common/Feedback';
 import { Haptics } from '../common/Haptics';
 import { LegalDocKind } from '../common/LegalDocs';
@@ -56,8 +57,17 @@ export struct AboutPanel {
   }
 
   @Builder
-  actionCard(title: string, hint: string, waveKey: string, fallbackDistVp: number, onTap: () => void) {
+  actionCard(title: string, hint: string, waveKey: string, fallbackDistVp: number,
+    iconSymbol: Resource, iconTone: string, onTap: () => void) {
     Row() {
+      CardIcon({
+        symbol: iconSymbol,
+        tone: iconTone,
+        entered: this.entered,
+        distanceVp: this.wave.distanceOf(waveKey, fallbackDistVp)
+      })
+      .margin({ right: 12 })
+
       Column() {
         Text(title)
           .fontSize(Tokens.fsBodyLg)
@@ -209,22 +219,26 @@ export struct AboutPanel {
 
       Column({ space: 9 }) {
         if (isFeedbackEnabled()) {
-          this.actionCard('反馈与支持', '提交问题、导出诊断日志与查看进度', 'act:fb', 32 + this.diagBaseIdx() * 58 + 56, () => {
-            this.onFeedback();
-          })
+          this.actionCard('反馈与支持', '提交问题、导出诊断日志与查看进度', 'act:fb', 32 + this.diagBaseIdx() * 58 + 56,
+            $r('sys.symbol.ellipsis_message'), 'blue', () => {
+              this.onFeedback();
+            })
         }
 
-        this.actionCard('隐私政策', '说明本地存储、权限范围与加密机制', 'act:privacy', 32 + this.legalStartIdx() * 68 + 56, () => {
-          this.onLegal('privacy');
-        })
+        this.actionCard('隐私政策', '说明本地存储、权限范围与加密机制', 'act:privacy', 32 + this.legalStartIdx() * 68 + 56,
+          $r('sys.symbol.lock_shield'), 'green', () => {
+            this.onLegal('privacy');
+          })
 
-        this.actionCard('用户协议', '使用约定与免责说明', 'act:terms', 32 + (this.legalStartIdx() + 1) * 68 + 56, () => {
-          this.onLegal('terms');
-        })
+        this.actionCard('用户协议', '使用约定与免责说明', 'act:terms', 32 + (this.legalStartIdx() + 1) * 68 + 56,
+          $r('sys.symbol.doc_text'), 'amber', () => {
+            this.onLegal('terms');
+          })
 
-        this.actionCard('开源许可', '查看第三方组件与标准协议声明', 'act:licenses', 32 + (this.legalStartIdx() + 2) * 68 + 56, () => {
-          this.onLegal('licenses');
-        })
+        this.actionCard('开源许可', '查看第三方组件与标准协议声明', 'act:licenses', 32 + (this.legalStartIdx() + 2) * 68 + 56,
+          $r('sys.symbol.book'), 'violet', () => {
+            this.onLegal('licenses');
+          })
       }
       .width('100%')
     }

@@ -4,6 +4,7 @@ import { Api } from '../common/Api';
 import { isLanUrl } from '../common/ApiUtil';
 import { AppCtx } from '../common/AppCtx';
 import { AppIcon, ICON_DARK } from '../common/AppIcon';
+import { CardIcon } from '../common/CardIcon';
 import { PageHeader, TopFade } from '../common/Chrome';
 import { copyText } from '../common/Clipboard';
 import { Haptics } from '../common/Haptics';
@@ -513,6 +514,35 @@ export struct PairPage {
           .height(46)
           .borderRadius(12)
           .border({ width: 0.5, color: Tokens.line })
+          .animation(null)
+          .opacity(this.entered ? 1 : 0)
+          .animation(this.entered
+            ? Motion.iconFlyOpacityAnimByDist(this.wave.distanceOf('conn:hero', 96), this.motionMode)
+            : null)
+          .translate({
+            x: this.entered ? 0 : Motion.ICON_FLY_OFFSET_X,
+            y: this.entered ? 0 : Motion.ICON_FLY_OFFSET_Y
+          })
+          .animation(this.entered
+            ? Motion.iconFlyTransformAnimByDist(this.wave.distanceOf('conn:hero', 96), this.motionMode)
+            : null)
+          .scale({
+            x: this.entered ? 1 : Motion.ICON_FLY_SCALE_START,
+            y: this.entered ? 1 : Motion.ICON_FLY_SCALE_START,
+            centerX: '50%',
+            centerY: '50%'
+          })
+          .animation(this.entered
+            ? Motion.iconFlyTransformAnimByDist(this.wave.distanceOf('conn:hero', 96), this.motionMode)
+            : null)
+          .rotate({
+            angle: this.entered ? 0 : Motion.ICON_FLY_ROTATE_START,
+            centerX: '50%',
+            centerY: '50%'
+          })
+          .animation(this.entered
+            ? Motion.iconFlyTransformAnimByDist(this.wave.distanceOf('conn:hero', 96), this.motionMode)
+            : null)
         Column({ space: 3 }) {
           Text('方式一：扫一扫二维码')
             .fontSize(Tokens.fsTitle)
@@ -565,18 +595,30 @@ export struct PairPage {
   @Builder
   tokenConnectCard() {
     Column({ space: 12 }) {
-      Column({ space: 3 }) {
-        Text('方式二：粘贴连接令牌')
-          .fontSize(Tokens.fsBodyLg)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(Tokens.fg)
-        Text('不方便扫码时，粘贴电脑端或已连接手机复制的「连接令牌」，同样支持局域网与外网自动连上')
-          .fontSize(Tokens.fsFoot)
-          .fontColor(Tokens.dim2)
-          .lineHeight(18)
+      Row({ space: 12 }) {
+        CardIcon({
+          symbol: $r('sys.symbol.key_shield'),
+          tone: 'amber',
+          badgeSize: 42,
+          glyphSize: 21,
+          entered: this.entered,
+          distanceVp: this.wave.distanceOf('conn:mode', 280)
+        })
+        Column({ space: 3 }) {
+          Text('方式二：粘贴连接令牌')
+            .fontSize(Tokens.fsBodyLg)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(Tokens.fg)
+          Text('不方便扫码时，粘贴电脑端或已连接手机复制的「连接令牌」，同样支持局域网与外网自动连上')
+            .fontSize(Tokens.fsFoot)
+            .fontColor(Tokens.dim2)
+            .lineHeight(18)
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
       }
       .width('100%')
-      .alignItems(HorizontalAlign.Start)
+      .alignItems(VerticalAlign.Center)
 
       TextInput({ text: this.inviteText, placeholder: '粘贴 dshmobile://... 连接令牌' })
         .fontSize(Tokens.fsBody)

@@ -1,6 +1,7 @@
 import preferences from '@ohos.data.preferences';
 import { AppCtx } from '../common/AppCtx';
 import { AppIcon, ICON_DARK, ICON_LIGHT, IconSwitchResult } from '../common/AppIcon';
+import { CardIcon } from '../common/CardIcon';
 import { Haptics } from '../common/Haptics';
 import { Mat } from '../common/Mat';
 import { BloomWaveTracker, Motion, MOTION_CLASSIC, MOTION_VIVID } from '../common/Motion';
@@ -206,6 +207,14 @@ export struct AppearancePanel {
       Column({ space: 9 }) {
         // 0. 主题
         Row() {
+          CardIcon({
+            symbol: $r('sys.symbol.moon'),
+            tone: 'violet',
+            entered: this.entered,
+            distanceVp: this.wave.distanceOf('card:theme', 52)
+          })
+          .margin({ right: 12 })
+
           Text('主题')
             .fontSize(Tokens.fsBodyLg)
             .fontColor(Tokens.fg)
@@ -248,6 +257,14 @@ export struct AppearancePanel {
 
         // 1. 沉浸光感
         Row() {
+          CardIcon({
+            symbol: $r('sys.symbol.sun_max'),
+            tone: 'amber',
+            entered: this.entered,
+            distanceVp: this.wave.distanceOf('card:hds', 124)
+          })
+          .margin({ right: 12 })
+
           Column() {
             this.labelWithHint(
               '沉浸光感',
@@ -299,6 +316,14 @@ export struct AppearancePanel {
 
         // 2. 交互动效
         Row() {
+          CardIcon({
+            symbol: $r('sys.symbol.wand_and_stars'),
+            tone: 'blue',
+            entered: this.entered,
+            distanceVp: this.wave.distanceOf('card:motion', 204)
+          })
+          .margin({ right: 12 })
+
           Column() {
             this.labelWithHint(
               '交互动效',
@@ -353,6 +378,14 @@ export struct AppearancePanel {
         // 3. 应用图标（语义整体单卡）
         Column({ space: 10 }) {
           Row() {
+            CardIcon({
+              symbol: $r('sys.symbol.square_grid_2x2'),
+              tone: 'green',
+              entered: this.entered,
+              distanceVp: this.wave.distanceOf('card:icon', 310)
+            })
+            .margin({ right: 12 })
+
             Column() {
               this.labelWithHint(
                 '应用图标',
@@ -402,6 +435,14 @@ export struct AppearancePanel {
 
         // 4. 正文字号
         Row() {
+          CardIcon({
+            symbol: $r('sys.symbol.textformat'),
+            tone: 'teal',
+            entered: this.entered,
+            distanceVp: this.wave.distanceOf('card:scale', 438)
+          })
+          .margin({ right: 12 })
+
           Row() {
             this.labelWithHint('正文字号', '只缩放聊天消息正文，界面按钮与标题尺寸保持稳定。')
           }
@@ -454,6 +495,14 @@ export struct AppearancePanel {
       Column({ space: 9 }) {
         // 5. 触感反馈
         Row() {
+          CardIcon({
+            symbol: $r('sys.symbol.hand_tap'),
+            tone: 'amber',
+            entered: this.entered,
+            distanceVp: this.wave.distanceOf('card:haptics', 556)
+          })
+          .margin({ right: 12 })
+
           Row() {
             this.labelWithHint('触感反馈', '按场景区分轻触、开关、成功、警告与错误等细腻震动纹理。')
           }
@@ -499,6 +548,14 @@ export struct AppearancePanel {
 
         // 6. 回车发送
         Row() {
+          CardIcon({
+            symbol: $r('sys.symbol.paperplane'),
+            tone: 'blue',
+            entered: this.entered,
+            distanceVp: this.wave.distanceOf('card:enter', 624)
+          })
+          .margin({ right: 12 })
+
           Row() {
             this.labelWithHint('回车发送', '按键盘回车键直接发送消息；关闭后回车换行，需点发送按钮。')
           }
@@ -546,6 +603,11 @@ export struct AppearancePanel {
             title: '会话精简加载',
             hint: '默认折叠长工具输出以加快大历史加载，重进会话生效',
             value: this.compactHistory,
+            showIcon: true,
+            iconSymbol: $r('sys.symbol.list_bullet'),
+            iconTone: 'green',
+            entered: this.entered,
+            distanceVp: this.wave.distanceOf('card:compact', 700),
             onChanged: (v: boolean) => {
               if (v !== this.compactHistory) {
                 this.onCompactHistory(v);

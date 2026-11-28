@@ -3,6 +3,7 @@ import { Want } from '@kit.AbilityKit';
 import { Api } from '../common/Api';
 import { PushStatusResp, PushTestResp } from '../common/ApiTypes';
 import { AppCtx } from '../common/AppCtx';
+import { CardIcon } from '../common/CardIcon';
 import { Haptics } from '../common/Haptics';
 import { Mat } from '../common/Mat';
 import { BloomWaveTracker, Motion, MOTION_VIVID } from '../common/Motion';
@@ -279,7 +280,16 @@ export struct NotifyPanel {
     Column() {
       // 0. 顶部系统权限状态卡
       Column() {
-        Row({ space: 10 }) {
+        Row({ space: 12 }) {
+          CardIcon({
+            symbol: $r('sys.symbol.bell_fill'),
+            tone: this.allowed ? 'green' : 'amber',
+            badgeSize: 36,
+            glyphSize: 18,
+            entered: this.entered,
+            distanceVp: this.wave.distanceOf('notify:perm', 0)
+          })
+
           Column({ space: 3 }) {
             Row({ space: 8 }) {
               Text('系统通知权限')
@@ -373,6 +383,11 @@ export struct NotifyPanel {
             title: '回合结束提醒',
             hint: '一轮回答完成或有提问待确认时发送本地通知',
             value: this.done,
+            showIcon: true,
+            iconSymbol: $r('sys.symbol.bell'),
+            iconTone: 'blue',
+            entered: this.entered,
+            distanceVp: this.wave.distanceOf('notify:done', 148),
             onChanged: (v: boolean) => {
               this.onDone(v);
             }
@@ -409,6 +424,11 @@ export struct NotifyPanel {
             hint: this.done ? '开启时前台查看其他页面或会话不弹本地横幅，退后台后由系统推送接管' : '需先开启上方的「回合结束提醒」',
             value: this.bgOnly,
             switchEnabled: this.done,
+            showIcon: true,
+            iconSymbol: $r('sys.symbol.bell_slash'),
+            iconTone: 'violet',
+            entered: this.entered,
+            distanceVp: this.wave.distanceOf('notify:bgOnly', 228),
             onChanged: (v: boolean) => {
               this.onBgOnly(v);
             }
@@ -445,6 +465,11 @@ export struct NotifyPanel {
             hint: this.done ? '关闭后后台系统推送仅提示通用消息，不经云端中继发送会话标题' : '需先开启上方的「回合结束提醒」',
             value: this.showTitle,
             switchEnabled: this.done,
+            showIcon: true,
+            iconSymbol: $r('sys.symbol.eye'),
+            iconTone: 'amber',
+            entered: this.entered,
+            distanceVp: this.wave.distanceOf('notify:showTitle', 308),
             onChanged: (v: boolean) => {
               this.onShowTitle(v);
             }
@@ -501,7 +526,13 @@ export struct NotifyPanel {
 
       // 4. 华为系统推送通道（多行状态与操作复合卡）
       Column({ space: 10 }) {
-        Row({ space: 8 }) {
+        Row({ space: 10 }) {
+          CardIcon({
+            symbol: $r('sys.symbol.cloud'),
+            tone: this.pushBadgeReady() ? 'green' : 'blue',
+            entered: this.entered,
+            distanceVp: this.wave.distanceOf('notify:push', 480)
+          })
           Text('华为系统推送通道')
             .fontSize(Tokens.fsBodyLg)
             .fontWeight(FontWeight.Medium)
@@ -620,6 +651,14 @@ export struct NotifyPanel {
       Column({ space: 9 }) {
         // 5. 测试本地通知
         Row() {
+          CardIcon({
+            symbol: $r('sys.symbol.paperplane'),
+            tone: 'teal',
+            entered: this.entered,
+            distanceVp: this.wave.distanceOf('notify:test', 652)
+          })
+          .margin({ right: 12 })
+
           Column({ space: 2 }) {
             Text('测试本地通知')
               .fontSize(Tokens.fsBodyLg)
@@ -673,6 +712,14 @@ export struct NotifyPanel {
 
         // 6. 清除未读与桌面角标
         Row() {
+          CardIcon({
+            symbol: $r('sys.symbol.xmark_circle'),
+            tone: 'danger',
+            entered: this.entered,
+            distanceVp: this.wave.distanceOf('notify:unread', 730)
+          })
+          .margin({ right: 12 })
+
           Column() {
             Row() {
               Text('清除未读与桌面角标')

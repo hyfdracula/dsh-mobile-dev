@@ -4,6 +4,7 @@ import { HdsNavDestination, HdsNavigationTitleBarOptions } from '@kit.UIDesignKi
 import { Api, ApiInfo, SessionRow } from '../common/Api';
 import { AppCtx } from '../common/AppCtx';
 import { AppIcon, ICON_DARK } from '../common/AppIcon';
+import { CardIcon } from '../common/CardIcon';
 import { PageHeader, TopFade, buildTransparentHdsTitle } from '../common/Chrome';
 import { Haptics } from '../common/Haptics';
 import { LegalDocKind } from '../common/LegalDocs';
@@ -20,6 +21,7 @@ import { AboutPanel, AboutRow } from './AboutPanel';
 import { AgentEnginesPanel } from './AgentEnginesPanel';
 import { AgentPanel } from './AgentPanel';
 import { AppearancePanel } from './AppearancePanel';
+import { ConnectAddressPanel } from './ConnectForm';
 import { ConnectPanel } from './ConnectPanel';
 import { DataStoragePanel } from './DataStoragePanel';
 import { ExtrasPanel } from './ExtrasPanel';
@@ -566,12 +568,22 @@ export struct SettingsPage {
 
   private subTitleOf(name: string): string {
     if (name === 'connect') return '连接与设备';
+    if (name === 'connect_address') return '连接地址与外网';
     if (name === 'agents') return 'Agent 引擎与控制台';
     if (name === 'agent_engines') return '电脑端智能体引擎';
     if (name === 'appearance') return '外观与交互';
     if (name === 'notify') return '通知';
     if (name === 'data') return '数据与存储';
     return '关于与协议';
+  }
+
+  private navIconTone(id: string): string {
+    if (id === 'connect') return 'blue';
+    if (id === 'agents') return 'violet';
+    if (id === 'appearance') return 'amber';
+    if (id === 'notify') return 'green';
+    if (id === 'data') return 'teal';
+    return 'neutral';
   }
 
   private navIconRes(id: string): Resource {
@@ -640,10 +652,16 @@ export struct SettingsPage {
   @Builder
   navRowCard(r: NavRow, fallbackDistVp: number) {
     Row() {
-      Stack({ alignContent: Alignment.Center }) {
-        Image(this.navIconRes(r.id)).width(18).height(18).fillColor(Tokens.navIconInk).objectFit(ImageFit.Contain)
-      }
-      .width(34).height(34).borderRadius(Tokens.rSm).backgroundColor(Tokens.navIconBg)
+      CardIcon({
+        imageRes: this.navIconRes(r.id),
+        useImage: true,
+        tone: this.navIconTone(r.id),
+        badgeSize: 34,
+        glyphSize: 18,
+        entered: this.rootEntered,
+        distanceVp: this.rootWave.distanceOf('row:' + r.id, fallbackDistVp),
+        baseDelay: 12
+      })
 
       Column() {
         Text(r.name).fontSize(Tokens.fsBodyLg).fontColor(Tokens.fg).maxLines(1)
@@ -714,6 +732,35 @@ export struct SettingsPage {
         .height(46)
         .borderRadius(Tokens.rMd)
         .border({ width: 0.5, color: Tokens.line })
+        .animation(null)
+        .opacity(this.rootEntered ? 1 : 0)
+        .animation(this.rootEntered
+          ? Motion.iconFlyOpacityAnimByDist(this.rootWave.distanceOf('banner', 0), this.motionMode, 12)
+          : null)
+        .translate({
+          x: this.rootEntered ? 0 : Motion.ICON_FLY_OFFSET_X,
+          y: this.rootEntered ? 0 : Motion.ICON_FLY_OFFSET_Y
+        })
+        .animation(this.rootEntered
+          ? Motion.iconFlyTransformAnimByDist(this.rootWave.distanceOf('banner', 0), this.motionMode, 12)
+          : null)
+        .scale({
+          x: this.rootEntered ? 1 : Motion.ICON_FLY_SCALE_START,
+          y: this.rootEntered ? 1 : Motion.ICON_FLY_SCALE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .animation(this.rootEntered
+          ? Motion.iconFlyTransformAnimByDist(this.rootWave.distanceOf('banner', 0), this.motionMode, 12)
+          : null)
+        .rotate({
+          angle: this.rootEntered ? 0 : Motion.ICON_FLY_ROTATE_START,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .animation(this.rootEntered
+          ? Motion.iconFlyTransformAnimByDist(this.rootWave.distanceOf('banner', 0), this.motionMode, 12)
+          : null)
       Column() {
         Row({ space: 6 }) {
           Text(this.machineName !== '' ? this.machineName : (this.info !== null ? this.info.host : '电脑连接'))
@@ -902,6 +949,11 @@ export struct SettingsPage {
         onOpenGuide: (kind: string): void => {
           this.openReadingSheet(kind === 'ai' ? 'guide:ai' : 'guide:tunnel');
         },
+        onOpenConnectForm: (): void => {
+          LinkLog.record('NAV', 'open connect_address');
+          this.subStack.pushPathByName('connect_address', null);
+          this.syncSubFromStack();
+        },
         onReconnect: (): void => { void this.reconnectHost(); },
         onRemoveCurrent: (): void => {
           Haptics.warn();
@@ -915,6 +967,24 @@ export struct SettingsPage {
             },
             true
           );
+        }
+      })
+    } else if (name === 'connect_address') {
+      ConnectAddressPanel({
+        base: $editBase,
+        token: $editToken,
+        saved: this.saved,
+        errMsg: this.saveErr,
+        saving: this.saving,
+        stageIdx: this.saveStage,
+        stageDetail: this.saveDetail,
+        elapsedSec: this.saveElapsed,
+        onSave: (): void => { void this.doSave(); },
+        onRePair: (): void => {
+          this.pairEntry = 'scan';
+          LinkLog.record('NAV', 'open pair_connect (from connect_address)');
+          this.subStack.pushPathByName('pair_connect', null);
+          this.syncSubFromStack();
         }
       })
     } else if (name === 'agents') {
@@ -1018,7 +1088,7 @@ export struct SettingsPage {
         title: this.subTitleOf(name),
         padTop: true,
         immersive: true,
-        subPageDepth: name === 'engines' ? 2 : 1,
+        subPageDepth: (name === 'agent_engines' || name === 'connect_address') ? 2 : 1,
         rightKind: name === 'connect' ? 'icon' : 'none',
         rightIcon: $r('app.media.ic_scan'),
         onBack: () => { this.closeSub(); },

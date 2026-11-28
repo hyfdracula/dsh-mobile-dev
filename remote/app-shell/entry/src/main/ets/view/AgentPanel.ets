@@ -1,4 +1,5 @@
 import { Api, BackendInfo } from '../common/Api';
+import { CardIcon } from '../common/CardIcon';
 import { Haptics } from '../common/Haptics';
 import { Mat } from '../common/Mat';
 import { BloomWaveTracker, Motion, MOTION_VIVID } from '../common/Motion';
@@ -99,8 +100,17 @@ export struct AgentPanel {
   }
 
   @Builder
-  entryCard(title: string, subtitle: string, waveKey: string, fallbackDistVp: number, onTap: () => void) {
+  entryCard(title: string, subtitle: string, waveKey: string, fallbackDistVp: number,
+    iconSymbol: Resource, iconTone: string, onTap: () => void) {
     Row() {
+      CardIcon({
+        symbol: iconSymbol,
+        tone: iconTone,
+        entered: this.entered,
+        distanceVp: this.wave.distanceOf(waveKey, fallbackDistVp)
+      })
+      .margin({ right: 12 })
+
       Column() {
         Text(title)
           .fontSize(Tokens.fsBodyLg)
@@ -196,9 +206,10 @@ export struct AgentPanel {
         ? Motion.bloomHeaderScaleAnimByDist(this.wave.distanceOf('hdr:0', 0), this.motionMode)
         : null)
 
-      this.entryCard('电脑端智能体引擎', this.enginesSummary(), 'c:engines', 46, () => {
-        this.onOpenEngines();
-      })
+      this.entryCard('电脑端智能体引擎', this.enginesSummary(), 'c:engines', 46,
+        $r('sys.symbol.gearshape'), 'blue', () => {
+          this.onOpenEngines();
+        })
 
       // 2. 协作与提问策略
       Text('交互决策')
@@ -225,6 +236,14 @@ export struct AgentPanel {
           : null)
 
       Row() {
+        CardIcon({
+          symbol: $r('sys.symbol.message_on_message'),
+          tone: 'green',
+          entered: this.entered,
+          distanceVp: this.wave.distanceOf('c:answer', 152)
+        })
+        .margin({ right: 12 })
+
         Row() {
           Text('谁来回答提问')
             .fontSize(Tokens.fsBodyLg)
@@ -309,18 +328,22 @@ export struct AgentPanel {
         : null)
 
       Column({ space: 9 }) {
-        this.entryCard('智能体预设与权限', '查看和调整默认模型、系统预设与执行权限', 'c:presets', 264, () => {
-          this.onOpenPresets();
-        })
-        this.entryCard('插件管理', '查看、启停与配置电脑端已安装扩展插件', 'c:plugins', 338, () => {
-          this.onOpenExtras('plugins');
-        })
-        this.entryCard('自动化任务', '管理电脑端定时任务与后台计划', 'c:sched', 412, () => {
-          this.onOpenExtras('schedules');
-        })
-        this.entryCard('电脑完整网页控制台', '免密打开电脑端完整面板，处理高级设置', 'c:console', 486, () => {
-          this.onOpenWebConsole();
-        })
+        this.entryCard('智能体预设与权限', '查看和调整默认模型、系统预设与执行权限', 'c:presets', 264,
+          $r('sys.symbol.slider_vertical_3'), 'violet', () => {
+            this.onOpenPresets();
+          })
+        this.entryCard('插件管理', '查看、启停与配置电脑端已安装扩展插件', 'c:plugins', 338,
+          $r('sys.symbol.square_grid_2x2'), 'amber', () => {
+            this.onOpenExtras('plugins');
+          })
+        this.entryCard('自动化任务', '管理电脑端定时任务与后台计划', 'c:sched', 412,
+          $r('sys.symbol.clock'), 'teal', () => {
+            this.onOpenExtras('schedules');
+          })
+        this.entryCard('电脑完整网页控制台', '免密打开电脑端完整面板，处理高级设置', 'c:console', 486,
+          $r('sys.symbol.display'), 'blue', () => {
+            this.onOpenWebConsole();
+          })
       }
       .width('100%')
     }

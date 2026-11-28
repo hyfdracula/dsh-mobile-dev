@@ -1,3 +1,4 @@
+import { CardIcon } from '../common/CardIcon';
 import { copyText } from '../common/Clipboard';
 import { Haptics } from '../common/Haptics';
 import { Mat } from '../common/Mat';
@@ -112,6 +113,14 @@ export struct DeviceCard {
         this.devRowCard('会话', this.sessions >= 0 ? (String(this.sessions) + ' 个') : '-', false, false, 'dev:sess', (this.startIdx + 4) * 78)
 
         Row() {
+          CardIcon({
+            symbol: $r('sys.symbol.arrow_clockwise'),
+            tone: 'blue',
+            entered: this.entered,
+            distanceVp: this.wave.distanceOf('dev:reconn', (this.startIdx + 5) * 78)
+          })
+          .margin({ right: 12 })
+
           Text('重新连接')
             .fontSize(Tokens.fsBodyLg)
             .fontColor(Tokens.accent)
@@ -158,6 +167,14 @@ export struct DeviceCard {
         })
 
         Row() {
+          CardIcon({
+            symbol: $r('sys.symbol.trash'),
+            tone: 'danger',
+            entered: this.entered,
+            distanceVp: this.wave.distanceOf('dev:remove', (this.startIdx + 6) * 78)
+          })
+          .margin({ right: 12 })
+
           Text('移除此电脑')
             .fontSize(Tokens.fsBodyLg)
             .fontColor(Tokens.err)
